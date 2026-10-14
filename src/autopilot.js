@@ -57,6 +57,7 @@ export function grazeDirection(bot){
 }
 // M5 (iron): [item, ingots, sticks] crafted first, in this order; then the rest of the kit.
 const IRON_CORE=[['iron_pickaxe',3,2],['iron_sword',2,1],['shield',1,0]];
+const STONE_KIT=[['stone_pickaxe',3],['stone_sword',2],['stone_axe',3],['stone_shovel',1]];
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
 // radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
@@ -144,6 +145,13 @@ export const STEPS=[
   }
   const plank=((ctx.heldLog||'oak_log').replace('_log','_planks'));
   if(ctx.planksTotal<8&&ctx.logsTotal>=2)return {type:'craft',item:plank,count:8};
+  // Each piece is crafted as soon as its cobble is held, in kit order (pickaxe, then the
+  // sword - COMBAT_SPEC 7f - axe, shovel, furnace). Round 3 hard1/hard2 held dig-down cobble
+  // at 150 s and 241 s but never a stone pickaxe: the 32-cobble gather had to finish first,
+  // and on the hard anchor it failed short every time, so the ladder looped on the gather.
+  const piece=STONE_KIT.find(([item])=>c(item)<1);
+  if(piece&&c('cobblestone')>=piece[1])return {type:'craft',item:piece[0],count:1,keepTable:true};
+  if(!piece&&!(c('furnace')>=1||ctx?.worldFurnace)&&c('cobblestone')>=8)return {type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true};
   if(c('cobblestone')<32)return {type:'gather',block:'stone',count:32-c('cobblestone'),radius:32,searchIfMissing:true};
   if(c('stone_pickaxe')<1)return {type:'craft',item:'stone_pickaxe',count:1,keepTable:true};
   // COMBAT_SPEC 7f: the stone sword comes right after the stone pickaxe.

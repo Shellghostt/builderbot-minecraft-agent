@@ -4,6 +4,8 @@ import {Vec3} from 'vec3';
 import {Worker,GATHER_RESCAN_MS} from '../src/worker.js';
 import {Blacklist} from '../src/trackers/blacklist.js';
 import {isExposed,pickStairDir,stonePlan,stoneBeside} from '../src/digDown.js';
+import {plan} from '../src/autopilot.js';
+import {placementCells} from '../src/place-support.js';
 // Hard-run stone step (soak 2026-10-14, dark-oak canopy on a dirt hill): findBlocks saw only
 // stone BURIED under the dirt, every walk failed with "Cannot reach or harvest", and the bot
 // skipped dozens of blocks a second with 0-22 cobble. Mine exposed stone near the bot, else
@@ -152,4 +154,40 @@ test('a natural-only tunnel step refuses a built block and a missing floor',asyn
  await assert.rejects(Worker.prototype.digTunnelStep.call(fake,{},0,new Vec3(1,129,0),true,natural),/no floor/);
  w.set(1,128,0,'dirt');
  await Worker.prototype.digTunnelStep.call(fake,{},0,new Vec3(1,129,0),true,natural);
+});
+// ---- round 4: the hard runs held cobble but never a stone pickaxe ----------------------
+// hard1/hard2 (round 3): dig-down cobble at 150 s / 241 s, yet the stone step waited for 32
+// cobble before any craft, and the dig-down gather failed short every time.
+const WOOD_DONE={oak_log:4,oak_planks:8,stick:10,crafting_table:1,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1};
+const step=(extra,ctx={})=>plan({__proto__:null,...WOOD_DONE,...extra},ctx);
+test('stone step: the pickaxe is crafted as soon as 3 cobble are held, then the kit in order',()=>{
+ let {step:s,job}=step({cobblestone:3});
+ assert.equal(s,'stone');assert.deepEqual([job.type,job.item],['craft','stone_pickaxe']);assert.ok(job.keepTable);
+ ({job}=step({cobblestone:2}));
+ assert.deepEqual([job.type,job.block],['gather','stone'],'2 cobble: not enough for the pickaxe');
+ ({job}=step({cobblestone:4,stone_pickaxe:1}));
+ assert.equal(job.item,'stone_sword','the sword right after the pickaxe');
+ ({job}=step({cobblestone:1,stone_pickaxe:1}));
+ assert.equal(job.type,'gather','1 cobble: gather for the sword, never skip ahead to the shovel');
+ ({job}=step({cobblestone:3,stone_pickaxe:1,stone_sword:1}));
+ assert.equal(job.item,'stone_axe');
+ ({job}=step({cobblestone:1,stone_pickaxe:1,stone_sword:1,stone_axe:1}));
+ assert.equal(job.item,'stone_shovel');
+ ({job}=step({cobblestone:8,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1}));
+ assert.deepEqual([job.item,job.collectTable],['furnace',true],'the furnace last, picking the table up');
+ ({job}=step({cobblestone:5,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1}));
+ assert.deepEqual([job.type,job.count],['gather',27],'short of the furnace: gather');
+ ({step:s}=step({cobblestone:5,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1},{worldFurnace:true}));
+ assert.notEqual(s,'stone','a furnace standing near completes the step');
+});
+test('placement never fills the tunnel the bot climbs out through',()=>{
+ const w=hill();
+ // A tunnel cut east from (0,130,0): cells (1,129,0) (2,128,0) with head and corner open.
+ for(const [x,y] of [[1,129],[2,128]])for(const dy of [0,1,2])w.set(x,y+dy,0,'air');
+ const feet={x:2,y:128,z:0};
+ const free=placementCells(w.blockAt,feet,{radius:2});
+ assert.ok(free.some(c=>c.cell.x===1&&c.cell.y===129&&c.cell.z===0),'without the guard the tunnel step is a candidate');
+ const avoid=new Set();for(const [x,y] of [[1,129],[2,128]])for(const dy of [0,1,2])avoid.add(x+','+(y+dy)+',0');
+ const guarded=placementCells(w.blockAt,feet,{radius:2,avoid});
+ assert.ok(!guarded.some(c=>avoid.has(c.cell.x+','+c.cell.y+','+c.cell.z)));
 });

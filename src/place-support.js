@@ -33,12 +33,14 @@ export function hitsBot(botPos,x,y,z,margin=0.05){
  const hw=0.3+margin;
  return x<botPos.x+hw&&x+1>botPos.x-hw&&z<botPos.z+hw&&z+1>botPos.z-hw&&y<botPos.y+1.8+margin&&y+1>botPos.y; // no margin below: the bot stands on blocks
 }
-export function placementCells(blockAt,feet,{radius=3,minY=-1,maxY=1,eye=null,maxReach=null,botPos=null}={}){
+// avoid: 'x,y,z' keys never to fill (the open tunnel the bot climbs back out through).
+export function placementCells(blockAt,feet,{radius=3,minY=-1,maxY=1,eye=null,maxReach=null,botPos=null,avoid=null}={}){
  const measure=!!(eye&&maxReach!=null);
  const out=[];
  for(let dy=minY;dy<=maxY;dy++)for(let dx=-radius;dx<=radius;dx++)for(let dz=-radius;dz<=radius;dz++){
   if(ownCell(feet,dx,dy,dz))continue;
   const x=feet.x+dx,y=feet.y+dy,z=feet.z+dz;
+  if(avoid&&avoid.has(x+','+y+','+z))continue;
   if(hitsBot(botPos,x,y,z))continue;
   if(!placeableInto(blockAt(x,y,z)))continue;
   let support=null;

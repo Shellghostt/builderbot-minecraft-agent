@@ -1867,8 +1867,11 @@ export class Worker extends EventEmitter {
    this.log('place '+name+' failed at '+point.floored()+' (support '+(b.blockAt(new Vec3(support.x,support.y,support.z))?.name||'?')+' face '+JSON.stringify(face)+'); cell is '+(b.blockAt(point)?.name||'missing'));
    return null;
   };
+  // A table or furnace placed in the tunnel (a stone-step craft at the bottom of the dig-down)
+  // would block the climb back out: its feet, head and corner cells stay open.
+  const avoid=new Set();for(const p of (this.strandedTunnel?.points||[]))for(const dy of [0,1,2])avoid.add(p.x+','+(p.y+dy)+','+p.z);
   const plan=()=>placementCells((x,y,z)=>b.blockAt(new Vec3(x,y,z)),b.entity.position.floored(),
-   {eye:b.entity.position.offset(0,1.62,0),maxReach:4.4,botPos:b.entity.position});
+   {eye:b.entity.position.offset(0,1.62,0),maxReach:4.4,botPos:b.entity.position,avoid});
   const attempt=async()=>{
    let cells=plan();
    // In reach first.
@@ -1917,7 +1920,7 @@ export class Worker extends EventEmitter {
    const feet=b.entity.position.floored();
    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[2,0],[-2,0],[0,2],[0,-2]]){
     const point=feet.offset(dx,0,dz),ground=b.blockAt(point.offset(0,-1,0)),above=point.offset(0,1,0);
-    if(point.equals(feet)||point.equals(feet.offset(0,1,0)))continue;
+    if(point.equals(feet)||point.equals(feet.offset(0,1,0))||avoid.has(point.x+','+point.y+','+point.z)||avoid.has(above.x+','+above.y+','+above.z))continue;
     if(hitsBot(b.entity.position,point.x,point.y,point.z)||hitsBot(b.entity.position,above.x,above.y,above.z))continue;
     if(!solidSupport(ground)||!empty(b.blockAt(point))||!empty(b.blockAt(above)))continue;
     if(eyeReach(point)>4.4)continue;
