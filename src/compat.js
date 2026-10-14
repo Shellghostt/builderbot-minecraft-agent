@@ -8,8 +8,8 @@
 // sliding window of PACKET_BUDGET. Over it, packets a later one supersedes (movement, look,
 // input, tick boundaries) and swings are dropped; everything else (digs, uses, attacks,
 // clicks, chat) queues in order and drains as the window frees, at most PACKET_QUEUE deep (a
-// runaway loop loses its newest packets, never memory). keep_alive and teleport_confirm
-// always go out. Swings are also capped at SWING_PER_SECOND on their own.
+// runaway loop loses its newest packets, never memory). keep_alive, teleport_confirm and the
+// tick boundary after a sent movement always go out. Swings are also capped at SWING_PER_SECOND on their own.
 export const PACKET_BUDGET=200,PACKET_QUEUE=256,SWING_PER_SECOND=10;
 const SUPERSEDED=new Set(['position','position_look','look','flying','player_input','tick_end','arm_animation']);
 const ALWAYS=new Set(['keep_alive','teleport_confirm']);
@@ -113,7 +113,9 @@ export function installMovementFix(bot){
   const result=send(name,data);
   if(result===DROPPED){if(name==='position_look'||name==='look')staleLook=true;return undefined;}
   if(name==='position_look'||name==='look'){staleLook=false;if(data)sentRot={yaw:data.yaw,pitch:data.pitch};}
-  if(enabled&&client.state==='play'&&!bot.isSleeping&&movement)send('tick_end',{});
+  // The boundary after a movement that went out is part of that movement (26.3 rejects two
+  // moves in one tick), so it is never dropped; the movement cap above bounds it.
+  if(enabled&&client.state==='play'&&!bot.isSleeping&&movement)out('tick_end',{},Date.now());
   return result;
  };
  function syncLook(){

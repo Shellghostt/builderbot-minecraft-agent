@@ -81,3 +81,13 @@ test('the powder-snow escape digs once, not once per tick',()=>{
  for(let i=0;i<20;i++)task.onTick(bot,{});
  assert.equal(calls.length,1);
 });
+test('a movement that gets through always carries its tick boundary, even at the budget edge',t=>{
+ t.mock.timers.enable({apis:['Date','setInterval'],now:6_000_000});
+ const {b,packets}=compatBot();
+ for(let i=0;i<PACKET_BUDGET-1;i++)b._client.write('use_entity',{target:1,mouse:1,sneaking:false});
+ b._client.write('position',{x:1,y:64,z:2}); // takes the last slot
+ assert.deepEqual(packets.slice(-2).map(p=>p.name),['position','tick_end']);
+ b._client.write('position',{x:1.1,y:64,z:2}); // over budget: dropped, and no orphan boundary
+ assert.equal(packets.at(-1).name,'tick_end');assert.equal(packets.filter(p=>p.name==='position').length,1);
+ b.emit('end');
+});
