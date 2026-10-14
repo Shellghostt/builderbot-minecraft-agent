@@ -233,3 +233,21 @@ No `suffocated in a wall`. No `Autopilot stopped (Stop all)`. No `PACKET_BUDGET`
 - hard3 stood on the anchor backing off wood for about 10 minutes with an empty inventory, then died twice: `shot by Skeleton` at 21:11Z and again at 21:14Z. Between them it was `working: shelter` at 8.3 hp and did not eat. The second shelter was still running at 0.3 hp. The final dashboard read timed out, so the run line records deaths=0 and two errors, and that is why the clean copy was not promoted. The death causes and the samples both have the two shots.
 
 No second soak.
+
+## 2026-10-15 00:42–02:58 IST — dual soak (bot code `b5c7c7b`), written up by Claude
+Cursor launched this soak and ended its turn before it finished, so Claude read the results (`data/soak-results-20261015-025757.json`, `logs/dashboard.log`, `logs/test-server.log`). Model off, 0 invalid attempts; errors: one sample and the final read timed out (the bot timed out at 02:46 server time).
+
+| Run | Wooden pick | Stone pick | Furnace | Iron ore peak | Ingots peak | Iron pick | Cooked | Deaths (soak count) |
+|---|---|---|---|---|---|---|---|---|
+| normal1 | 90 | 331 | 361 | 30 | 1 | **722** | 8 | 0 |
+| normal2 | 90 | 271 | 301 | 30 | 6 | **662** | 8 | 0 |
+| normal3 | 90 | 301 | 331 | 27 | 1 | **782** | 10 | 0 |
+| hard1 | 240 | 541 | - | 0 | 0 | - | 0 | 1 |
+| hard2 | 90 | 631 | - | 0 | 0 | - | 0 | 0 |
+| hard3 | (sampling timed out) | - | - | 0 | 0 | - | - | 0 |
+
+- **Iron pickaxe 3/3 normal runs (11-13 min).** Smelting now returns ingots to the inventory (`Smelt ended early: took 18 iron_ingot ...`, `took 17 ...`).
+- Round-4 targets: **no suffocation, no `Autopilot stopped (Stop all)`, no `PACKET_BUDGET` line and no packet kick** in this soak. The only earlier kick (23:28 server time) was round 3.
+- Hard: stone pickaxe in hard1/hard2 (541 s, 631 s; `achieved` also shows one for hard3), **no furnace in any hard run**.
+- **Deaths at night in the dark forest** (server log): shot by Skeleton 02:06 (145,127,34, during `shelter`), 02:41 (130,125,24, during gather after a flee), 02:44 (104,141,-39, during `shelter`), **drowned** 02:46, then the bot timed out. The soak counter recorded only 1. The dashboard shows `Reflex: fleeing` dozens of hostiles at once and `Pause trace: shelter -> Reflex: preempted by Mob Defense` - Mob Defense pulled the bot out of its shelter job, then it was shot.
+- Lane creeper test still "repelled" with no combat (known gap).
