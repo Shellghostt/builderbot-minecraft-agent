@@ -619,7 +619,13 @@ def apply_rules(mode):
     else:
         command('gamerule spawn_monsters true')
         if not verify_rule('spawn_monsters',True):ok=False;print('RULE NOT CONFIRMED: spawn_monsters',flush=True)
-        command('time set 1000');command('weather clear 1200000000')
+        # Normal runs freeze the clock. This branch is the hard/dawn call, and it used to
+        # leave advance_time false, so a 1250s hard run stayed at daytime and never
+        # submitted a [night] job (soak 2026-10-14, tod_end day on all three hard runs).
+        for name,value in (('advance_time',True),('advance_weather',True)):
+            command('gamerule '+name+' '+str(value).lower())
+            if not verify_rule(name,value):ok=False;print('RULE NOT CONFIRMED: '+name,flush=True)
+        command('time set 1000');command('weather clear')
     return ok
 def restore_rules():
     for name,value in (('advance_time',True),('advance_weather',True),('spawn_mobs',True),('spawn_monsters',True)):

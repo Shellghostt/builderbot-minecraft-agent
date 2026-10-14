@@ -28,9 +28,10 @@ test('an ore gather scans both stone and deepslate variants (same drop)',async()
  await assert.rejects(Worker.prototype.gather.call(t.w,t.job,0),e=>e===STOP);
  assert.equal(t.seen[0],1,'non-ore blocks are unchanged');
 });
-function smeltFake({worldFurnace}){
+function smeltFake({worldFurnace,pickaxe=true}){
  const calls=[];
  const inv={raw_iron:6,coal:1,iron_ingot:0,furnace:worldFurnace?0:1};
+ if(pickaxe)inv.stone_pickaxe=1;
  const furnaceAt=new Vec3(2,64,0);
  const w={
   bot:{
@@ -65,6 +66,10 @@ test('a smelt job picks up the furnace it placed, and leaves a world furnace sta
  t=smeltFake({worldFurnace:true});
  await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:6}},0);
  assert.equal(t.calls.filter(c=>c[0]==='pickUp').length,0,'a furnace it did not place is not taken');
+ t=smeltFake({worldFurnace:false,pickaxe:false});
+ await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:6}},0);
+ assert.equal(t.calls.filter(c=>c[0]==='pickUp').length,0,'a bare hand leaves the placed furnace in the world');
+ assert.equal(t.inv.furnace,0);
 });
 test('pickUp equips the right tool before breaking (a furnace drops nothing to a bare hand)',async()=>{
  const order=[];let held=0;

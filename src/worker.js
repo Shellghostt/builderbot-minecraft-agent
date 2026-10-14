@@ -1290,7 +1290,19 @@ export class Worker extends EventEmitter {
      if(d+penalty<bestDist){bestDist=d+penalty;bestCol=col;}
     }
     if(!bestCol){
-     if(job.badColumns.length)throw Error('Cannot gather safely: nearby trunks could not be reached');
+     if(job.badColumns.length){
+      // Every column in range was refused. An ore job that still has a depth to reach
+      // goes down anyway: one undiggable surface match must not skip the staircase.
+      // Iron (soak normal2, 2026-10-14 10:53Z) died on an empty column and explored
+      // at y=159 instead of digging to targetY.
+      if(s.targetY!=null&&UNDERGROUND.test(s.block)&&b.entity.position.y>s.targetY&&job.descents<3){
+       job.descents++;
+       this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${s.targetY}`);
+       await this.staircase(job,token,s.targetY);
+       job.anchor=b.entity.position.floored();this.save();continue;
+      }
+      throw Error('Cannot gather safely: nearby trunks could not be reached');
+     }
      // belowFoots hides trunks above feet+3. After a drop into a ravine every log is
      // "above", and reporting an empty floor made the wood step dig in the hole (soak
      // normal1: bot at y=108, logs still at y=131, 0 collected).
@@ -1308,6 +1320,14 @@ export class Worker extends EventEmitter {
     // Top-down within the trunk: the highest reachable log first, then descend.
     bestCol.sort((a,b)=>b.position.y-a.position.y);
     const diggable=bestCol.filter(t=>!t.position.equals(underBot)||naturalUnder(t));
+    if(!diggable.length){
+     // Indexing an empty list is undefined, and the catch below then crashes on
+     // target.name (iron gather, 2026-10-14 10:53:51Z, three times in 8s).
+     const ck=bestCol[0].position.x+','+bestCol[0].position.z;
+     if(!job.badColumns.includes(ck))job.badColumns.push(ck);
+     this.log('Gather: column '+ck+' has nothing that can be dug without taking the floor');
+     continue;
+    }
     const target=diggable[failures%diggable.length];
     try{
      if(target.position.equals(b.entity.position.floored().offset(0,-1,0))){
@@ -1351,7 +1371,7 @@ export class Worker extends EventEmitter {
        if(nowUnder&&/_log$/.test(nowUnder.name)&&count_()-job.startDrop<s.count)await this.mineColumnUnder(token);
       }
       failures=0;
-     }catch(e){this.check(token);failures++;this.log('Gather: attempt '+failures+' on '+target.name+' at '+target.position.floored()+' failed: '+e.message);if(failures>=3){const ck=target.position.x+','+target.position.z;if(!job.badColumns.includes(ck))job.badColumns.push(ck);failures=0;if(job.badColumns.length>=8)throw Error('Cannot gather safely: '+e.message);}}
+     }catch(e){this.check(token);failures++;const where=target?target.name+' at '+target.position.floored():'an empty column';this.log('Gather: attempt '+failures+' on '+where+' failed: '+e.message);if(failures>=3&&target){const ck=target.position.x+','+target.position.z;if(!job.badColumns.includes(ck))job.badColumns.push(ck);failures=0;if(job.badColumns.length>=8)throw Error('Cannot gather safely: '+e.message);}}
     this.update(job,Math.max(0,count_()-job.startDrop),`Collected ${Math.max(0,count_()-job.startDrop)}/${s.count} ${job.dropName}`);
    }
    await this.sweepDrops(token);
