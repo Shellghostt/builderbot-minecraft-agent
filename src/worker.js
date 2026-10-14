@@ -24,6 +24,8 @@ import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS}
 import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
+import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost} from './night.js';
+import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const pos=p=>new Vec3(p.x,p.y,p.z);
@@ -72,6 +74,12 @@ const NEUTRAL=new Set(['enderman','zombified_piglin','piglin','spider']);
 const canSeeTarget=(b,e)=>{
  try{const from=b.entity.position.offset(0,1.62,0),to=e.position.offset(0,1,0);const dir=to.minus(from),range=dir.norm();if(range<0.5)return true;return !b.world.raycast(from,dir.scaled(1/range),range);}catch{return true;}
 };
+// Jobs that answer a survival need themselves: the survival chains stand down for them, and
+// the pump runs a queued one before any other queued job (a reflex-paused day job resumed
+// at night sat ahead of the night shelter in the array and ran first - round 4).
+export const SURVIVAL_JOBS=new Set(['sleep','eat','shelter']);
+const WORLD_CHAIN='Misc World Survival Chain';
+const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message));
 export class Worker extends EventEmitter {
  constructor(root,config){
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
@@ -100,11 +108,15 @@ export class Worker extends EventEmitter {
     // The old reflex courtesy rule: never interrupt (or race) jobs that already handle the
     // same survival need - sleep/eat/shelter. Queued counts, and so does a preemption-paused
     // one: the chain must stand down so the paused job gets its turn (otherwise the chain
-    // holds the night and the job never resumes).
-    const active=self.jobs.find(j=>
-     ['running','queued'].includes(j.status)
-     ||(j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message))&&['sleep','eat','shelter'].includes((j.spec||{}).type)));
-    if(active&&['sleep','eat','shelter'].includes(active.spec.type)&&chain.name!=='User Tasks'){wasActive=false;return -1;}
+    // holds the night and the job never resumes). World threats (lava, fire, a wall, powder
+    // snow, drowning) still win: a shelter is no place to drown. A sealed shelter lets the
+    // Food chain eat (its eat is a side effect; its collect band stays off) - round 4 hard3
+    // sat in its shelter at 8.3 hp and never ate.
+    const hold=chain.name!=='User Tasks'&&self.survivalHold();
+    if(hold&&chain.name!==WORLD_CHAIN){
+     if(chain.name==='Food'&&hold.sealed)try{chain.priority(bot,ctx);}catch{}
+     wasActive=false;return -1;
+    }
     const p=chain.priority(bot,ctx);
     // Observability contract (the suite and the dashboard watch for 'Reflex:'): log each
     // survival chain engagement, exactly like the retired reflex loop announced itself.
@@ -128,6 +140,15 @@ export class Worker extends EventEmitter {
   // paused the job is gone after a restart): strip the markers so the resume bridge ignores them.
   for(const job of this.jobs)if(job.status==='paused'&&/^(Preempted by|Job interrupted|Reflex:)/.test(String(job.message)))job.message='Paused after restart; resume when ready';
   this.save();
+ }
+ // The survival job the chains must stand down for: the running job when it is one, else
+ // (nothing else running) a queued or reflex-paused one anywhere in the queue. sealed: the
+ // running shelter has closed its box.
+ survivalHold(){
+  const running=this.jobs.find(j=>j.status==='running');
+  if(running)return SURVIVAL_JOBS.has((running.spec||{}).type)?{job:running,sealed:running.spec.type==='shelter'&&!!this.shelterSealed}:null;
+  const waiting=this.jobs.find(j=>SURVIVAL_JOBS.has((j.spec||{}).type)&&(j.status==='queued'||reflexPaused(j)));
+  return waiting?{job:waiting,sealed:false}:null;
  }
  // jobs.json holds the active jobs (running/queued/paused/failed, with the resume state
  // they need) plus the most recent 200 terminal jobs stripped to their skeleton; everything
@@ -256,7 +277,9 @@ export class Worker extends EventEmitter {
  }
  onHealth(bot){if(this.busy&&!this.survivalJob&&(bot.health<this.config.limits.minHealth||bot.food<this.config.limits.minFood))this.stop('Health or food is low','health');}
  disconnect(){this.stop('Disconnected by user','user');this.bot?.quit();this.bot=null;this.ready=false;}
- submit(input){const spec=jobSchema.parse(input);const job={id:crypto.randomUUID(),spec,status:'queued',created:new Date().toISOString(),progress:0,message:'Waiting'};this.jobs.push(job);this.userStopped=false;this.deathResume=false;this.save();this.pump();return job;}
+ // keepHolds: a survival job the autopilot sends while a death holds the ladder (the
+ // respawn-at-night shelter) runs without lifting that hold.
+ submit(input,{keepHolds=false}={}){const spec=jobSchema.parse(input);const job={id:crypto.randomUUID(),spec,status:'queued',created:new Date().toISOString(),progress:0,message:'Waiting'};this.jobs.push(job);if(!keepHolds){this.userStopped=false;this.deathResume=false;}this.save();this.pump();return job;}
  stop(message='Stopped by user',source='user'){
   if(!LADDER_SAFE_STOPS.has(source))this.userStopped=true;
   this.epoch++;
@@ -290,7 +313,7 @@ export class Worker extends EventEmitter {
   // its navigation and cleanups fight the tree for the same controls (the A4 lava lesson:
   // the escape lost its controls to a queued gather's walk and the bot burned).
   if(this.taskRunner&&this.taskRunner.status().task)return;
-  const job=this.jobs.find(j=>j.status==='queued');if(!job)return;
+  const job=this.jobs.find(j=>j.status==='queued'&&SURVIVAL_JOBS.has((j.spec||{}).type))||this.jobs.find(j=>j.status==='queued');if(!job)return;
   this.busy=true;job.status='running';job.message='Working';this.save();const token=this.epoch;
   const minutes=['sleep','shelter'].includes(job.spec.type)?this.config.limits.nightMinutes??13:this.config.limits.jobMinutes;
   this.deadline=Date.now()+minutes*60000;this.survivalJob=['eat','equip','smelt','sleep','shelter','fight'].includes(job.spec.type);
@@ -363,6 +386,17 @@ export class Worker extends EventEmitter {
   if(!movement.blocksToAvoid||typeof movement.blocksToAvoid.add!=='function')return movement;
   for(const name of ['powder_snow','sweet_berry_bush','wither_rose','cactus','magma_block','campfire','soul_campfire','pointed_dripstone']){
    const id=bot.registry.blocksByName[name]?.id;if(id!==undefined)movement.blocksToAvoid.add(id);
+  }
+  // Deep water (no footing): banned after dark, costly by day (night.js deepWaterCost) - the
+  // round-4 night drowned the bot. A bot already in the water must still path out of it.
+  if(Array.isArray(movement.exclusionAreasStep)&&!movement._deepWaterHook){
+   const hook=block=>{
+    if(!block||!block.position||!/water|bubble_column/.test(block.name||''))return 0;
+    const e=bot.entity;
+    if(!e||e.isInWater||/water/.test(bot.blockAt(e.position.offset(0,1.4,0))?.name||''))return 0;
+    return deepWaterCost((x,y,z)=>bot.blockAt(new Vec3(x,y,z)),block.position,darkNow(dayTicks(bot)));
+   };
+   movement._deepWaterHook=hook;movement.exclusionAreasStep.push(hook);
   }
   return movement;
  }
@@ -820,10 +854,21 @@ export class Worker extends EventEmitter {
   if(left.length)throw Error('Fight timed out; '+(left[0].name||'a hostile')+' is still standing');
  }
  async huntSweep(token){try{await this.sweepDrops(token,16);}catch(e){this.check(token);}}
+ // Night shelter (cloud round 5). Starts at sunset (night.js SUNSET), digs dirt when short,
+ // then seals a 3x3x3 box around the bot's 2-high cell: feet ring, head ring, the full roof
+ // and an open floor (night.js shelterShell). Placement runs in passes, so cells anchor on
+ // cells placed earlier; a mob standing in a cell is hit, never built into. Once sealed the
+ // bot never leaves: the survival gate keeps Mob Defense off (world threats still win), the
+ // Food chain may eat, and this loop hits only a mob inside or at a gap, then re-seals.
+ // Round 4: 'Pause trace: shelter -> Reflex: preempted by Mob Defense', then shot twice.
  async shelter(job,token){
   const b=this.bot;
   this.check(token);
-  if((dayTicks(b)??0)<12000)return;
+  if(!darkNow(dayTicks(b))){
+   // Resumed after dawn with a box still standing: take it down (the night was survived).
+   if(job.placed&&job.placed.length)await this.removeShelter(job,token);
+   return;
+  }
   const preference=['cobblestone','dirt','cobbled_deepslate','netherrack'];
   let material=preference.map(n=>b.registry.itemsByName[n]?{name:n,count:this.count(n)}:null).find(m=>m&&m.count>=25);
   if(!material){
@@ -840,39 +885,116 @@ export class Worker extends EventEmitter {
      await b.dig(spot);await sleep(400);await this.sweepDrops(token);
     }catch(e){this.check(token);}
    }
-   material={name:'dirt',count:this.count('dirt')};
   }
-  const origin=b.entity.position.floored(),botCells=[origin,origin.offset(0,1,0)];
-  const shell=[];
-  for(let dy=0;dy<=2;dy++)for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
-   const point=origin.offset(dx,dy,dz);
-   if(!botCells.some(c=>c.equals(point)))shell.push(point);
+  const origin=b.entity.position.floored();
+  const at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  // A world-survival escape (water, fire) may resume the job somewhere else: the old box
+  // stays where it stands and a new one goes up here.
+  if(job.origin&&!origin.equals(pos(job.origin))){
+   this.log('Shelter: moved from '+job.origin.x+','+job.origin.y+','+job.origin.z+' to '+origin+'; building a new box here');
+   job.abandoned=(job.abandoned||[]).concat(job.placed||[]);job.shell=null;job.placed=[];
   }
+  job.origin={x:origin.x,y:origin.y,z:origin.z};
+  const {required,support}=shelterShell(origin);
   // The SHELL is recorded, not just this run's placements: a resumed run skips cells that
   // are already filled (by an interrupted earlier attempt), and the cleanup must dig those too.
   // Only cells that were open on the first attempt belong to it: a hillside's natural blocks
   // are never dug at dawn (the job removes only what it placed).
-  if(!job.shell)job.shell=shell.filter(p=>b.blockAt(p)?.boundingBox!=='block').map(p=>({x:p.x,y:p.y,z:p.z}));
+  if(!job.shell)job.shell=required.concat(support).filter(c=>at(c.x,c.y,c.z)?.boundingBox!=='block');
   if(!job.placed)job.placed=[];
-  for(const point of shell){
-   this.check(token);
-   if(b.blockAt(point)?.boundingBox==='block')continue;
-   let placed=false;
-   for(const direction of [new Vec3(0,-1,0),new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1),new Vec3(0,1,0)]){
-    const neighbor=b.blockAt(point.minus(direction));
-    if(neighbor?.boundingBox!=='block')continue;
-    const item=b.inventory.items().find(i=>i.name===material.name);
-    if(!item)throw Error('Ran out of '+material.name);
-    await b.equip(item,'hand');
-    try{await b.placeBlock(neighbor,direction);await sleep(120);}catch(e){this.check(token);continue;}
-    if(b.blockAt(point)?.boundingBox==='block'){job.placed.push({x:point.x,y:point.y,z:point.z});placed=true;break;}
+  this.update(job,0,'Sealing the shelter at '+origin);
+  await this.sealShelter(job,token,origin);
+  this.save();this.update(job,required.length,'Waiting for morning (sealed)');
+  this.log('Shelter: sealed at '+origin+' ('+job.placed.length+' blocks placed)');
+  this.shelterSealed=true;this.shelterSpot={x:origin.x,y:origin.y,z:origin.z};
+  try{
+   while(darkNow(dayTicks(b))){
+    await sleep(250);this.check(token);
+    await this.guardShelter(job,token,origin);
    }
-   if(!placed)throw Error('Could not place a shelter block at '+point);
+  }finally{this.shelterSealed=false;}
+  this.shelterSpot=null;
+  await this.removeShelter(job,token);
+ }
+ shelterItem(){
+  for(const n of ['cobblestone','dirt','cobbled_deepslate','netherrack']){const i=this.bot.inventory.items().find(x=>x.name===n);if(i)return i;}
+  return null;
+ }
+ // Entities whose box overlaps a cell block a placement there (items and arrows do not).
+ cellOccupant(cell){
+  const b=this.bot;
+  return Object.values(b.entities||{}).find(e=>e&&e!==b.entity&&e.position&&e.isValid!==false&&!/^(item|experience_orb|arrow|spectral_arrow|trident)$/.test(e.name||'')
+   &&Math.abs(e.position.x-(cell.x+0.5))<0.5+(e.width||0.6)/2&&Math.abs(e.position.z-(cell.z+0.5))<0.5+(e.width||0.6)/2
+   &&e.position.y<cell.y+1&&e.position.y+(e.height||1.8)>cell.y)||null;
+ }
+ async sealShelter(job,token,origin){
+  const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  const {required,support}=shelterShell(origin);
+  for(let pass=0;pass<8;pass++){
+   this.check(token);
+   const gaps=shellGaps(at,required);
+   if(!gaps.length)return;
+   let {plan,stuck}=placementPlan(at,gaps);
+   if(!plan.length){
+    // Nothing anchors the rest (a pillar top, a ledge): support under the stuck feet-ring cells.
+    plan=placementPlan(at,support.filter(c=>stuck.some(g=>g.x===c.x&&g.z===c.z&&g.y===c.y+1))).plan;
+    if(!plan.length)break;
+   }
+   for(const {cell} of plan){
+    this.check(token);
+    if(at(cell.x,cell.y,cell.z)?.boundingBox==='block')continue;
+    const occupant=this.cellOccupant(cell);
+    if(occupant){if(occupant.type==='hostile')await this.shelterStrike(occupant,token);continue;}
+    await this.placeShelterBlock(job,cell,token);
+   }
+   if(pass)await sleep(250);
   }
-  this.save();this.update(job,shell.length,'Waiting for morning');
-  while((dayTicks(b)??0)>=12000){await sleep(1000);this.check(token);}
+  const left=shellGaps(at,required);
+  if(left.length)throw Error('Could not seal the shelter: '+left.length+' open cells, first at '+left[0].x+','+left[0].y+','+left[0].z);
+ }
+ async placeShelterBlock(job,cell,token){
+  const b=this.bot,point=new Vec3(cell.x,cell.y,cell.z);
+  for(const direction of [new Vec3(0,-1,0),new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1),new Vec3(0,1,0)]){
+   const neighbor=b.blockAt(point.minus(direction));
+   if(neighbor?.boundingBox!=='block')continue;
+   const item=this.shelterItem();
+   if(!item)throw Error('Ran out of shelter blocks');
+   if(b.heldItem?.name!==item.name)await b.equip(item,'hand');
+   try{await b.placeBlock(neighbor,direction);await sleep(120);}catch(e){this.check(token);continue;}
+   if(b.blockAt(point)?.boundingBox==='block'){job.placed.push({x:cell.x,y:cell.y,z:cell.z});return true;}
+  }
+  return false;
+ }
+ // One swing at a mob inside the box or at a gap: best weapon, full charge, no movement.
+ async shelterStrike(entity,token){
+  const b=this.bot,now=Date.now();
+  const weapon=bestWeapon(b,{allowPickaxe:true});
+  if(now-(this.shelterSwingAt||0)<attackCooldown(weapon&&weapon.name)*1000)return;
+  if(weapon&&b.heldItem?.name!==weapon.name){await b.equip(weapon,'hand');this.check(token);}
+  this.shelterSwingAt=Date.now();
+  try{await b.lookAt(entity.position.offset(0,(entity.height||1.8)*0.8,0),true);}catch{}
+  try{await b.attack(entity);}catch{}
+ }
+ async guardShelter(job,token,origin){
+  const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  const gaps=shellGaps(at,shelterShell(origin).required);
+  const me=b.entity.position;
+  const hostiles=Object.values(b.entities||{}).filter(e=>e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.isValid!==false&&e.position.distanceTo(me)<=6);
+  const target=shelterTarget(hostiles,origin,gaps);
+  if(target){
+   if(Date.now()-(this.shelterGuardLog||0)>5000){this.shelterGuardLog=Date.now();this.log('Shelter: hitting '+target.entity.name+(target.inside?' inside the box':' at a gap'));}
+   await this.shelterStrike(target.entity,token);
+   return;
+  }
+  if(!gaps.length)return;
+  if(Date.now()-(this.shelterGuardLog||0)>5000){this.shelterGuardLog=Date.now();this.log('Shelter: re-sealing '+gaps.length+' open cell(s)');}
+  try{await this.sealShelter(job,token,origin);}catch(e){this.check(token);}
+ }
+ async removeShelter(job,token){
+  const b=this.bot;
   this.update(job,0,'Removing the shelter');
-  const cells=Array.isArray(job.shell)&&job.shell.length?job.shell:job.placed;
+  const seen=new Set(),cells=[];
+  for(const c of [...(Array.isArray(job.shell)?job.shell:[]),...(job.placed||[])]){const k=c.x+','+c.y+','+c.z;if(!seen.has(k)){seen.add(k);cells.push(c);}}
   for(const key of [...cells].reverse()){
    this.check(token);
    const block=b.blockAt(new Vec3(key.x,key.y,key.z));
@@ -883,6 +1005,7 @@ export class Worker extends EventEmitter {
   for(const key of cells){
    if(b.blockAt(new Vec3(key.x,key.y,key.z))?.boundingBox==='block')throw Error('Shelter block remained at '+key.x+','+key.y+','+key.z);
   }
+  job.placed=[];
  }
  // Phase 6b: obtain - plan the full chain with the howto tree, then run it as ordinary
  // verified jobs. The step list and index are persisted, so a restart resumes mid-chain.

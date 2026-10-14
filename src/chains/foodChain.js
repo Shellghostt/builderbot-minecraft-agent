@@ -79,7 +79,14 @@ export class FoodChain extends SingleTaskChain{
   if(this._eating)return;
   this._eating=true;
   (async()=>{
-   try{await bot.equip(food,'hand');await bot.consume();}
+   // mineflayer's equip moves item.slot: the picked {name,fills} has none, so the equip
+   // threw and no chain meal ever happened (round 4: eaten 0 on every run; hard3 sat in its
+   // shelter at 8.3 hp). Equip the real stack.
+   try{
+    const real=inventoryItems(bot).find(i=>i.name===food.name);
+    if(!real)return;
+    await bot.equip(real,'hand');await bot.consume();
+   }
    catch{}
    finally{this._eating=false;}
   })();

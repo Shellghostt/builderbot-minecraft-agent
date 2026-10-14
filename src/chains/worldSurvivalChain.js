@@ -10,7 +10,7 @@ import {SingleTaskChain} from './singleTaskChain.js';
 import {chainConfig,inGame,hasEffect,onFire,TimerGame} from './settings.js';
 // (TimerGame is still used for the lava tail timer below.)
 import {hasItemName} from './combatPolicy.js';
-import {movementTask,EscapeFromLavaTask,EscapeFreezingTask,EscapeSuffocationTask,GetToBlockTask,PutOutFireTask,SafeRandomShimmyTask,ExtinguishWithWaterTask,InteractWithBlockTask} from './fallbackTasks.js';
+import {movementTask,EscapeFromLavaTask,EscapeFreezingTask,EscapeSuffocationTask,GetToBlockTask,PutOutFireTask,SafeRandomShimmyTask,ExtinguishWithWaterTask,InteractWithBlockTask,SwimUpTask} from './fallbackTasks.js';
 import {inLava as blockInLava} from '../tasks/movement/escape-from-lava-task.js';
 export class WorldSurvivalChain extends SingleTaskChain{
  constructor(){
@@ -53,6 +53,16 @@ export class WorldSurvivalChain extends SingleTaskChain{
     return 100;
    }
   }else this._wallSince=null;
+  // Drowning outranks every Mob Defense band (its top is the creeper fuse at 96): round 4
+  // drowned at 02:46 while the flee kept steering a submerged bot (the jump side effect alone
+  // lost to the run-away's sprint-swim). Latched from air <= 6 until the air is back to 18
+  // or the head is out of the water, so the escape is not dropped the tick air ticks up.
+  if(this._drowning){
+   this.root=movementTask(ctx,'GetOutOfWaterTask',()=>new SwimUpTask());
+   if(!this._drownLogged){this._drownLogged=true;const w=ctx&&ctx.worker;if(w&&w.log)try{w.log('WorldSurvival: drowning (air '+airOf(bot)+'), swimming up');}catch{}}
+   return 97;
+  }
+  this._drownLogged=false;
   // Powder snow: get out before the freeze damage starts (normal2 froze to death 2026-10-14).
   if(EscapeFreezingTask.inPowderSnow(bot)){
    if(!this._freezeLogged){this._freezeLogged=true;const w=ctx&&ctx.worker;if(w&&w.log)try{w.log('WorldSurvival: in powder snow (frozen '+EscapeFreezingTask.ticksFrozen(bot)+' ticks), escaping');}catch{}}
@@ -103,8 +113,10 @@ export class WorldSurvivalChain extends SingleTaskChain{
   // (bot.oxygenLevel is the reliable 0-20 field - see worker.js's spawn handler), so also
   // check the block at head height for water.
   const touchingWater=e.isInWater===true||/water/.test((bot.blockAt&&bot.blockAt(e.position.offset(0,1.4,0))||{}).name||'');
-  const air=typeof bot.oxygenLevel==='number'?bot.oxygenLevel:(typeof bot.oxygen==='number'?bot.oxygen:20);
+  const air=airOf(bot);
   const lowAir=air<=6; // surface at the old reflex's threshold: below it the test's <10 floor must be reachable
+  if(touchingWater&&lowAir)this._drowning=true;
+  else if(!touchingWater||air>=18)this._drowning=false;
   if(touchingWater&&lowAir){
    try{bot.setControlState('jump',true);}catch{}
    this._wasAvoidingDrowning=true;
@@ -140,3 +152,4 @@ export class WorldSurvivalChain extends SingleTaskChain{
   return !!b&&b.name==='nether_portal';
  }
 }
+const airOf=bot=>typeof bot.oxygenLevel==='number'?bot.oxygenLevel:(typeof bot.oxygen==='number'?bot.oxygen:20);

@@ -11,7 +11,9 @@
 import {SingleTaskChain} from './singleTaskChain.js';
 import {chainConfig,inGame,onFire} from './settings.js';
 import {getHostiles,nearestDistance,withinRange,distanceTo,armorValue,BURNS_IN_SUNLIGHT,canDealWithCount,evaluateFight,isCornered,canCraftWoodenSword,hasItemName,inventoryItems,nightish} from './combatPolicy.js';
-import {movementTask,RunAwayFromHostilesTask,RunAwayFromCreepersTask,DodgeProjectilesTask,KeepDistanceTask,KillEntitiesTask,CraftWeaponTask,ShelterTask,SleepTask,projectileClose,approachingProjectiles} from './fallbackTasks.js';
+import {movementTask,RunAwayFromHostilesTask,RunAwayFromCreepersTask,DodgeProjectilesTask,KeepDistanceTask,KillEntitiesTask,CraftWeaponTask,ShelterTask,SleepTask,NightPillarTask,pillarBlocks,cellAt,projectileClose,approachingProjectiles} from './fallbackTasks.js';
+import {nightRefuge,pillarRoom} from '../night.js';
+import {dayTicks} from '../daytime.js';
 import {FightTask} from './fightTask.js';
 import {creeperSwell} from '../creeper.js';
 // MobDefenseChain.java constants.
@@ -65,6 +67,10 @@ export class MobDefenseChain extends SingleTaskChain{
   const hostiles=getHostiles(bot,ctx);
   if(hostiles.some(e=>withinRange(e,bot,16)))this._dangerUntil=this.now()+8;
   const policy=evaluateFight(bot,hostiles);
+  // Night refuge (night.js): a perched bot holds its column (a creeper fusing at the base is
+  // exactly what the column answers); a climb still yields to the fuse flee below.
+  const pillar=this._nightPillar(bot,ctx,hostiles,policy);
+  if(pillar&&pillar.phase==='perch'){this.root=pillar;this._runAwayTask=null;return 72;}
   // A swelling creeper (metadata swell_dir === 1) outranks every other flee: sprint past 7,
   // or 14 when powered. Distance alone is not the fuse.
   const swelling=hostiles.filter(e=>e.name==='creeper'&&creeperSwell(e).fusing)
@@ -76,6 +82,13 @@ export class MobDefenseChain extends SingleTaskChain{
    this.root=new RunAwayFromCreepersTask(info.keep);
    this._fleeLog(ctx,'creeper-fuse','Reflex: creeper fuse (swell '+info.swell+(info.powered?', powered':'')+') sprinting past '+info.keep);
    return 96;
+  }
+  // Caught outside after dark in a crowd: up a 3-block column, not a sprint through the pack.
+  if(pillar){
+   this._runAwayTask=null;this._doingFunkyStuff=true;
+   this.root=pillar;
+   this._fleeLog(ctx,'pillar','Reflex: night crowd ('+hostiles.filter(e=>withinRange(e,bot,16)).length+' hostiles); pillaring up instead of fleeing');
+   return 72;
   }
   // Run away from the closest creeper (AltoClef: 50 + fuse*50; mineflayer does not expose
   // the client fuse, so proximity stands in for urgency — 7f says walk away regardless).
@@ -174,6 +187,25 @@ export class MobDefenseChain extends SingleTaskChain{
   // (the chain holds no task, so the runner simply skips it).
   this._fleeTag=null; // idle: the next episode logs again
   return -1;
+ }
+ // The night pillar: keep the running one (a fresh copy after a runner teardown), start one
+ // when nightRefuge says so, and back off 10 s after a failed climb.
+ _nightPillar(bot,ctx,hostiles,policy){
+  let p=this._pillar;
+  if(p&&!p.failed&&!p.isFinished(bot,ctx)){
+   if(p.stopped)p=this._pillar=p.resumeCopy();
+   return p;
+  }
+  if(p&&p.failed)this._pillarRetryAt=this.now()+10;
+  this._pillar=null;
+  if(this.now()<(this._pillarRetryAt||0))return null;
+  const e=bot.entity;
+  const blocks=pillarBlocks(bot);
+  const x=Math.floor(e.position.x),y=Math.floor(e.position.y),z=Math.floor(e.position.z);
+  const plan=nightRefuge({tod:dayTicks(bot),me:e.position,hostiles,blocks:blocks?blocks.total:0,
+   room:blocks?pillarRoom(cellAt(bot),x,y,z,3):0,onGround:e.onGround!==false,inFluid:!!(e.isInWater||e.isInLava),fightAllowed:policy.allowed});
+  if(!plan)return null;
+  return this._pillar=new NightPillarTask(plan.height);
  }
  // The armed response as a FightTask (ActionTask subclass): the TaskRunner is the single
  // owner, the controller only ever sees the ownership-guarded move helper.

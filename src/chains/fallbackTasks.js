@@ -16,6 +16,9 @@ import {yawToward} from '../heading.js';
 import {dist,onFire,inGame} from './settings.js';
 import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
 import {NATURAL_DIG,isGravity} from '../digDown.js';
+import {Vec3} from 'vec3';
+import {fleeHeading,darkNow} from '../night.js';
+import {pickCtx} from '../tasks/movement/move.js';
 
 const setControl=(bot,name,value)=>{try{bot.setControlState(name,value);}catch{}};
 const look=async(bot,yaw,pitch)=>{try{await bot.look(yaw,pitch,false);}catch{}};
@@ -61,8 +64,13 @@ const equipSafe=(bot,item,slot='hand')=>{
  const p=bot.equip(real,slot);p&&p.catch&&p.catch(()=>{});
 };
 
+// blockAt over integer coordinates for the pure night helpers (null when unknown).
+export const cellAt=bot=>(x,y,z)=>{try{return (bot&&bot.blockAt&&bot.blockAt(new Vec3(x,y,z)))||null;}catch{return null;}};
 // tasks/movement/RunAwayFromEntitiesTask.java family: face away, hold forward, sprint only
-// when food > 6 (7f), until every qualifying hostile is farther than `distance`.
+// when food > 6 (7f), until every qualifying hostile is farther than `distance`. The heading
+// is away from the whole crowd (weighted by closeness), never into water, lava, a deep drop
+// or through another mob within 4-8 blocks (round 4: the blind sprint away from the nearest
+// mob ran the bot through the pack at night and into the lake it drowned in).
 class RunAwayTask extends Task{
  constructor(name,distance,{kinds=null,exclude=null}={}){super(name);this.distance=distance;this.kinds=kinds;this.exclude=exclude;}
  targets(bot,ctx){
@@ -73,12 +81,14 @@ class RunAwayTask extends Task{
  }
  isFinished(bot,ctx){return !this.targets(bot,ctx).some(e=>withinRange(e,bot,this.distance));}
  onTick(bot,ctx){
-  const near=this.targets(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
-  if(!near){forget(bot,'forward','sprint');return null;}
-  const dx=bot.entity.position.x-near.position.x,dz=bot.entity.position.z-near.position.z;
-  look(bot,yawToward(dx,dz),0); // along the away vector (heading.js convention)
-  setControl(bot,'forward',true);
-  setControl(bot,'sprint',(bot.food||20)>6); // 7f: sprint needs food > 6
+  const list=this.targets(bot,ctx).filter(e=>withinRange(e,bot,Math.max(this.distance,16)));
+  if(!list.length){forget(bot,'forward','sprint');return null;}
+  const c=pickCtx(this,ctx),w=c&&c.worker;
+  const h=fleeHeading(cellAt(bot),bot.entity.position,list,{shelter:w&&w.shelterSpot||null});
+  look(bot,yawToward(h.x,h.z),0); // along the chosen away vector (heading.js convention)
+  // Every heading is a hazard (cornered against a lake or a cliff): stand, do not walk in.
+  setControl(bot,'forward',!h.blocked);
+  setControl(bot,'sprint',!h.blocked&&(bot.food||20)>6); // 7f: sprint needs food > 6
   return null;
  }
  onStop(bot){forget(bot,'forward','sprint','jump');}
@@ -168,6 +178,30 @@ export class EscapeFromLavaTask extends Task{
   return null;
  }
  onStop(bot){forget(bot,'jump','sprint','forward');}
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// Drowning fallback (the ctx.move GetOutOfWaterTask paths to land when the wiring has it):
+// look up, hold jump, and swim toward the nearest side whose head cell is air.
+export class SwimUpTask extends Task{
+ constructor(){super('SwimUpTask');}
+ isFinished(bot,ctx){
+  const e=bot.entity||{};
+  const head=bot.blockAt&&bot.blockAt(e.position.offset(0,1.4,0));
+  return !e.isInWater&&!(head&&/water/.test(head.name));
+ }
+ onTick(bot,ctx){
+  const me=bot.entity.position;
+  setControl(bot,'jump',true);setControl(bot,'sprint',false);
+  let dir=null;
+  for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){
+   const b=bot.blockAt&&bot.blockAt(me.offset(dx,1,dz));
+   if(b&&b.boundingBox!=='block'&&!/water|lava/.test(b.name)){dir=[dx,dz];break;}
+  }
+  if(dir){look(bot,yawToward(dir[0],dir[1]),0.6);setControl(bot,'forward',true);}
+  else{look(bot,bot.entity.yaw||0,Math.PI/2);setControl(bot,'forward',false);}
+  return null;
+ }
+ onStop(bot){forget(bot,'jump','forward','sprint');}
  isEqual(o){return o&&o.constructor===this.constructor;}
 }
 // Powder snow: a bot that walks into it sinks, freezes (entity metadata 7 = TicksFrozen,
@@ -539,6 +573,108 @@ export class ShelterTask extends Task{
  }
  isEqual(o){return o&&o.constructor===this.constructor;}
 }
+// Caught outside after dark in a crowd (night.js nightRefuge): climb a 3-block column under
+// the feet and hold it until morning or until nothing hostile has been within 16 for 15 s.
+// Zombies cannot reach the top and a creeper cannot start its fuse from the base; the
+// shield goes up toward archers. Only a mob that reaches the top (a climbing spider) is hit.
+// The climb is the combat pillar's (hold jump, look down, place on the block under the feet
+// at the apex) and gives up after 5 s or when knocked off the column.
+const PILLAR_ITEMS=[/^cobblestone$/,/^cobbled_deepslate$/,/^netherrack$/,/^dirt$/,/_planks$/];
+export const pillarBlocks=bot=>{
+ const items=inventoryItems(bot);
+ for(const re of PILLAR_ITEMS){
+  const list=items.filter(i=>re.test(i.name));
+  const count=list.reduce((s,i)=>s+(i.count||1),0);
+  if(count>=1)return {item:list[0],count,total:items.filter(i=>PILLAR_ITEMS.some(r=>r.test(i.name))).reduce((s,i)=>s+(i.count||1),0)};
+ }
+ return null;
+};
+export class NightPillarTask extends Task{
+ constructor(height=3){
+  super('NightPillarTask');this.height=height;this.phase='climb';this.base=null;this.t0=null;
+  this.clickAt=-1e9;this.clickY=null;this.failed=false;this.quietSince=null;this._shield=false;
+  this._lastAttack=-1e9;this._equipAt=-1e9;this.now=()=>Date.now()/1000;
+ }
+ _log(ctx,m){const c=pickCtx(this,ctx),w=c&&c.worker;if(w&&w.log)try{w.log(m);}catch{}}
+ // A runner teardown (a higher band took over for a moment) stops this instance for good:
+ // the chain adopts a fresh one that keeps the column, the phase and the quiet clock.
+ resumeCopy(){const q=new NightPillarTask(this.height);Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince});return q;}
+ isFinished(bot,ctx){
+  if(this.failed)return true;
+  if(!darkNow(dayTicks(bot)))return true; // morning: the undead burn
+  return this.phase==='perch'&&this.quietSince!=null&&this.now()-this.quietSince>=15;
+ }
+ _top(bot){
+  let n=0;
+  while(n<this.height){const b=bot.blockAt&&bot.blockAt(new Vec3(this.base.x,this.base.y+n,this.base.z));if(!b||b.boundingBox!=='block')break;n++;}
+  return n;
+ }
+ onTick(bot,ctx){
+  const e=bot.entity,now=this.now();
+  if(!this.base){
+   this.base={x:Math.floor(e.position.x),y:Math.floor(e.position.y),z:Math.floor(e.position.z)};this.t0=now;
+   this._log(ctx,'Night: caught outside in a crowd; pillar-up '+this.height+' at '+this.base.x+','+this.base.y+','+this.base.z);
+  }
+  const off=Math.floor(e.position.x)!==this.base.x||Math.floor(e.position.z)!==this.base.z;
+  if(this.phase==='climb'){
+   const top=this._top(bot);
+   if(top>=this.height&&e.position.y>=this.base.y+this.height-0.01){
+    this.phase='perch';forget(bot,'jump');this._log(ctx,'Night: perched '+this.height+' up; holding until morning');return null;
+   }
+   if(off||now-this.t0>5){
+    this.failed=true;forget(bot,'jump','forward','sprint');
+    this._log(ctx,'Night: pillar-up failed ('+(off?'left the column':'timed out')+' at '+top+'/'+this.height+')');
+    return null;
+   }
+   forget(bot,'forward','back','left','right','sprint');setControl(bot,'jump',true);
+   try{const p=bot.look(e.yaw||0,-Math.PI/2,true);p&&p.catch&&p.catch(()=>{});}catch{}
+   const blocks=pillarBlocks(bot);
+   if(!blocks){this.failed=true;forget(bot,'jump');return null;}
+   if(!bot.heldItem||!PILLAR_ITEMS.some(re=>re.test(bot.heldItem.name))){
+    if(now-this._equipAt>=0.5){this._equipAt=now;equipSafe(bot,blocks.item,'hand');}
+    return null;
+   }
+   const next=this.base.y+top;
+   if(e.position.y>=next+1.1&&(this.clickY!==next||now-this.clickAt>=0.5)){
+    const ref=bot.blockAt&&bot.blockAt(new Vec3(this.base.x,next-1,this.base.z));
+    if(ref&&ref.boundingBox==='block'){
+     this.clickAt=now;this.clickY=next;
+     try{const p=bot.placeBlock(ref,new Vec3(0,1,0));p&&p.catch&&p.catch(()=>{});}catch{}
+    }
+   }
+   return null;
+  }
+  // perch
+  if(off||e.position.y<this.base.y+this.height-0.5){this.failed=true;this._log(ctx,'Night: knocked off the pillar');return null;}
+  forget(bot,'forward','back','left','right','sprint','jump');
+  const hostiles=getHostiles(bot,ctx).filter(h=>withinRange(h,bot,16)).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot));
+  if(!hostiles.length){if(this.quietSince==null)this.quietSince=now;}else this.quietSince=null;
+  // Something on top with us (a spider climbs): hit it with the best weapon.
+  const climber=hostiles.find(h=>distanceTo(h,bot)<=3&&h.position.y>=e.position.y-1.5);
+  if(climber){
+   this._lower(bot);
+   const weapon=bestWeapon(bot,{allowPickaxe:true});
+   if(weapon&&(!bot.heldItem||bot.heldItem.name!==weapon.name)){if(now-this._equipAt>=0.5){this._equipAt=now;equipSafe(bot,weapon,'hand');}return null;}
+   lookAtEntity(bot,climber);
+   if(now-this._lastAttack>=attackCooldown(weapon&&weapon.name)){this._lastAttack=now;const a=bot.attack(climber);a&&a.catch&&a.catch(()=>{});}
+   return null;
+  }
+  const archer=hostiles.find(h=>/^(skeleton|stray|bogged|pillager)$/.test(h.name||''));
+  const shield=bot.inventory&&bot.inventory.slots&&bot.inventory.slots[45]&&bot.inventory.slots[45].name==='shield';
+  if(archer&&shield){
+   lookAtEntity(bot,archer);
+   if(!this._shield){this._shield=true;try{const p=bot.activateItem(true);p&&p.catch&&p.catch(()=>{});}catch{}}
+  }else this._lower(bot);
+  return null;
+ }
+ _lower(bot){if(!this._shield)return;this._shield=false;try{const p=bot.deactivateItem();p&&p.catch&&p.catch(()=>{});}catch{}}
+ onStop(bot){forget(bot,'jump','forward','sprint');this._lower(bot);}
+ isEqual(o){return o===this;}
+}
+const lookAtEntity=(bot,e)=>{
+ const me=bot.entity.position,dx=e.position.x-me.x,dz=e.position.z-me.z,dy=(e.position.y+(e.height||1.8)*0.8)-(me.y+1.62);
+ try{const p=bot.look(yawToward(dx,dz),Math.atan2(dy,Math.hypot(dx,dz)),true);p&&p.catch&&p.catch(()=>{});}catch{}
+};
 // tasks/resources/CollectFoodTask.java (placeholder): the real gathering belongs to P3's
 // resource tasks; this fallback aborts on nearby hostiles per 7f hunting rules and waits.
 export class CollectFoodTask extends Task{

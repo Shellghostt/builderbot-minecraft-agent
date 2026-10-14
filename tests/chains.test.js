@@ -272,11 +272,22 @@ test('WorldSurvivalChain escapes lava at priority 100 via the EscapeFromLavaTask
  assert.ok(calls.some(c=>c[0]==='control'&&c[1]==='jump'&&c[2]===true),'port of the sprint+jump lava escape');
  assert.ok(calls.some(c=>c[0]==='control'&&c[1]==='sprint'&&c[2]===true));
 });
-test('WorldSurvivalChain swims up while drowning (input side effect like the Java getPriority)',()=>{
+test('WorldSurvivalChain swims up while drowning, at 97 - above every Mob Defense band',()=>{
+ // Round 4 drowned at 02:46 with the jump only a side effect under Mob Defense's flee.
  const w=new WorldSurvivalChain();
  const {bot,calls}=makeBot({isInWater:true,oxygen:5});
- assert.equal(w.priority(bot,ctxOf()),-1);
+ assert.equal(w.priority(bot,ctxOf()),97);
+ assert.equal(w.root.name,'SwimUpTask');
  assert.ok(calls.some(c=>c[0]==='control'&&c[1]==='jump'&&c[2]===true));
+ // Latched until the air is back to 18 (not dropped the tick it reads 7).
+ bot.oxygen=7;assert.equal(w.priority(bot,ctxOf()),97);
+ bot.oxygen=18;assert.equal(w.priority(bot,ctxOf()),-1);
+ // The runner hands the tree to the drowning band even with a zombie on the bot.
+ const chains=defaultChains();
+ const {bot:b2}=makeBot({isInWater:true,oxygen:4,hostiles:[zombie([2,-60,0])],timeOfDay:15000});
+ const runner=new TaskRunner({bot:b2,epoch:0,controlToken:null,jobs:[],log(){}},chains);
+ runner.tick();
+ assert.equal(runner.status().chain,'Misc World Survival Chain');
 });
 test('WorldSurvivalChain escapes fire at 100 via PutOutFireTask',()=>{
  const w=new WorldSurvivalChain();

@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {Vec3} from 'vec3';
-import {dayTicks,isNight,NIGHT_START} from './daytime.js';
+import {dayTicks} from './daytime.js';
+import {shelterDue,nightJobFor,DUSK_PREP,SUNSET} from './night.js';
 import {EDIBLE_SKIP} from './observe.js';
 
 const BED=/(_bed)$/;
@@ -301,10 +302,14 @@ export const BED_PREP_FROM=9000,BED_PREP_JOBS=5;
 // instead of submitting jobs the worker's check() refuses at once - three of those would
 // count as three failures and block the step. Natural regen needs a food bar of 18+.
 export const RECOVER_MS=60000;
+// Extra night jobs per night after the first one failed or was cancelled while still dark.
+export const NIGHT_RETRIES=3;
+// A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
+const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
  const c=countFactory(counts);
  ctx=woodTotals(counts,{...ctx});
- if(ctx.bedNear||ctx.tod==null||ctx.tod<BED_PREP_FROM||ctx.tod>=NIGHT_START)return null;
+ if(ctx.bedNear||ctx.tod==null||ctx.tod<BED_PREP_FROM||ctx.tod>=SUNSET)return null; // the shelter starts at sunset
  if(WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1))return null;
  const wool=WOOLS.reduce((a,w)=>c(w)>c(a)?w:a,WOOLS[0]);
  const planks=3+(c('crafting_table')>=1||ctx.worldTable?0:4);
@@ -362,6 +367,9 @@ export class Autopilot{
     this.state='backing off ('+Math.ceil((this.coolUntil-Date.now())/1000)+'s): '+String(this.currentStep||'retry');
     return;
    }
+   // Respawned in the dark: shelter at the spawn point before anything else, even while
+   // the death holds the ladder (round 4 hard3 respawned at night and was shot again).
+   if(!w.userStopped&&this.respawnNight(b))return;
    if(w.deathResume){this.state='paused: died - resume to continue';return;}
   if(w.userStopped){this.enabled=false;this.state='idle';this.current=null;this.log('Autopilot stopped (Stop all)');return;}
   const active=w.jobs.find(j=>['running','queued'].includes(j.status));
@@ -386,18 +394,20 @@ export class Autopilot{
    // reached it - soak 6's hard runs tanked the whole night with no shelter attempt.
    // A running fight/eat or night job is never cut off: the idle branch below submits the
    // night job the moment it settles (the key is only spent when the job goes out).
+   // The shelter goes up at SUNSET (12000), before the first spawns; a bed waits for 12541.
    const busy=active.status==='running'&&['fight','eat','sleep','shelter'].includes(active.spec?.type);
-   if(isNight(b)&&!busy&&this.lastNightKey!==String(b.time?.day)){
+   const nightJob=!busy&&nightJobFor(dayTicks(b),this.bedNear(b));
+   const night=nightJob&&this.nightKeyFree(b)&&nightJob;
+   if(night){
     this.lastNightKey=String(b.time?.day); // once per day even if the submit loses the race
-    const bedNear=b.inventory.items().some(i=>/_bed$/.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>/_bed$/.test(bl.name)).map(bl=>bl.id),maxDistance:16});
     if(active.status==='running'){try{this.worker.cancel(active.id,'autopilot');}catch(e){this.state='cancel failed: '+e.message;return;}}
-    this.submit('night',bedNear?{type:'sleep'}:{type:'shelter'});
+    this.submit('night',night);
     return;
    }
    return;
   }
   if(this.current)this.settle(w.jobs.find(j=>j.id===this.current.id)||{status:'complete',id:this.current.id});
-  if(!isNight(b)&&this.recovering(b))return; // the night job (shelter or sleep) still goes out
+  if(!shelterDue(dayTicks(b))&&this.recovering(b))return; // the night job (shelter or sleep) still goes out
   this.rememberHome(b);
   // Dusk prep: without a bed the night shelter needs 25 dirt/cobble in the inventory, so
   // gather the dirt while there is still daylight (once per day). Grass blocks drop dirt.
@@ -411,7 +421,7 @@ export class Autopilot{
    const job=bedPrepJob(this.counts(),{tod:dayTicks(b),bedNear:!!bedNear,sheepNear:this.sheepNear(b),worldTable});
    if(job){this.bedPrep.jobs++;this.submit('bed-prep',job);return;}
   }
-  const dusk=todNow>=10500&&todNow<12541;
+  const dusk=todNow>=DUSK_PREP&&todNow<SUNSET; // the dirt must be in hand when the shelter starts
   if(dusk&&this.lastDuskKey!==String(b.time.day)&&!bedNear&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
    const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0);
    if(dirt<25){
@@ -420,12 +430,45 @@ export class Autopilot{
     return;
    }
   }
-  if(isNight(b)&&this.lastNightKey!==String(b.time.day)){
+  const nightJob=nightJobFor(todNow,!!bedNear);
+  const night=nightJob&&this.nightKeyFree(b)&&nightJob;
+  if(night){
    this.lastNightKey=String(b.time.day);
-   const bedNear=b.inventory.items().some(i=>/_bed$/.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});
-   this.submit('night',bedNear?{type:'sleep'}:{type:'shelter'});return;
+   this.submit('night',night);return;
+  }
+  // Every shelter tonight failed: no day work in the dark (gathers and explores walk into the
+  // spawns); stand and let Mob Defense answer (pillar, fight, flee) until morning.
+  if(nightJob&&nightJob.type==='shelter'&&this.nightJob&&this.nightJob.day===String(b.time.day)&&this.nightJob.retries>=NIGHT_RETRIES){
+   this.state='night: no shelter; holding for morning';return;
   }
   this.decide(b);
+ }
+ bedNear(b){return b.inventory.items().some(i=>BED.test(i.name))||!!b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});}
+ // One night job per day, plus up to NIGHT_RETRIES more when the night job failed while
+ // it is still dark (an unsealable spot, a lost race) - caught outside is the deadly case.
+ nightKeyFree(b){
+  const day=String(b.time?.day);
+  if(this.lastNightKey!==day)return true;
+  const job=this.nightJob&&this.worker.jobs.find(j=>j.id===this.nightJob.id);
+  if(!job||!['failed','cancelled'].includes(job.status)||!shelterDue(dayTicks(b)))return false;
+  if(this.nightJob.day!==day){this.nightJob.day=day;this.nightJob.retries=0;}
+  if(this.nightJob.retries>=NIGHT_RETRIES)return false;
+  this.nightJob.retries++;
+  this.log('Autopilot: the night job '+job.status+' ('+String(job.message).slice(0,80)+'); sheltering again');
+  return true;
+ }
+ respawnNight(b){
+  const w=this.worker,death=w.lastDeath;
+  if(!death||this.respawnHandled===death.t||!(b.health>0)||Date.now()-death.t>RESPAWN_FRESH_MS)return false;
+  this.respawnHandled=death.t;
+  const tod=dayTicks(b);
+  if(!shelterDue(tod))return false;
+  if(w.jobs.some(j=>['running','queued'].includes(j.status)&&['shelter','sleep'].includes(j.spec?.type)))return false;
+  const job=nightJobFor(tod,this.bedNear(b))||{type:'shelter'};
+  this.lastNightKey=String(b.time?.day);
+  this.log('Autopilot: respawned at night; '+job.type+' at the spawn point first');
+  this.submit('night',job,{keepHolds:true});
+  return true;
  }
  recovering(b){
   const min=this.worker.config?.limits?.minHealth??10;
@@ -443,7 +486,9 @@ export class Autopilot{
    this.failures[step]=(this.failures[step]||0)+1;
    this.coolUntil=Date.now()+8000; // give the world (and reflexes) time before retrying
    if(step==='bed-prep'&&this.bedPrep)this.bedPrep.off=true; // shelter tonight
-   if(this.failures[step]>=3){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
+   // Only ladder steps block (and explore to unblock): a night job that keeps failing must
+   // never turn into an explore in the dark - nightKeyFree caps its retries instead.
+   if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
    else this.state='retry: '+step+' ('+this.failures[step]+'/3)';
   }else{
    this.failures[this.currentStep]=0;
@@ -572,15 +617,16 @@ export class Autopilot{
   }else if(left&&left.distance<=5)this.tableTrips=null; // reached: the trips worked
   this.submit(choice.step,choice.job);
  }
- submit(step,spec){
+ submit(step,spec,opts){
   try{
    // Remember where surface gathers started: the step's unblock explores cap themselves
    // to that stand-Y (explore legs used to walk the bot off the grove).
    if(spec.type==='gather'&&spec.surface&&this.worker.bot){
     try{this.lastSurfaceY=Math.floor(this.worker.bot.entity.position.y);}catch{}
    }
-   const job=this.worker.submit(spec);
+   const job=opts?this.worker.submit(spec,opts):this.worker.submit(spec);
    this.current={id:job.id,step,spec};this.currentStep=step;this.state=step+': '+spec.type;
+   if(step==='night')this.nightJob={id:job.id,day:String(this.worker.bot?.time?.day),retries:this.nightJob&&this.nightJob.day===String(this.worker.bot?.time?.day)?this.nightJob.retries:0};
    this.log('Autopilot ['+step+'] '+JSON.stringify(spec));
   }catch(e){this.state='submit failed: '+e.message;this.log('Autopilot submit failed: '+e.message);}
  }
