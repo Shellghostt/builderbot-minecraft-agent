@@ -21,6 +21,7 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress} from './move-safety.js';
+import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
@@ -36,6 +37,13 @@ function guardDiagonals(movement){
 const NATURAL_DIG=new Set(['dirt','grass_block','coarse_dirt','rooted_dirt','podzol','mycelium','mud','moss_block','sand','red_sand','gravel','clay','stone','cobblestone','deepslate','cobbled_deepslate','andesite','granite','diorite','tuff','calcite','dripstone_block','sandstone','netherrack','soul_sand','soul_soil','end_stone','snow','snow_block','packed_mud','terracotta']);
 // Blocks a gather job may descend for: they live underground when no exposure is in range.
 const UNDERGROUND=/(_ore$|^deepslate|^stone$|^cobblestone$|^tuff$)/;
+// Stone-family gathers without a depth: exposed blocks near the bot first, else dig down.
+const STONE_FAMILY=/^(stone|cobblestone|deepslate|cobbled_deepslate|tuff|andesite|granite|diorite)$/;
+// Terrain a surface dig-down may cut through: never a log (a tree, or a player's build).
+const naturalTerrain=bl=>NATURAL_DIG.has(bl.name)||/_leaves$|_ore$/.test(bl.name);
+// Minimum gap between two scans that collected nothing: a reach failure blacklists a block
+// in a few ms, and the hard runs burned through dozens of buried stones a second.
+export const GATHER_RESCAN_MS=1000;
 // Gather failures that mean THIS block cannot be taken from anywhere the bot can get to:
 // the reach fallbacks (reachUp, descendToReach, canopyDrop) already ran before the throw.
 const UNREACHABLE_BLOCK=/Cannot reach or harvest|Walked onto the target|Fluid (beside|under) target/;
@@ -1212,8 +1220,15 @@ export class Worker extends EventEmitter {
    // the scan from the iron step's staircase does not skip the ore below y=0.
    const deep=!anyLog&&/_ore$/.test(s.block)&&!s.block.startsWith('deepslate_')?b.registry.blocksByName['deepslate_'+s.block]?.id:undefined;
    const match=anyLog?Object.values(b.registry.blocksByName).filter(bl=>/_log$/.test(bl.name)).map(bl=>bl.id):deep!==undefined?[id,deep]:id;
+   const isMatch=bl=>Array.isArray(match)?match.includes(bl.type):bl.type===match;
+   const at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+   let lastScan=0,lastCount=null;
    while(count_()-job.startDrop<s.count){
     this.check(token);if(b.inventory.emptySlotCount()<2)throw Error('Inventory nearly full; deposit items first');
+    // One rescan per second at most while nothing is being collected.
+    const have=count_();
+    if(have===lastCount){const wait=lastScan+GATHER_RESCAN_MS-Date.now();if(wait>0){await sleep(wait);this.check(token);}}
+    lastScan=Date.now();lastCount=have;
     // Wood step: do not follow a trunk down into a ravine. The floor is the Y where the
     // gather started, not wherever a failed path has since dropped the bot.
     if(s.surface){
@@ -1249,6 +1264,22 @@ export class Worker extends EventEmitter {
      targets.sort((a,c)=>(a.position.distanceTo(b.entity.position)+Math.abs(a.position.y-b.entity.position.y)*2)-(c.position.distanceTo(b.entity.position)+Math.abs(c.position.y-b.entity.position.y)*2));
     }
     if(s.surface&&job.surfaceY!==undefined)targets=targets.filter(t=>t.position.y>=job.surfaceY-4);
+    // Stone step (hard runs: dirt hill under a canopy): exposed stone near the bot, else dig
+    // down where it stands by the safe staircase instead of walking at buried stone.
+    if(!anyLog&&s.targetY==null&&STONE_FAMILY.test(s.block)&&targets.length){
+     const plan=stonePlan({targets,botPos:b.entity.position,blockAt:at3,isNatural:naturalTerrain,isTarget:isMatch,digDowns:job.digDowns||0});
+     if(plan.action==='dig-down'){
+      job.digDowns=(job.digDowns||0)+1;
+      const startY=Math.floor(b.entity.position.y),note=`No exposed ${s.block} within reach; digging down to y=${plan.targetY}`;
+      this.log('Gather: '+note+' (staircase '+plan.dir+')');this.update(job,Math.max(0,count_()-job.startDrop),note);
+      try{
+       await this.staircase(job,token,plan.targetY,{dir:plan.dir,natural:naturalTerrain,
+        stopWhen:()=>startY-Math.floor(b.entity.position.y)>=STONE_DIG_MIN&&stoneBeside(at3,b.entity.position.floored(),isMatch)});
+      }catch(e){this.check(token);this.log('Gather: dig-down stopped: '+e.message);job.digDowns=STONE_DIG_DOWNS;}
+      job.anchor=b.entity.position.floored();this.save();continue;
+     }
+     targets=plan.targets;
+    }
     if(!targets.length){
      // An ore job that names its depth (the ladder's iron/coal/diamond jobs) goes down first:
      // three 48-block surface legs could never see ore that sits at y=32.
@@ -1428,11 +1459,13 @@ export class Worker extends EventEmitter {
  // checked. Stops (and fails honestly) at fluids and bedrock; records the tunnel so the
  // bot can walk back up the way it came. A stall guard turns a stuck descent into a clear
  // failure instead of looping.
- async staircase(job,token,targetY){
+ // opts (the stone dig-down): dir picked by pickStairDir, natural = only cut natural terrain
+ // on solid floors, stopWhen = stop early once the tunnel has reached what the job wants.
+ async staircase(job,token,targetY,opts={}){
   const b=this.bot;
   if(!job.tunnel)job.tunnel=[];
   const start=b.entity.position.floored();
-  const dir=[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x*3+start.z)%4];
+  const dir=opts.dir||[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x*3+start.z)%4];
  let lastY=start.y,stalls=0;
  for(let steps=0;b.entity.position.floored().y>targetY&&steps<200;steps++){
   this.check(token);
@@ -1441,7 +1474,7 @@ export class Worker extends EventEmitter {
    if(before&&before.x===next.x&&before.y===next.y&&before.z===next.z)throw Error('Staircase stalled at '+next);
    // Corner cut: without digging the cell above the target's head the bot wedges against
    // the ceiling when it walks over the edge to drop one level.
-   await this.digTunnelStep(job,token,next,true);
+   await this.digTunnelStep(job,token,next,true,opts.natural);
   await this.stepInto(next,dir,token);
   job.tunnel.push({x:next.x,y:next.y,z:next.z});
   if(steps%6===5)await this.placeTorch(token);
@@ -1449,6 +1482,7 @@ export class Worker extends EventEmitter {
   if(nowY>=lastY){if(++stalls>=2)throw Error('Staircase stalled at '+b.entity.position.floored());}
   else{stalls=0;lastY=nowY;}
   this.save();
+  if(opts.stopWhen&&opts.stopWhen())break;
   }
  }
  // Move one cell along dir: try the pathfinder first, then walk straight in. The pathfinder
@@ -1561,11 +1595,17 @@ export class Worker extends EventEmitter {
    await sleep(400); // let the bot land
   }
  }
- async digTunnelStep(job,token,next,corner){
+ async digTunnelStep(job,token,next,corner,natural){
   const b=this.bot;
   const fluidAt=p=>['lava','water'].includes(b.blockAt(p)?.name);
   const feetBlock=b.blockAt(next),head=b.blockAt(next.offset(0,1,0)),floor=b.blockAt(next.offset(0,-1,0));
   const targets=[feetBlock,head,corner?b.blockAt(next.offset(0,2,0)):null].filter(bl=>bl&&bl.boundingBox==='block');
+  // Surface dig-down: natural terrain only, and a solid floor under the step (no cave drop).
+  if(natural){
+   const foreign=targets.find(bl=>!natural(bl));
+   if(foreign)throw Error('Tunnel stopped: '+foreign.name+' at '+foreign.position+' is not natural terrain');
+   if(floor?.boundingBox!=='block')throw Error('Tunnel stopped: no floor under '+next);
+  }
   for(const spot of [next,next.offset(0,1,0),...(corner?[next.offset(0,2,0)]:[])])for(const delta of [new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1),new Vec3(0,1,0)]){
    const p=spot.plus(delta);
    if(fluidAt(p))throw Error('Tunnel stopped: '+(b.blockAt(p)?.name||'fluid')+' at '+p.floored());

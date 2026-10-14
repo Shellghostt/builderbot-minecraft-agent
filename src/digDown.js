@@ -1,0 +1,70 @@
+// Stone step on surface-less terrain (soak hard runs, 2026-10-14): on a dirt hill under a
+// dark-oak canopy findBlocks returns stone BURIED under the dirt, every walk to it fails with
+// "Cannot reach or harvest", and the bot skipped dozens of blocks a second without collecting
+// any. A player digs down where they stand instead. These are the pure decisions: mine
+// exposed stone near the bot, else staircase down into the ground under it.
+import {Vec3} from 'vec3';
+const SIDES=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+const DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+export const STONE_NEAR=16,STONE_DIG_DOWNS=3,STONE_DIG_DEPTH=6,STONE_DIG_MIN=3;
+export const isFluid=bl=>!!bl&&(bl.name==='water'||bl.name==='lava'||bl.name==='bubble_column');
+const solid=bl=>!!bl&&bl.boundingBox==='block';
+// A face touches open, non-fluid space (air, a cave, a dug tunnel): the bot can stand there
+// and swing at it. Unloaded neighbours (null) do not count as open.
+export function isExposed(blockAt,p){
+ for(const [dx,dy,dz]of SIDES){const bl=blockAt(p.x+dx,p.y+dy,p.z+dz);if(bl&&!solid(bl)&&!isFluid(bl))return true;}
+ return false;
+}
+// A target block in a side wall of the feet or head cell: the staircase has cut into stone
+// that the bot can mine sideways (the floor does not count: no digging straight down).
+export function stoneBeside(blockAt,feet,isTarget){
+ for(const y of [feet.y,feet.y+1])for(const [dx,dz]of DIRS){const bl=blockAt(feet.x+dx,y,feet.z+dz);if(bl&&isTarget(bl))return true;}
+ return false;
+}
+// Simulates the staircase (2-high, 45 degrees, corner cut: the cells feet/head/head+1 of each
+// step) in each of the four directions from `start`, and returns the direction that goes
+// deepest, then the one through the most target blocks. A step is refused when a cell is
+// bedrock or not natural terrain (never a player-made block), when a fluid touches a cell,
+// or when its floor is not solid (no drop into a cave or out from under a canopy). Null when
+// no direction clears `min` steps. It never digs straight down: every step moves sideways.
+export function pickStairDir(blockAt,start,{isNatural,isTarget=()=>false,steps=STONE_DIG_DEPTH,min=STONE_DIG_MIN}={}){
+ let best=null;
+ for(const [dx,dz]of DIRS){
+  let clear=0,hits=0;
+  for(let k=1;k<=steps;k++){
+   const x=start.x+dx*k,y=start.y-k,z=start.z+dz*k;
+   let ok=true;
+   for(const cy of [y,y+1,y+2]){
+    const bl=blockAt(x,cy,z);
+    if(!bl||bl.name==='bedrock'||isFluid(bl)||(solid(bl)&&!isNatural(bl))){ok=false;break;}
+    for(const [sx,sy,sz]of SIDES){if(sy<0)continue;if(isFluid(blockAt(x+sx,cy+sy,z+sz))){ok=false;break;}}
+    if(!ok)break;
+    if(isTarget(bl))hits++;
+   }
+   const floor=blockAt(x,y-1,z);
+   if(!ok||!solid(floor)||isFluid(floor))break;
+   clear=k;
+  }
+  if(clear>=min&&(!best||clear>best.steps||(clear===best.steps&&hits>best.stone)))best={dir:new Vec3(dx,0,dz),steps:clear,stone:hits};
+ }
+ return best;
+}
+// The stone-step decision for one scan. `targets` are the matching blocks in range.
+// 1. exposed targets within `near` of the bot: mine those;
+// 2. otherwise, when the scan saw the stone under the bot (within 12 below, `near` across)
+//    and dig-downs are left: dig down (a staircase of 3-6 steps);
+// 3. otherwise: exposed targets anywhere, then every target (the old behaviour).
+// The block under the feet is never a stone target: taking it again and again is a shaft.
+export function stonePlan({targets,botPos,blockAt,isNatural,isTarget,digDowns=0,near=STONE_NEAR,maxDigDowns=STONE_DIG_DOWNS}){
+ const feet={x:Math.floor(botPos.x),y:Math.floor(botPos.y),z:Math.floor(botPos.z)};
+ targets=targets.filter(t=>!(t.position.x===feet.x&&t.position.y===feet.y-1&&t.position.z===feet.z));
+ const exposed=targets.filter(t=>isExposed(blockAt,t.position));
+ const close=exposed.filter(t=>t.position.distanceTo(botPos)<=near);
+ if(close.length)return {action:'mine',targets:close};
+ const below=targets.some(t=>t.position.y<feet.y&&feet.y-t.position.y<=12&&Math.hypot(t.position.x-feet.x,t.position.z-feet.z)<=near);
+ if(below&&digDowns<maxDigDowns){
+  const stair=pickStairDir(blockAt,feet,{isNatural,isTarget});
+  if(stair)return {action:'dig-down',dir:stair.dir,targetY:feet.y-stair.steps};
+ }
+ return {action:'mine',targets:exposed.length?exposed:targets};
+}
