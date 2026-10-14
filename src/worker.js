@@ -676,7 +676,7 @@ export class Worker extends EventEmitter {
   if(ctl){ // the fight summary rides on the job message: event-buffer flushes cannot lose it
    const st=ctl.stats,t=ctl.target;
    this.update(job,100,'Fought: '+(t&&t.name||'no target')+' tactic='+(ctl.tactic&&ctl.tactic.style||'none')
-    +' hits='+st.hits+' crits='+st.crits+' sweeps='+st.sweeps+' shots='+st.shots
+    +' hits='+st.hits+' crits='+st.crits+' sweeps='+st.sweeps+' shots='+st.shots+' released='+(st.released||0)+' landed='+(st.landed||0)
     +' damage taken='+Math.round(st.damageTaken*10)/10);
   }
   return ctl?ctl.stats:null;

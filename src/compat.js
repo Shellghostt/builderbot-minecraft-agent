@@ -11,6 +11,7 @@ export function installMovementFix(bot){
  let packetCount=0,packetSecond=Date.now(),lastName='';
  let movementSent=0,movementSecond=Date.now(),inputSent=0,inputSecond=Date.now();
  let lastKeepAlive=0,lastTeleportConfirm=0,lastConfirmedTeleportId=null;
+ let staleLook=false,sentRot=null; // rotation the server last received (notchian degrees)
  const allowPace=(sentRef,secondRef)=>{
   const now=Date.now();
   if(now-secondRef.second>1000){secondRef.second=now;sentRef.count=0;}
@@ -50,7 +51,20 @@ export function installMovementFix(bot){
   const paced=name==='position'||name==='position_look'||name==='flying';
   const movement=['position','position_look','look','flying'].includes(name);
   if(bot.isSleeping&&movement)return undefined;
-  if(paced&&!allowPace(movementPace,movementClock))return undefined;
+  // A use/release fires along the server's CURRENT rotation. mineflayer records a look as
+  // sent before this wrapper may drop it, and then never re-sends an unchanged aim, so a
+  // capped position_look left the server on a stale heading for the whole bow draw.
+  // Re-assert the bot's rotation (one uncapped look) before the release; use_item carries
+  // its own rotation (1.21.2+), which the server applies.
+  if(name==='block_dig'&&data&&data.status===5)syncLook();
+  if(name==='use_item'&&data&&data.rotation){staleLook=false;sentRot={yaw:Math.fround(data.rotation.x),pitch:Math.fround(data.rotation.y)};}
+  if(paced&&!allowPace(movementPace,movementClock)){
+   if(name==='position_look')staleLook=true;
+   return undefined;
+  }
+  // The next position that gets through carries the rotation the dropped packet held.
+  if(name==='position'&&staleLook&&data&&typeof data.yaw==='number')name='position_look';
+  if(name==='position_look'||name==='look'){staleLook=false;if(data)sentRot={yaw:data.yaw,pitch:data.pitch};}
   if(name==='teleport_confirm'){
    // Every teleport id must be confirmed exactly once. Paper does not re-send an unconfirmed
    // teleport (updateAwaitingTeleport has the resend disabled), so a dropped confirm leaves
@@ -69,6 +83,13 @@ export function installMovementFix(bot){
   if(enabled&&client.state==='play'&&!bot.isSleeping&&movement)write('tick_end',{});
   return result;
  };
+ function syncLook(){
+  if(!enabled||client.state!=='play'||!bot.entity||bot.isSleeping)return;
+  const D=1/(Math.PI/180),yaw=Math.fround((Math.PI-bot.entity.yaw)*D),pitch=Math.fround(-bot.entity.pitch*D); // mineflayer's toNotchian*
+  if(!staleLook&&sentRot&&sentRot.yaw===yaw&&sentRot.pitch===pitch)return;
+  const onGround=!!bot.entity.onGround;
+  client.write('look',{yaw,pitch,onGround,flags:{onGround,hasHorizontalCollision:false}});
+ }
  const timer=setInterval(()=>{if(enabled&&client.state==='play'&&!bot.isSleeping)write('tick_end',{});},50);timer.unref();
  bot.once('end',()=>clearInterval(timer));
 }

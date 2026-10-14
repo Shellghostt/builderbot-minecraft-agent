@@ -193,7 +193,7 @@ export class FightTask extends ActionTask{
   if(!this._log)return;
   const s=ctl.stats,t=ctl.target;
   this._log('Fight result: '+(t&&t.name||'no target')+' tactic='+(ctl.tactic&&ctl.tactic.style||'none')
-   +' hits='+s.hits+' crits='+s.crits+' sweeps='+s.sweeps+' shots='+s.shots
+   +' hits='+s.hits+' crits='+s.crits+' sweeps='+s.sweeps+' shots='+s.shots+' released='+(s.released||0)+' landed='+(s.landed||0)
    +' damage taken='+Math.round(s.damageTaken*10)/10+' disengages='+s.disengages+' result='+result);
  }
  onStop(bot,interrupt){

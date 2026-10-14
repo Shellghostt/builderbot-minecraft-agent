@@ -18,6 +18,7 @@ import {Vec3} from 'vec3';
 import {creeperSwell} from './creeper.js';
 import {hitsBot} from './place-support.js';
 import {yawToward,pitchToward,headingOf} from './heading.js';
+import {ArrowShots} from './arrowShots.js';
 
 const dist=(a,b)=>{
  if(!a||!b)return Infinity;
@@ -465,6 +466,37 @@ export class CombatController{
   this._leadPos=null;this._leadT=null; // ViaVersion zeros entity.velocity; reconstruct from samples
   this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;
   this._pillar=null;this._pillarFailUntil=0; // creeper pillar-up state (_pillarTick)
+  // Bow shots: released? landed? (src/arrowShots.js). Events when the bot has them; the
+  // tick polls the inventory count and the target's health metadata either way.
+  this.stats.released=0;this.stats.landed=0;
+  this._shots=new ArrowShots(opts.arrowShots);this._shotHooks=null;
+  if(bot&&typeof bot.on==='function'){
+   const h={
+    spawn:e=>this._shotEvents(this._shots.onSpawn(e,this.now())),
+    hurt:(e,src)=>this._shotEvents(this._shots.onHurt(e,src,this.now())),
+    gone:e=>this._shotEvents(this._shots.onGone(e,this.now())),
+    raw:p=>{if(p&&p.objectData)this._shots.noteOwner(p.entityId,p.objectData);}
+   };
+   try{bot.on('entitySpawn',h.spawn);bot.on('entityHurt',h.hurt);bot.on('entityGone',h.gone);
+    if(bot._client&&typeof bot._client.on==='function')bot._client.on('spawn_entity',h.raw);}catch{}
+   this._shotHooks=h;
+  }
+ }
+ _unhookShots(){
+  const h=this._shotHooks,bot=this.bot;
+  if(!h||!bot||typeof bot.removeListener!=='function')return;
+  this._shotHooks=null;
+  try{bot.removeListener('entitySpawn',h.spawn);bot.removeListener('entityHurt',h.hurt);bot.removeListener('entityGone',h.gone);
+   if(bot._client&&bot._client.removeListener)bot._client.removeListener('spawn_entity',h.raw);}catch{}
+ }
+ _shotEvents(list){
+  for(const ev of list||[]){
+   const s=ev.shot,tag='arrow '+(s.targetName||'')+' @'+(Math.round((this.now()-s.t)*100)/100)+'s: ';
+   if(ev.type==='released')this.stats.released++;
+   if(ev.type==='landed'){this.stats.landed++;this.stats.hits++;}
+   this.log('Combat: '+tag+ev.type+' ('+ev.detail+')');
+   this._emit('arrow-'+ev.type,ev.detail);
+  }
  }
  setTarget(e){
   if(e!==this.target){this._drawing=false;this._lastStrike=-1e9;this._setState(null);this._creeperLastD=null;this._leadPos=null;this._leadT=null;this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;}
@@ -880,7 +912,7 @@ export class CombatController{
    try{const q=bot.deactivateItem();q&&q.catch&&q.catch(()=>{});}catch{}
    this.stats.shots++;this._nextShot=now+this.opts.shotGap;
    this._setState('pillar-shoot');
-   this._probeArrowSpeed();
+   this._released(t);
   }
  }
  _perchStrike(t,gear,now){
@@ -909,6 +941,7 @@ export class CombatController{
   if(!bot||!bot.entity||typeof bot.health!=='number')return this;
   const now=this.now();
   this._trackDamage();
+  this._shotEvents(this._shots.poll(bot,now));
   if(this._jumpPulse){this._controls({jump:false});this._jumpPulse=false;}
   const t=this.target;
   if(!t||t.isValid===false||!t.position){
@@ -1249,25 +1282,10 @@ export class CombatController{
   }
   this._setState('strike');
  }
- // One-shot per controller: sample the freshly fired arrow's real speed (26.3 may differ
- // from the vanilla 3.0 blocks/tick ASSUMPTION the aim constants use - measure, not assume).
- _probeArrowSpeed(){
-  if(this._arrowProbed)return;
-  this._arrowProbed=true;
-  setTimeout(()=>{
-   try{
-    const arrows=Object.values(this.bot.entities||{})
-     .filter(e=>e&&e.name==='arrow'&&e.velocity&&e.position&&e.position.distanceTo(this.bot.entity.position)<6)
-     .sort((a,b)=>(b.entityId||0)-(a.entityId||0));
-    const a=arrows[0];
-    if(a){const v=a.velocity,sp=Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z);
-     this._emit('arrow','measured arrow speed '+Math.round(sp*100)/100+' blocks/tick');}
-    else{
-     const names=[...new Set(Object.values(this.bot.entities||{}).map(e=>e&&e.name).filter(n=>n&&/arrow|projectile|charge|bolt/i.test(n)))];
-     this._emit('arrow','no arrow entity found near the release; projectile names visible: '+(names.join(',')||'none'));
-    }
-   }catch{}
-  },120);
+ // A full-draw release: the ArrowShots tracker decides released / landed / missed from
+ // the inventory count, the arrow's spawn near the eye and the target's hurt or health.
+ _released(t){
+  this._shots.release(this.bot,t,this.now());
  }
  _underRoof(bot){
   const p=bot.entity.position;
@@ -1430,7 +1448,7 @@ export class CombatController{
     this.stats.shots++;
     this._nextShot=now+this.opts.shotGap;
     this._setState('shoot');
-    this._probeArrowSpeed();
+    this._released(t);
    }
    return;
   }
@@ -1463,12 +1481,14 @@ export class CombatController{
    this.stats.shots++;
    this._nextShot=now+this.opts.shotGap;
    this._setState('shoot');
-   this._probeArrowSpeed();
+   this._released(t);
   }
  }
  stop(){
   this._lowerShield();
   this._cancelDraw();
+  this._shotEvents(this._shots.poll(this.bot,this.now()));
+  this._unhookShots();
   this._controls({forward:false,back:false,left:false,right:false,jump:false,sprint:false});
   this.target=null;
   this._setState(null);
