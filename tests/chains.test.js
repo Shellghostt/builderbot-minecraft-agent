@@ -481,3 +481,24 @@ test('smoke: with no threats the user task is the active chain and completes',()
  assert.ok(worker.result.seconds>=0);
  runner.stop();
 });
+// Cloud session 2026-10-14: the fallback tasks steered with the Notchian yaw (z=+cos) through
+// mineflayer's bot.look (yaw 0 faces -z), so every flee along z ran INTO the mob.
+import {RunAwayFromCreepersTask} from '../src/chains/fallbackTasks.js';
+import {headingOf} from '../src/heading.js';
+test('run-away and keep-distance face away from a mob on the z axis',async()=>{
+ for(const [mx,mz] of [[0,5],[0,-5],[5,0],[-3,4]]){
+  const looks=[];
+  const me={position:new Vec3(0,-60,0)};
+  const mob={name:'creeper',type:'hostile',position:new Vec3(mx,-60,mz),isValid:true};
+  const bot={entity:me,entities:{1:me,2:mob},food:20,look:async(yaw)=>{looks.push(yaw);},setControlState(){}};
+  new RunAwayFromCreepersTask(10).onTick(bot,{});
+  new KeepDistanceTask(10).onTick(bot,{});
+  await new Promise(r=>setImmediate(r));
+  assert.equal(looks.length,2);
+  const n=Math.hypot(mx,mz);
+  for(const yaw of looks){
+   const h=headingOf(yaw);
+   assert.ok(h.x*mx/n+h.z*mz/n<-0.99,'forward points away from the mob at '+[mx,mz]);
+  }
+ }
+});

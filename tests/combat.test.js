@@ -10,10 +10,12 @@ import {Vec3} from 'vec3';
 import {
  cooldownSeconds,attackSpeedOf,VANILLA_ATTACK_SPEED,
  isCritOpportunity,shouldJumpForCrit,hasHeadroom,isSprinting,shouldSweep,
- projectileThreat,bowAimSolution,arrowTrajectory,ARROW_GRAVITY,ARROW_DRAG,ARROW_SPEED,
+ projectileThreat,bowAimSolution,arrowTrajectory,ARROW_GRAVITY,ARROW_DRAG,ARROW_SPEED,ARROW_LAUNCH_HEIGHT,dragSum,
  hasLineOfSight,pickTarget,pickTactic,readGear,shouldDisengage,shouldRetreat,
  holdsBlockOrFood,CombatController
 } from '../src/combat.js';
+import {yawToward,pitchToward,headingOf} from '../src/heading.js';
+import fs from 'node:fs';
 
 const flush=async n=>{for(let i=0;i<(n||3);i++)await new Promise(r=>setImmediate(r));};
 const at=(x,y,z)=>new Vec3(x,y,z);
@@ -173,7 +175,7 @@ test('bowAimSolution: flat 10-block shot lands on the target with the declared c
  assert.ok(sol,'solution exists in range');
  assert.ok(Math.abs(sol.yaw-Math.atan2(-10,0))<1e-9,'yaw faces +x');
  assert.ok(Math.abs(sol.pitch)<0.2,'near-flat shot');
- const path=arrowTrajectory({x:0,y:-58.38,z:0},sol.yaw,sol.pitch);
+ const path=arrowTrajectory({x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},sol.yaw,sol.pitch);
  assert.ok(minDistTo(path,{x:10,y:-59.1,z:0})<0.5,'simulated shot passes through the mob');
  assert.ok(sol.ticks>=3&&sol.ticks<=10,'flight is a few ticks at 3 b/t');
 });
@@ -181,25 +183,27 @@ test('bowAimSolution: elevated target needs an upward pitch; yaw convention hold
  const {bot}=makeBot({});
  const up=bowAimSolution(bot,mob(11,'zombie',at(6,-54,0)));
  assert.ok(up,'elevated target reachable');
- assert.ok(up.pitch<0,'negative pitch aims up (mineflayer convention)');
- const path=arrowTrajectory({x:0,y:-58.38,z:0},up.yaw,up.pitch);
+ assert.ok(up.pitch>0,'positive pitch aims up (mineflayer convention, src/heading.js)');
+ const path=arrowTrajectory({x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},up.yaw,up.pitch);
  assert.ok(minDistTo(path,{x:6,y:-53.1,z:0})<0.5);
  const east=bowAimSolution(bot,mob(12,'zombie',at(8,-60,0)));
  assert.ok(Math.abs(east.yaw-(-Math.PI/2))<1e-6,'+x is yaw -PI/2');
  const south=bowAimSolution(bot,mob(13,'zombie',at(0,-60,8)));
- assert.ok(Math.abs(south.yaw)<1e-6,'+z is yaw 0');
+ assert.ok(Math.abs(Math.abs(south.yaw)-Math.PI)<1e-6,'+z is yaw +-PI (mineflayer: yaw 0 faces -z)');
+ const north=bowAimSolution(bot,mob(17,'zombie',at(0,-60,-8)));
+ assert.ok(Math.abs(north.yaw)<1e-6,'-z is yaw 0');
 });
 test('bowAimSolution: leads a moving target and nulls out of range',()=>{
  const {bot}=makeBot({});
  const runner=mob(14,'zombie',at(12,-60,0),{velocity:[0.3,0,0.2]});
  const sol=bowAimSolution(bot,runner);
  assert.ok(sol,'moving target still solvable');
- const path=arrowTrajectory({x:0,y:-58.38,z:0},sol.yaw,sol.pitch);
+ const path=arrowTrajectory({x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},sol.yaw,sol.pitch);
  const lead={x:12+0.3*sol.ticks,y:-59.05,z:0+0.2*sol.ticks};
  assert.ok(minDistTo(path,lead)<0.7,'shot intercepts the led position, not the current one');
  assert.equal(bowAimSolution(bot,mob(15,'zombie',at(400,-60,0))),null,'out of range');
  const low=bowAimSolution(bot,mob(16,'zombie',at(3,-64,0)));
- assert.ok(low&&low.pitch>0,'dropping shots aim downward');
+ assert.ok(low&&low.pitch<0,'dropping shots aim downward (negative pitch)');
 });
 
 // ---- 7b.9 target priority -----------------------------------------------------------------
@@ -584,9 +588,9 @@ test('controller: Via-zero velocity still leads a creeper from sampled motion (7
  T=0.2;c.tick();
  const looks=calls.filter(x=>x[0]==='look');
  assert.ok(looks.length>=2,'drew and re-aimed');
- const raw=Math.atan2(-16,6);
+ const raw=yawToward(16,6);
  const led=looks[looks.length-1][1];
- assert.ok(led>raw,'yaw leads +z (the sampled walk), not the stale body');
+ assert.ok(headingOf(led).z>headingOf(raw).z,'yaw leads +z (the sampled walk), not the stale body');
 });
 test('controller: default now() ignores a bot.time.age jump (73186 released at 0.27s)',()=>{
  const target=mob(70,'creeper',at(16,-60,0));
@@ -917,4 +921,79 @@ test('controller: with a bow, a pillar-capable bot skips the 12-block wall and p
  assert.equal(c.state,'pillar-draw');
  clock.T+=1.05;c.tick();
  assert.equal(c.stats.shots,1);
+});
+// ---- look convention (cloud session 2026-10-14) ----------------------------------------
+// combat.js aimed with the Notchian convention (z=+cos(yaw), positive pitch down) through
+// mineflayer's bot.look, which mirrors every z heading and every bow pitch. Pin the helper
+// to the installed mineflayer's own view vector and lookAt maths.
+test('heading.js matches the installed mineflayer look convention',()=>{
+ const ray=fs.readFileSync(new URL('../node_modules/mineflayer/lib/plugins/ray_trace.js',import.meta.url),'utf8');
+ assert.ok(ray.includes('new Vec3(-snYaw * csPitch, snPitch, -csYaw * csPitch)'),'mineflayer view vector changed: re-check src/heading.js');
+ const phys=fs.readFileSync(new URL('../node_modules/mineflayer/lib/plugins/physics.js',import.meta.url),'utf8');
+ assert.ok(phys.includes('const yaw = Math.atan2(-delta.x, -delta.z)')&&phys.includes('const pitch = Math.atan2(delta.y, groundDistance)'),'mineflayer lookAt changed: re-check src/heading.js');
+ const view=(yaw,pitch)=>({x:-Math.sin(yaw)*Math.cos(pitch),y:Math.sin(pitch),z:-Math.cos(yaw)*Math.cos(pitch)});
+ for(const [dx,dy,dz] of [[3,0,0],[0,0,3],[-2,1,5],[4,-2,-1]]){
+  const g=Math.hypot(dx,dz),v=view(yawToward(dx,dz),pitchToward(dy,g)),n=Math.hypot(dx,dy,dz);
+  assert.ok(Math.abs(v.x-dx/n)<1e-9&&Math.abs(v.y-dy/n)<1e-9&&Math.abs(v.z-dz/n)<1e-9,'looks along '+[dx,dy,dz]);
+  const h=headingOf(yawToward(dx,dz));
+  assert.ok(Math.abs(h.x-dx/g)<1e-9&&Math.abs(h.z-dz/g)<1e-9);
+ }
+});
+test('controller: faces and aims at a target on the z axis (not its mirror image)',()=>{
+ let T=0;
+ const zombie=mob(80,'zombie',at(0,-60,10));
+ const {bot,calls}=makeBot({inventory:['bow','arrow'],counts:{arrow:32},heldItem:'bow',entities:[zombie]});
+ const sol=bowAimSolution(bot,zombie);
+ const v=arrowTrajectory({x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},sol.yaw,sol.pitch,{ticks:1})[0];
+ assert.ok(v.z>0.5&&Math.abs(v.x)<1e-6,'the arrow flies toward +z where the zombie is');
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>T});
+ c.setTarget(zombie);c._faceTarget(zombie);
+ const look=calls.filter(x=>x[0]==='look').pop();
+ assert.ok(headingOf(look[1]).z>0.99,'faces +z');
+});
+// ---- drag-aware ballistics (task 3, cloud session 2026-10-14) ------------------------------
+// Vanilla AbstractArrow.tick: move by the current velocity, then drag 0.99, then gravity
+// 0.05 (minecrafthawkeye / mineflayer-projectile use the same order); launch at eye - 0.1.
+test('arrowTrajectory: vanilla tick order - full launch speed on the first tick, then drag and gravity',()=>{
+ const p=arrowTrajectory({x:0,y:0,z:0},yawToward(1,0),0,{ticks:3});
+ assert.ok(Math.abs(p[0].x-3)<1e-12&&Math.abs(p[0].y)<1e-12,'tick 1 moves the full 3.0, no drop yet');
+ assert.ok(Math.abs(p[1].x-(3+2.97))<1e-12,'tick 2: 3*0.99');
+ assert.ok(Math.abs(p[1].y-(-0.05))<1e-12,'tick 2: one gravity step');
+ assert.ok(Math.abs(p[2].x-(3+2.97+2.9403))<1e-12);
+ assert.ok(Math.abs(p[2].y-(-0.05-(0.05*0.99+0.05)))<1e-12,'gravity is dragged too');
+ assert.equal(ARROW_LAUNCH_HEIGHT,1.52);
+});
+test('arrowTrajectory: the shooter\'s motion shifts the flight by u*dragSum(t) (linear)',()=>{
+ const u={x:0.12,y:0,z:-0.2};
+ const a=arrowTrajectory({x:0,y:0,z:0},0.7,0.1,{ticks:30});
+ const b=arrowTrajectory({x:0,y:0,z:0},0.7,0.1,{ticks:30,inherit:u});
+ for(let i=0;i<30;i++){
+  const k=dragSum(i+1);
+  assert.ok(Math.abs(b[i].x-(a[i].x+u.x*k))<1e-9&&Math.abs(b[i].z-(a[i].z+u.z*k))<1e-9&&Math.abs(b[i].y-a[i].y)<1e-9);
+ }
+ assert.equal(dragSum(1),1);
+ assert.ok(Math.abs(dragSum(2)-1.99)<1e-12);
+});
+test('bowAimSolution: long flat and high shots land with the vanilla integrator',()=>{
+ const {bot}=makeBot({});
+ for(const [x,y,z] of [[30,-60,0],[0,-60,-22],[15,-52,15],[20,-66,-5]]){
+  const target=mob(90,'zombie',at(x,y,z));
+  const sol=bowAimSolution(bot,target);
+  assert.ok(sol,'solvable '+[x,y,z]);
+  const path=arrowTrajectory({x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},sol.yaw,sol.pitch);
+  assert.ok(minDistTo(path,{x,y:y+0.95,z})<0.15,'hits the body centre at '+[x,y,z]);
+ }
+});
+test('bowAimSolution: a moving shooter compensates for the motion vanilla adds to the arrow',()=>{
+ // Backpedalling at sprint speed while a creeper closes (the kite): 0.28 b/t away from it.
+ const {bot}=makeBot({velocity:[-0.28,0,0.1]});
+ const target=mob(91,'creeper',at(18,-60,4),{velocity:[-0.1,0,0]});
+ const sol=bowAimSolution(bot,target);
+ const from={x:0,y:-60+ARROW_LAUNCH_HEIGHT,z:0},u={x:-0.28,y:0,z:0.1};
+ const real=arrowTrajectory(from,sol.yaw,sol.pitch,{inherit:u});
+ const led={x:18-0.1*sol.ticks,y:-60+0.95,z:4};
+ assert.ok(minDistTo(real,led)<0.3,'the inherited motion is aimed out');
+ const naive=bowAimSolution(bot,target,{inherit:false});
+ const miss=arrowTrajectory(from,naive.yaw,naive.pitch,{inherit:u});
+ assert.ok(minDistTo(miss,led)>0.6,'ignoring it would miss (the old solver)');
 });

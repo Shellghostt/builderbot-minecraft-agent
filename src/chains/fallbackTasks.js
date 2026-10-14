@@ -12,6 +12,7 @@
 // Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
 import {Task} from '../tasks/task.js';
 import {dayTicks} from '../daytime.js';
+import {yawToward} from '../heading.js';
 import {dist,onFire,inGame} from './settings.js';
 import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
 
@@ -62,8 +63,7 @@ class RunAwayTask extends Task{
   const near=this.targets(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
   if(!near){forget(bot,'forward','sprint');return null;}
   const dx=bot.entity.position.x-near.position.x,dz=bot.entity.position.z-near.position.z;
-  // mineflayer look convention: x = -sin(yaw), z = cos(yaw)
-  look(bot,Math.atan2(-dx,dz),0);
+  look(bot,yawToward(dx,dz),0); // along the away vector (heading.js convention)
   setControl(bot,'forward',true);
   setControl(bot,'sprint',(bot.food||20)>6); // 7f: sprint needs food > 6
   return null;
@@ -89,7 +89,7 @@ export class KeepDistanceTask extends Task{
   if(!near){forget(bot,'forward','sprint','back');return null;}
   const d=distanceTo(near,bot);
   const dx=near.position.x-bot.entity.position.x,dz=near.position.z-bot.entity.position.z;
-  look(bot,Math.atan2(dx,-dz),0); // face the threat
+  look(bot,yawToward(-dx,-dz),0); // face AWAY from the threat: forward opens the gap
   const tooClose=d<this.distance;
   setControl(bot,'forward',tooClose);
   setControl(bot,'back',!tooClose&&d<this.distance+4);
@@ -150,7 +150,7 @@ export class EscapeFromLavaTask extends Task{
    }
    if(c<bestCount){bestCount=c;best=[dx,dz];}
   }
-  look(bot,Math.atan2(-best[0],best[1]),0);
+  look(bot,yawToward(best[0],best[1]),0);
   setControl(bot,'jump',true);setControl(bot,'sprint',true);setControl(bot,'forward',true);
   return null;
  }
@@ -181,7 +181,7 @@ export class EscapeFreezingTask extends Task{
    }
    if(c<bestCount){bestCount=c;best=[dx,dz];}
   }
-  look(bot,Math.atan2(-best[0],best[1]),0);
+  look(bot,yawToward(best[0],best[1]),0);
   setControl(bot,'jump',true);setControl(bot,'forward',true);setControl(bot,'sprint',(bot.food||20)>6);
   return null;
  }
@@ -203,7 +203,7 @@ export class GetToBlockTask extends Task{
   const b=this.findBlock(bot);
   if(!b){forget(bot,'forward','sprint');return null;}
   const dx=b.position.x-bot.entity.position.x,dz=b.position.z-bot.entity.position.z;
-  look(bot,Math.atan2(-dx,dz),0.3);
+  look(bot,yawToward(dx,dz),-0.3); // a little down (mineflayer: negative pitch looks down)
   setControl(bot,'forward',true);setControl(bot,'sprint',(bot.food||20)>6);
   return null;
  }
@@ -352,7 +352,7 @@ export class KillEntitiesTask extends Task{
     try{const t=m.getToEntity(target);if(t&&typeof t.onTick==='function')return t;}catch{}
    }
    const dx=target.position.x-bot.entity.position.x,dz=target.position.z-bot.entity.position.z;
-   look(bot,Math.atan2(-dx,dz),0);
+   look(bot,yawToward(dx,dz),0);
    setControl(bot,'forward',true);setControl(bot,'sprint',d>6&&(bot.food||20)>6);
    return null;
   }
@@ -481,7 +481,7 @@ export class ShelterTask extends Task{
     if(between){
      equipSafe(bot,placeable,'hand');
      const dx=near.position.x-bot.entity.position.x,dz=near.position.z-bot.entity.position.z;
-     look(bot,Math.atan2(-dx,dz),0);
+     look(bot,yawToward(dx,dz),0);
      const p=bot.placeBlock(between,{x:0,y:1,z:0});p&&p.catch&&p.catch(()=>{});
     }
    }

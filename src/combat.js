@@ -17,6 +17,7 @@
 import {Vec3} from 'vec3';
 import {creeperSwell} from './creeper.js';
 import {hitsBot} from './place-support.js';
+import {yawToward,pitchToward,headingOf} from './heading.js';
 
 const dist=(a,b)=>{
  if(!a||!b)return Infinity;
@@ -147,20 +148,28 @@ export const ARROW_GRAVITY=0.05;
 export const ARROW_DRAG=0.99;
 export const ARROW_SPEED=3.0; // blocks/tick at full draw
 export const FULL_DRAW_SECONDS=1.0;
-// Trajectory in blocks/tick (mineflayer velocity units), one point per tick:
-// vel = vel*drag; vel.y -= gravity; pos += vel (vanilla entity integration order).
-export function arrowTrajectory(from,yaw,pitch,{speed=ARROW_SPEED,gravity=ARROW_GRAVITY,drag=ARROW_DRAG,ticks=100}={}){
- const pos={x:from.x,y:from.y,z:from.z};
+export const ARROW_LAUNCH_HEIGHT=1.52; // vanilla spawns the arrow at the shooter's eye (1.62) - 0.1
+// Trajectory in blocks/tick (mineflayer velocity units), one point per tick, in vanilla
+// AbstractArrow.tick order (as minecrafthawkeye / mineflayer-projectile model it): pos += vel,
+// THEN vel *= drag, THEN vel.y -= gravity. The old drag-and-gravity-first order dropped every
+// shot a tick early. Direction is mineflayer's view vector (heading.js). `inherit` is the
+// shooter's own motion, which vanilla adds to the launch (x/z always, y only airborne).
+export function arrowTrajectory(from,yaw,pitch,{speed=ARROW_SPEED,gravity=ARROW_GRAVITY,drag=ARROW_DRAG,ticks=100,inherit=null}={}){
+ const pos={x:from.x,y:from.y,z:from.z},u=inherit||{};
  const c=Math.cos(pitch);
- let vx=-Math.sin(yaw)*c*speed,vy=-Math.sin(pitch)*speed,vz=Math.cos(yaw)*c*speed;
+ let vx=-Math.sin(yaw)*c*speed+(u.x||0),vy=Math.sin(pitch)*speed+(u.y||0),vz=-Math.cos(yaw)*c*speed+(u.z||0);
  const path=[];
  for(let t=1;t<=ticks;t++){
-  vx*=drag;vy*=drag;vz*=drag;vy-=gravity;
   pos.x+=vx;pos.y+=vy;pos.z+=vz;
   path.push({x:pos.x,y:pos.y,z:pos.z,t});
+  vx*=drag;vy*=drag;vz*=drag;vy-=gravity;
  }
  return path;
 }
+// Displacement per unit of launch velocity after n ticks: sum drag^k, k<n. The flight is
+// linear in the launch velocity, so the shooter's inherited motion u moves the arrow by
+// exactly u*dragSum(n) - the solver aims at (led target - u*dragSum) instead.
+export const dragSum=(n,drag=ARROW_DRAG)=>drag===1?n:(1-Math.pow(drag,n))/(1-drag);
 const flightDiff=(from,aim,d,yaw,pitch,speed,gravity,drag,maxTicks)=>{
  // Signed height error where the trajectory crosses the aim's vertical plane (-Inf: never).
  const path=arrowTrajectory(from,yaw,pitch,{speed,gravity,drag,ticks:maxTicks});
@@ -207,29 +216,34 @@ function solvePitch(from,aim,d,yaw,speed,gravity,drag,maxTicks){
  sols.sort((a,b)=>a.ticks-b.ticks);
  return sols[0];
 }
-// bowAimSolution(bot,target,{speed,gravity,drag,maxTicks}) -> {yaw,pitch,ticks}|null.
+// bowAimSolution(bot,target,{speed,gravity,drag,maxTicks,launchHeight,inherit}) -> {yaw,pitch,ticks}|null.
 // Leads the target by its velocity over the flight time (mineflayer velocity = blocks/tick)
-// and iterates aim <-> flight time until stable. mineflayer look convention:
-// x = -sin(yaw)*cos(pitch), y = -sin(pitch) (positive pitch looks down), z = cos(yaw)*cos(pitch).
+// and iterates aim <-> flight time until stable. mineflayer look convention (heading.js):
+// x = -sin(yaw)*cos(pitch), y = sin(pitch) (positive pitch looks UP), z = -cos(yaw)*cos(pitch).
 export function bowAimSolution(bot,target,opts={}){
  const me=bot&&bot.entity;
  if(!me||!me.position||!target||!target.position)return null;
  const speed=opts.speed??ARROW_SPEED,gravity=opts.gravity??ARROW_GRAVITY,drag=opts.drag??ARROW_DRAG;
  const maxTicks=opts.maxTicks??100;
- const from={x:me.position.x,y:me.position.y+1.62,z:me.position.z}; // eye height
+ const from={x:me.position.x,y:me.position.y+(opts.launchHeight??ARROW_LAUNCH_HEIGHT),z:me.position.z};
  const tp=target.position,tv=target.velocity||{};
  const N=n=>typeof n==='number'&&isFinite(n)?n:0;
+ // Vanilla adds the shooter's motion to the arrow (y only while airborne).
+ const mv=opts.inherit===false?{}:me.velocity||{};
+ const u={x:N(mv.x),y:me.onGround===false?N(mv.y):0,z:N(mv.z)};
+ const shift=n=>{const k=dragSum(n,drag);return {x:u.x*k,y:u.y*k,z:u.z*k};};
  const midY=()=>tp.y+(target.height?target.height/2:0.9);
  let aim={x:tp.x,y:midY(),z:tp.z};
  let out=null;
- for(let i=0;i<4;i++){
+ for(let i=0;i<6;i++){
   const dx=aim.x-from.x,dz=aim.z-from.z,d=Math.hypot(dx,dz);
-  const yaw=Math.atan2(-dx,dz);
-  const sol=d<0.8?{pitch:-Math.atan2(aim.y-from.y,Math.max(d,0.5)),ticks:1}
+  const yaw=yawToward(dx,dz);
+  const sol=d<0.8?{pitch:pitchToward(aim.y-from.y,Math.max(d,0.5)),ticks:1}
    :solvePitch(from,aim,d,yaw,speed,gravity,drag,maxTicks);
   if(!sol)return null; // out of range: no pitch crosses the aim plane in maxTicks
   out={yaw,pitch:sol.pitch,ticks:sol.ticks};
-  const next={x:tp.x+N(tv.x)*sol.ticks,y:midY()+N(tv.y)*sol.ticks,z:tp.z+N(tv.z)*sol.ticks};
+  const sh=shift(sol.ticks);
+  const next={x:tp.x+N(tv.x)*sol.ticks-sh.x,y:midY()+N(tv.y)*sol.ticks-sh.y,z:tp.z+N(tv.z)*sol.ticks-sh.z};
   if(Math.abs(next.x-aim.x)<0.05&&Math.abs(next.y-aim.y)<0.05&&Math.abs(next.z-aim.z)<0.05)break;
   aim=next;
  }
@@ -537,7 +551,7 @@ export class CombatController{
  }
  _faceTarget(t){
   const me=this.bot.entity.position;
-  this._look(Math.atan2(-(t.position.x-me.x),t.position.z-me.z),0);
+  this._look(yawToward(t.position.x-me.x,t.position.z-me.z),0);
  }
  _hasFood(bot){
   try{
@@ -813,7 +827,7 @@ export class CombatController{
   this._setState('pillar-descend');
   this._cancelDraw();
   if(p.landing){ // keep walking: the box still rests on the column 0.3 past its edge
-   const yaw=Math.atan2(-(p.landing.x+0.5-e.position.x),-(p.landing.z+0.5-e.position.z)); // mineflayer: yaw 0 faces -z
+   const yaw=yawToward(p.landing.x+0.5-e.position.x,p.landing.z+0.5-e.position.z);
    this._snapYaw(yaw);
    this._controls({forward:true,back:false,left:false,right:false,sprint:false,jump:false});
   }else{
@@ -885,7 +899,7 @@ export class CombatController{
   const ready=now-this._lastStrike>=cooldownSeconds(gear.weaponName,bot.registry);
   if(reach>this.opts.perchReach||!ready){this._setState('pillar-perch');return;}
   const dx=near.x-eye.x,dz=near.z-eye.z;
-  this._look(Math.atan2(-dx,-dz),Math.atan2(near.y-eye.y,Math.hypot(dx,dz)),true); // mineflayer lookAt convention
+  this._look(yawToward(dx,dz),pitchToward(near.y-eye.y,Math.hypot(dx,dz)),true);
   try{const q=bot.attack(t);q&&q.catch&&q.catch(()=>{});}catch{}
   this._lastStrike=now;this.stats.hits++;
   this._setState('pillar-strike');
@@ -1057,12 +1071,14 @@ export class CombatController{
  // (PrismarineJS/mineflayer#3915), so distance is the only cancel.
  _openAlong(yaw){
   const me=this.bot.entity.position;
-  const dx=-Math.sin(yaw),dz=Math.cos(yaw);
+  const {x:dx,z:dz}=headingOf(yaw);
+  // The body is 0.6 wide: probe both edges as well as the centre line (a centre-only ray
+  // slipped past a wall corner whenever the bot stood on a block edge).
   let n=0;
   for(const off of [0.8,1.6,2.4,3.2,4.0,4.8,5.6,6.4,7.2]){
    let blocked=false;
-   for(const dy of [0,1]){
-    const b=blockAt(this.bot,{x:me.x+dx*off,y:me.y+dy,z:me.z+dz*off});
+   for(const side of [0,0.29,-0.29])for(const dy of [0,1]){
+    const b=blockAt(this.bot,{x:me.x+dx*off-dz*side,y:me.y+dy,z:me.z+dz*off+dx*side});
     if(b&&b.boundingBox==='block'){blocked=true;break;}
    }
    if(blocked)break;
@@ -1073,11 +1089,11 @@ export class CombatController{
  _bestAway(t){
   const me=this.bot.entity.position;
   const d0=dist(me,t.position);
-  const base=Math.atan2(-(me.x-t.position.x),me.z-t.position.z);
+  const base=yawToward(me.x-t.position.x,me.z-t.position.z);
   const score=yaw=>{
    const room=this._openAlong(yaw);
    const step=Math.min(room||0.8,3.2);
-   const dx=-Math.sin(yaw),dz=Math.cos(yaw);
+   const {x:dx,z:dz}=headingOf(yaw);
    const gap=Math.hypot(me.x+dx*step-t.position.x,me.z+dz*step-t.position.z);
    return {yaw,room,opens:gap-d0};
   };
@@ -1099,11 +1115,14 @@ export class CombatController{
   try{this.bot.entity.yaw=yaw;this.bot.entity.pitch=0;}catch{}
   this._look(yaw,0,true);
  }
+ // Cloud review 2026-10-14: every yaw here used to be z-mirrored (heading.js), which alone
+ // turns "away" into "toward" for any creeper off the x axis - re-read the walk-in logs
+ // below (73176-81, 22:59) with that in mind before trusting their conclusions.
  // Face the creeper and walk BACK. Forward+sprint is look-relative and walked
  // into the gate whenever yaw had not snapped (73176-81 deaths / 16-18 dmg).
  _creeperBack(t){
   const me=this.bot.entity.position;
-  const yaw=Math.atan2(-(t.position.x-me.x),t.position.z-me.z);
+  const yaw=yawToward(t.position.x-me.x,t.position.z-me.z);
   this._snapYaw(yaw);
   this._controls({forward:false,back:true,sprint:(this.bot.food??20)>this.opts.sprintFood,left:false,right:false});
  }
@@ -1296,7 +1315,7 @@ export class CombatController{
   const dx=spot.x+0.5-me.x,dz=spot.z+0.5-me.z,far=Math.hypot(dx,dz);
   // Face the WALK direction: facing the enderman while walking forward just pushes into
   // it - measured 0/20 roof samples with the pocket 5 blocks behind the mob.
-  this._look(Math.atan2(-(dx),dz),0);
+  this._look(yawToward(dx,dz),0);
   this._controls({forward:far>0.4,sprint:false});
   this._setState('roof-walk '+(far.toFixed(0)));
   if(far>3&&!this._roofNav&&this.move&&this.move.goals&&this.move.goals.xzGoal&&this.move.goto){
@@ -1374,7 +1393,7 @@ export class CombatController{
      // 73178-73180: !sol kited every tick (shots=0) until swell at 2.8. Flat look-at
      // still fires; missing is better than never shooting (wiki fuse starts at 3).
      const me=bot.entity.position;
-     this._lastAim={yaw:Math.atan2(-(t.position.x-me.x),t.position.z-me.z),pitch:0,ticks:1};
+     this._lastAim={yaw:yawToward(t.position.x-me.x,t.position.z-me.z),pitch:0,ticks:1};
     }else{
      this._cancelDraw();
      this._setState('approach');
@@ -1425,7 +1444,7 @@ export class CombatController{
   // let it walk 16→7 in two shots). Forward+look is the walk-in. Force the aim look.
   if(t.name==='creeper'){
    const me=bot.entity.position;
-   const face=Math.atan2(-(t.position.x-me.x),t.position.z-me.z);
+   const face=yawToward(t.position.x-me.x,t.position.z-me.z);
    const room=this._openAlong(face+Math.PI);
    if(room>=2)this._controls({forward:false,back:true,sprint:(bot.food??20)>this.opts.sprintFood,left:false,right:false});
    else this._controls({forward:false,back:false,sprint:false,left:false,right:false});
