@@ -1,0 +1,23 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 25569,
+    "version": "1.21.4",
+    "username": "BuilderBot",
+    "auth": "offline"
+  },
+  "dashboardPort": 8765,
+  "model": {
+    "enabled": false,
+    "url": "http://127.0.0.1:8081/v1",
+    "name": "Qwen3-8B"
+  },
+  "limits": {
+    "radius": 32,
+    "jobMinutes": 10,
+    "nightMinutes": 13,
+    "minHealth": 10,
+    "minFood": 6
+  },
+  "reflexes": true
+}

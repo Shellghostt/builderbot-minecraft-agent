@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "minecraft": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "D:\\Usefu Shi\\Epic\\SGSMP\\minecraft-agent\\runtime\\node-v22.23.3-win-x64\\node.exe",
+        "D:\\Usefu Shi\\Epic\\SGSMP\\minecraft-agent\\src\\mcp.js"
+      ]
+    }
+  }
+}

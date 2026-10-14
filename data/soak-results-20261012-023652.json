@@ -1,0 +1,2496 @@
+{
+  "runs": [
+    {
+      "index": 1,
+      "errors": [
+        "setup: dawn/clear weather not confirmed"
+      ],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            141,
+            131,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            143,
+            132,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            142,
+            131,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 5,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            142,
+            131,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            135,
+            130,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            135,
+            130,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            135,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            135,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            135,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 7,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            68,
+            48,
+            -30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "paused: died - resume to continue",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 331,
+          "pos": [
+            62,
+            62,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (1s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 361,
+          "pos": [
+            -13,
+            61,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 391,
+          "pos": [
+            1,
+            62,
+            -46
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 421,
+          "pos": [
+            -23,
+            62,
+            -33
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 452,
+          "pos": [
+            -22,
+            62,
+            40
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 482,
+          "pos": [
+            3,
+            62,
+            40
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 512,
+          "pos": [
+            -11,
+            61,
+            22
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 542,
+          "pos": [
+            -1,
+            62,
+            22
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 572,
+          "pos": [
+            2,
+            61,
+            -2
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 602,
+          "pos": [
+            -11,
+            60,
+            -2
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        }
+      ],
+      "interventions": [
+        "operator: unstuck the bot from [135, 129, 31]",
+        "operator: resumed the ladder after death at t=301"
+      ],
+      "resumes": 1,
+      "deaths": 1,
+      "world_ok": false,
+      "vitals_ok": true,
+      "logmark": 4497776,
+      "deaths_before": 1,
+      "death_causes": [
+        "System chat: BuilderBot was slain by Zombie"
+      ],
+      "peaks": {
+        "logs": {
+          "max": 7,
+          "at": 120
+        },
+        "planks": {
+          "max": 0,
+          "at": null
+        },
+        "cobble": {
+          "max": 0,
+          "at": null
+        },
+        "wood_pick": {
+          "max": 0,
+          "at": null
+        },
+        "table": {
+          "max": 0,
+          "at": null
+        },
+        "stone_pick": {
+          "max": 0,
+          "at": null
+        },
+        "stone_sword": {
+          "max": 0,
+          "at": null
+        },
+        "furnace": {
+          "max": 0,
+          "at": null
+        }
+      },
+      "first": {
+        "wood_pick": null,
+        "table": null,
+        "cobble": null,
+        "stone_pick": null,
+        "furnace": null
+      },
+      "achieved": {
+        "stick": 0,
+        "crafting_table": 0,
+        "wooden_pickaxe": 0,
+        "wooden_axe": 0,
+        "wooden_sword": 0,
+        "wooden_shovel": 0,
+        "cobblestone": 0,
+        "stone_pickaxe": 0,
+        "stone_axe": 0,
+        "stone_sword": 0,
+        "stone_shovel": 0,
+        "furnace": 0,
+        "torch": 0,
+        "logs_total": 0,
+        "planks_total": 0,
+        "edible_food": 0
+      },
+      "wood": false,
+      "stone": false,
+      "wood_at": null,
+      "stone_at": null,
+      "final_state": {
+        "enabled": true,
+        "state": "wood: gather",
+        "step": "wood",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No matching blocks within the allowed radius"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No matching blocks within the allowed radius"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No matching blocks within the allowed radius"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 7,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "oak_log",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "oak_log",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "oak_log",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "oak_log",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            178,
+            144,
+            16
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (3s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            180,
+            145,
+            16
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (7s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            180,
+            144,
+            18
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (6s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            178,
+            144,
+            16
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (1s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            178,
+            144,
+            16
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (4s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            180,
+            143,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            176,
+            143,
+            13
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 391,
+          "pos": [
+            176,
+            143,
+            14
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 421,
+          "pos": [
+            179,
+            144,
+            3
+          ],
+          "hp": 8.3,
+          "food": 17,
+          "step": "wood",
+          "apstate": "backing off (2s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 451,
+          "pos": [
+            99,
+            143,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "paused: died - resume to continue",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 482,
+          "pos": [
+            125,
+            145,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 512,
+          "pos": [
+            132,
+            143,
+            -29
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 542,
+          "pos": [
+            128,
+            139,
+            -24
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 572,
+          "pos": [
+            140,
+            146,
+            -15
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 602,
+          "pos": [
+            140,
+            146,
+            -15
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        }
+      ],
+      "interventions": [
+        "operator: resumed the ladder after death at t=451"
+      ],
+      "resumes": 1,
+      "deaths": 1,
+      "world_ok": true,
+      "vitals_ok": true,
+      "logmark": 4498647,
+      "deaths_before": 1,
+      "death_causes": [
+        "System chat: BuilderBot was shot by Skeleton"
+      ],
+      "peaks": {
+        "logs": {
+          "max": 0,
+          "at": null
+        },
+        "planks": {
+          "max": 0,
+          "at": null
+        },
+        "cobble": {
+          "max": 0,
+          "at": null
+        },
+        "wood_pick": {
+          "max": 0,
+          "at": null
+        },
+        "table": {
+          "max": 0,
+          "at": null
+        },
+        "stone_pick": {
+          "max": 0,
+          "at": null
+        },
+        "stone_sword": {
+          "max": 0,
+          "at": null
+        },
+        "furnace": {
+          "max": 0,
+          "at": null
+        }
+      },
+      "first": {
+        "wood_pick": null,
+        "table": null,
+        "cobble": null,
+        "stone_pick": null,
+        "furnace": null
+      },
+      "achieved": {
+        "stick": 0,
+        "crafting_table": 0,
+        "wooden_pickaxe": 0,
+        "wooden_axe": 0,
+        "wooden_sword": 0,
+        "wooden_shovel": 0,
+        "cobblestone": 0,
+        "stone_pickaxe": 0,
+        "stone_axe": 0,
+        "stone_sword": 0,
+        "stone_shovel": 0,
+        "furnace": 0,
+        "torch": 0,
+        "logs_total": 0,
+        "planks_total": 0,
+        "edible_food": 0
+      },
+      "wood": false,
+      "stone": false,
+      "wood_at": null,
+      "stone_at": null,
+      "final_state": {
+        "enabled": true,
+        "state": "wood: gather",
+        "step": "wood",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            255,
+            149,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            248,
+            156,
+            37
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            243,
+            152,
+            39
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            248,
+            151,
+            38
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            245,
+            151,
+            38
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            246,
+            150,
+            38
+          ],
+          "hp": 16,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            93,
+            145,
+            -39
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "idle",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 242,
+          "pos": [
+            86,
+            129,
+            -47
+          ],
+          "hp": 17.8,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 2,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 272,
+          "pos": [
+            101,
+            136,
+            -30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "paused: died - resume to continue",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 302,
+          "pos": [
+            98,
+            136,
+            -31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 332,
+          "pos": [
+            86,
+            129,
+            -34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 362,
+          "pos": [
+            87,
+            130,
+            -34
+          ],
+          "hp": 14.3,
+          "food": 17,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 392,
+          "pos": [
+            85,
+            105,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "paused: died - resume to continue",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 423,
+          "pos": [
+            85,
+            105,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "backing off (5s): wood",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 453,
+          "pos": [
+            85,
+            105,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 483,
+          "pos": [
+            64,
+            62,
+            -25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 514,
+          "pos": [
+            33,
+            62,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 544,
+          "pos": [
+            2,
+            62,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 574,
+          "pos": [
+            4,
+            62,
+            -27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 604,
+          "pos": [
+            12,
+            61,
+            -41
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        }
+      ],
+      "interventions": [
+        "operator: resumed the ladder after death at t=211",
+        "operator: resumed the ladder after death at t=272",
+        "operator: resumed the ladder after death at t=392"
+      ],
+      "resumes": 3,
+      "deaths": 3,
+      "world_ok": true,
+      "vitals_ok": true,
+      "logmark": 4499710,
+      "deaths_before": 1,
+      "death_causes": [
+        "System chat: BuilderBot was slain by Zombie",
+        "System chat: BuilderBot was slain by Zombie",
+        "System chat: BuilderBot was shot by Skeleton"
+      ],
+      "peaks": {
+        "logs": {
+          "max": 2,
+          "at": 242
+        },
+        "planks": {
+          "max": 0,
+          "at": null
+        },
+        "cobble": {
+          "max": 0,
+          "at": null
+        },
+        "wood_pick": {
+          "max": 0,
+          "at": null
+        },
+        "table": {
+          "max": 0,
+          "at": null
+        },
+        "stone_pick": {
+          "max": 0,
+          "at": null
+        },
+        "stone_sword": {
+          "max": 0,
+          "at": null
+        },
+        "furnace": {
+          "max": 0,
+          "at": null
+        }
+      },
+      "first": {
+        "wood_pick": null,
+        "table": null,
+        "cobble": null,
+        "stone_pick": null,
+        "furnace": null
+      },
+      "achieved": {
+        "stick": 0,
+        "crafting_table": 0,
+        "wooden_pickaxe": 0,
+        "wooden_axe": 0,
+        "wooden_sword": 0,
+        "wooden_shovel": 0,
+        "cobblestone": 0,
+        "stone_pickaxe": 0,
+        "stone_axe": 0,
+        "stone_sword": 0,
+        "stone_shovel": 0,
+        "furnace": 0,
+        "torch": 0,
+        "logs_total": 0,
+        "planks_total": 0,
+        "edible_food": 0
+      },
+      "wood": false,
+      "stone": false,
+      "wood_at": null,
+      "stone_at": null,
+      "final_state": {
+        "enabled": true,
+        "state": "wood: gather",
+        "step": "wood",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "paused",
+          "progress": 0,
+          "message": "Reflex: preempted by Mob Defense"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "paused",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "No path to the goal!"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Only the block under the bot is in reach; gathering would dig its own floor"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "failed",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Paused because an earlier job failed"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "wood_runs": 0,
+    "stone_runs": 0,
+    "wood_at": [
+      null,
+      null,
+      null
+    ],
+    "stone_at": [
+      null,
+      null,
+      null
+    ],
+    "deaths": 5,
+    "resumes": 5,
+    "interventions": 6,
+    "median": {
+      "logs_total": 0,
+      "planks_total": 0,
+      "stick": 0,
+      "crafting_table": 0,
+      "wooden_pickaxe": 0,
+      "cobblestone": 0,
+      "stone_pickaxe": 0,
+      "stone_axe": 0,
+      "stone_sword": 0,
+      "stone_shovel": 0,
+      "furnace": 0
+    },
+    "peak_median": {
+      "logs": 2,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "table": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0
+    }
+  },
+  "errors": [
+    "setup: dawn/clear weather not confirmed"
+  ]
+}

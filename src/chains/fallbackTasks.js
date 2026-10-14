@@ -1,0 +1,506 @@
+// Local fallback tasks used by the ported chains while P3 (resource tasks) and P4
+// (movement helpers) are not wired into ctx yet. Names mirror the original AltoClef task
+// classes so the ctx.move overrides resolve by name. Behaviour is guarded and minimal —
+// the ownership rule holds: no direct pathfinder.setGoal/setMovements calls here, only
+// player-level controls and equipped-item actions.
+// Ported from src/main/java/adris/altoclef/tasks/movement/{RunAwayFromHostilesTask,
+// RunAwayFromCreepersTask, DodgeProjectilesTask, EscapeFromLavaTask, GetToBlockTask,
+// SafeRandomShimmyTask, MLGBucketTask}.java and tasks/entity/KillEntitiesTask.java,
+// tasks/resources/CollectFoodTask.java (adapted).
+// Original AltoClef (https://github.com/gaucho-matrero/altoclef,
+// commit af22e3bc2f03dde45da703f5f7535baae18ea486), MIT License,
+// Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
+import {Task} from '../tasks/task.js';
+import {dist,onFire,inGame} from './settings.js';
+import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
+
+const setControl=(bot,name,value)=>{try{bot.setControlState(name,value);}catch{}};
+const look=async(bot,yaw,pitch)=>{try{await bot.look(yaw,pitch,false);}catch{}};
+const forget=(bot,...names)=>names.forEach(n=>setControl(bot,n,false));
+// Resolve a P4 movement helper by Java class name, camelCase, or the verb-style factory
+// key (EscapeFromLavaTask -> escapeFromLava); fall back to the local task.
+const camel=s=>s[0].toLowerCase()+s.slice(1);
+const resolveMove=(m,name)=>{
+ if(!m)return null;
+ if(typeof m[name]==='function')return m[name];
+ const c=camel(name);
+ if(typeof m[c]==='function')return m[c];
+ if(c.endsWith('Task')&&typeof m[c.slice(0,-4)]==='function')return m[c.slice(0,-4)];
+ return null;
+};
+export const movementTask=(ctx,name,mk)=>{
+ const f=resolveMove(ctx&&ctx.move,name);
+ if(f){try{const t=f();if(t&&typeof t.onTick==='function')return t;}catch{}}
+ return mk();
+};
+const digSafe=(bot,block)=>{const p=bot.dig(block);p&&p.catch&&p.catch(()=>{});};
+// mineflayer's equip reads item.slot: a bare {name} made the equip THROW silently, the
+// item never reached the hand and every placement that depended on it was refused by the
+// server (the A4 water douse burned the full fire clock this way - measured 2026-10-13).
+const equipSafe=(bot,item,slot='hand')=>{
+ let real=item;
+ if(item&&item.name&&item.slot===undefined){
+  real=((bot.inventory&&bot.inventory.items())||[]).find(i=>i.name===item.name)||null;
+ }
+ if(!real)return;
+ const p=bot.equip(real,slot);p&&p.catch&&p.catch(()=>{});
+};
+
+// tasks/movement/RunAwayFromEntitiesTask.java family: face away, hold forward, sprint only
+// when food > 6 (7f), until every qualifying hostile is farther than `distance`.
+class RunAwayTask extends Task{
+ constructor(name,distance,{kinds=null,exclude=null}={}){super(name);this.distance=distance;this.kinds=kinds;this.exclude=exclude;}
+ targets(bot,ctx){
+  let hs=getHostiles(bot,ctx);
+  if(this.kinds)hs=hs.filter(e=>this.kinds.has(e.name));
+  if(this.exclude)hs=hs.filter(e=>!this.exclude.has(e.name));
+  return hs;
+ }
+ isFinished(bot,ctx){return !this.targets(bot,ctx).some(e=>withinRange(e,bot,this.distance));}
+ onTick(bot,ctx){
+  const near=this.targets(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
+  if(!near){forget(bot,'forward','sprint');return null;}
+  const dx=bot.entity.position.x-near.position.x,dz=bot.entity.position.z-near.position.z;
+  // mineflayer look convention: x = -sin(yaw), z = cos(yaw)
+  look(bot,Math.atan2(-dx,dz),0);
+  setControl(bot,'forward',true);
+  setControl(bot,'sprint',(bot.food||20)>6); // 7f: sprint needs food > 6
+  return null;
+ }
+ onStop(bot){forget(bot,'forward','sprint','jump');}
+ isEqual(o){return o&&o.constructor===this.constructor&&Math.abs(o.distance-this.distance)<1;}
+}
+export class RunAwayFromHostilesTask extends RunAwayTask{
+ constructor(distance,includeSkeletons=false){
+  super('RunAwayFromHostilesTask',distance,{exclude:includeSkeletons?null:new Set(['skeleton','stray','bogged'])});
+  this.includeSkeletons=includeSkeletons;
+ }
+}
+export class RunAwayFromCreepersTask extends RunAwayTask{
+ constructor(distance){super('RunAwayFromCreepersTask',distance,{kinds:new Set(['creeper'])});}
+}
+// 7f daylight-burn ladder step: undead burn in the sun, so merely staying out of reach wins.
+export class KeepDistanceTask extends Task{
+ constructor(distance){super('KeepDistanceTask');this.distance=distance;}
+ isFinished(bot,ctx){return !getHostiles(bot,ctx).some(e=>withinRange(e,bot,this.distance));}
+ onTick(bot,ctx){
+  const near=getHostiles(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
+  if(!near){forget(bot,'forward','sprint','back');return null;}
+  const d=distanceTo(near,bot);
+  const dx=near.position.x-bot.entity.position.x,dz=near.position.z-bot.entity.position.z;
+  look(bot,Math.atan2(dx,-dz),0); // face the threat
+  const tooClose=d<this.distance;
+  setControl(bot,'forward',tooClose);
+  setControl(bot,'back',!tooClose&&d<this.distance+4);
+  setControl(bot,'sprint',tooClose&&(bot.food||20)>6);
+  return null;
+ }
+ onStop(bot){forget(bot,'forward','back','sprint');}
+ isEqual(o){return o&&o.constructor===this.constructor&&Math.abs(o.distance-this.distance)<1;}
+}
+// projectiles: closest approach along the velocity line (port of the arrow-dodge check).
+export const approachingProjectiles=bot=>{
+ if(!bot.entity)return [];
+ return Object.values(bot.entities||{}).filter(e=>{
+  if(!e||e===bot.entity||!e.position||!e.velocity||e.isValid===false)return false;
+  if(!/^(arrow|spectral_arrow|thrown_trident|small_fireball|fireball|snowball|egg|shulker_bullet|wind_charge)$/.test(e.name||''))return false;
+  if(e.name==='fireball')return false; // ghast ball: ignored like AltoClef
+  const speed=e.velocity.norm?e.velocity.norm():Math.sqrt(e.velocity.x**2+e.velocity.y**2+e.velocity.z**2);
+  return speed>0.3;
+ });
+};
+export const projectileClose=(bot,horiz=2,vert=10)=>{
+ const me=bot.entity.position;
+ for(const p of approachingProjectiles(bot)){
+  const rx=p.position.x-me.x,ry=p.position.y-me.y,rz=p.position.z-me.z;
+  const vx=p.velocity.x,vy=p.velocity.y,vz=p.velocity.z;
+  const vv=vx*vx+vy*vy+vz*vz;if(vv<1e-4)continue;
+  const t=-(rx*vx+ry*vy+rz*vz)/vv;if(t<0)continue;
+  const hx=rx+vx*t-me.x,hz=rz+vz*t-me.z,hy=ry+vy*t;
+  if(hx*hx+hz*hz<horiz*horiz&&Math.abs(hy)<vert)return true;
+ }
+ return false;
+};
+export class DodgeProjectilesTask extends Task{
+ constructor(horiz=2,vert=10){super('DodgeProjectilesTask');this.horiz=horiz;this.vert=vert;this._side=Math.random()<0.5?'left':'right';}
+ isFinished(bot,ctx){return !projectileClose(bot,this.horiz,this.vert);}
+ onTick(bot,ctx){
+  if(!projectileClose(bot,this.horiz,this.vert)){forget(bot,'left','right','forward');return null;}
+  setControl(bot,this._side,true); // strafe perpendicular; flip side every second
+  if((Date.now()/1000|0)%2)setControl(bot,this._side,false);
+  setControl(bot,'forward',true);
+  return null;
+ }
+ onStop(bot){forget(bot,'left','right','forward');}
+}
+export class EscapeFromLavaTask extends Task{
+ constructor(){super('EscapeFromLavaTask');}
+ isFinished(bot,ctx){const e=bot.entity||{};return !e.isInLava&&!onFire(bot);}
+ onTick(bot,ctx){
+  // Port of EscapeFromLavaTask.onTick: sprint through lava and jump; head toward the
+  // direction with the fewest lava blocks nearby (Baritone goal replacement).
+  const me=bot.entity.position;
+  let best=[0,1],bestCount=Infinity;
+  for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){
+   let c=0;
+   for(const s of[1,2]){
+    const b=bot.blockAt&&bot.blockAt(me.offset(dx*s,0,dz*s));
+    if(b&&/lava/.test(b.name))c++;
+   }
+   if(c<bestCount){bestCount=c;best=[dx,dz];}
+  }
+  look(bot,Math.atan2(-best[0],best[1]),0);
+  setControl(bot,'jump',true);setControl(bot,'sprint',true);setControl(bot,'forward',true);
+  return null;
+ }
+ onStop(bot){forget(bot,'jump','sprint','forward');}
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// Powder snow: a bot that walks into it sinks, freezes (entity metadata 7 = TicksFrozen,
+// damage once fully frozen at 140) and, with "Health or food is low" refusing every new
+// job, stands there until it dies ("BuilderBot froze to death", soak normal2 2026-10-14,
+// 180 blocks up a snowy slope during the food-step explore). Dig the snow at feet and head
+// (hand-breakable, drops nothing) and push toward the side with the least powder snow.
+export class EscapeFreezingTask extends Task{
+ constructor(){super('EscapeFreezingTask');}
+ static snowAt(bot,offset){const b=bot.blockAt&&bot.blockAt(bot.entity.position.offset(0,offset,0));return b&&b.name==='powder_snow'?b:null;}
+ static inPowderSnow(bot){return !!(bot.entity&&bot.entity.position&&(EscapeFreezingTask.snowAt(bot,0)||EscapeFreezingTask.snowAt(bot,1)));}
+ static ticksFrozen(bot){const m=bot.entity&&bot.entity.metadata;const v=m&&m[7];return typeof v==='number'?v:0;}
+ isFinished(bot,ctx){return !EscapeFreezingTask.inPowderSnow(bot);}
+ onTick(bot,ctx){
+  const me=bot.entity.position;
+  const snow=EscapeFreezingTask.snowAt(bot,0)||EscapeFreezingTask.snowAt(bot,1);
+  if(snow)digSafe(bot,snow);
+  let best=[0,1],bestCount=Infinity;
+  for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){
+   let c=0;
+   for(const s of[1,2,3])for(const dy of[0,1]){
+    const b=bot.blockAt&&bot.blockAt(me.offset(dx*s,dy,dz*s));
+    if(b&&b.name==='powder_snow')c++;
+   }
+   if(c<bestCount){bestCount=c;best=[dx,dz];}
+  }
+  look(bot,Math.atan2(-best[0],best[1]),0);
+  setControl(bot,'jump',true);setControl(bot,'forward',true);setControl(bot,'sprint',(bot.food||20)>6);
+  return null;
+ }
+ onStop(bot){forget(bot,'jump','sprint','forward');}
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+export class GetToBlockTask extends Task{
+ constructor(blockName){super('GetToBlockTask');this.blockName=blockName;}
+ findBlock(bot){
+  try{return bot.findBlock({matching:b=>b&&b.name===this.blockName,useExtraInfo:false,maxDistance:48});}catch{return null;}
+ }
+ isFinished(bot,ctx){
+  const me=bot.entity.position;
+  if(this.blockName==='water'&&bot.entity.isInWater)return true;
+  const b=this.findBlock(bot);
+  return !!b&&dist(b.position,me)<3;
+ }
+ onTick(bot,ctx){
+  const b=this.findBlock(bot);
+  if(!b){forget(bot,'forward','sprint');return null;}
+  const dx=b.position.x-bot.entity.position.x,dz=b.position.z-bot.entity.position.z;
+  look(bot,Math.atan2(-dx,dz),0.3);
+  setControl(bot,'forward',true);setControl(bot,'sprint',(bot.food||20)>6);
+  return null;
+ }
+ onStop(bot){forget(bot,'forward','sprint');}
+ isEqual(o){return o&&o.constructor===this.constructor&&o.blockName===this.blockName;}
+}
+export class PutOutFireTask extends Task{
+ constructor(){super('PutOutFireTask');}
+ static touchingFire(bot){
+  const p=bot.entity.position,out=[];
+  for(const[dx,dz]of[[0,0],[1,0],[1,1],[1,-1],[0,1],[0,-1],[-1,1],[-1,-1],[-1,0]]){
+   const b=bot.blockAt&&bot.blockAt(p.offset(dx,0,dz));
+   if(b&&/fire/.test(b.name))out.push(b);
+  }
+  return out;
+ }
+ isFinished(bot,ctx){return !onFire(bot)||PutOutFireTask.touchingFire(bot).length===0;}
+ onTick(bot,ctx){
+  const fire=PutOutFireTask.touchingFire(bot)[0];
+  if(fire)digSafe(bot,fire);
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+export class SafeRandomShimmyTask extends Task{
+ constructor(){super('SafeRandomShimmyTask');this._until=0;this._dirs=[];}
+ isFinished(bot,ctx){
+  const b=bot.blockAt&&bot.blockAt(bot.entity.position);
+  return !(b&&b.name==='nether_portal');
+ }
+ onTick(bot,ctx){
+  const now=Date.now()/1000;
+  if(now>this._until){
+   this._until=now+0.5;
+   const keys=['forward','back','left','right'];
+   this._dirs=keys.filter(()=>Math.random()<0.5);
+   if(!this._dirs.length)this._dirs=[keys[Math.floor(Math.random()*4)]];
+  }
+  for(const k of['forward','back','left','right'])setControl(bot,k,this._dirs.includes(k));
+  setControl(bot,'jump',true);
+  return null;
+ }
+ onStop(bot){forget(bot,'forward','back','left','right','jump');}
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+export class MLGBucketTask extends Task{
+ constructor(){super('MLGBucketTask');this.placedPos=null;}
+ isFinished(bot,ctx){const e=bot.entity||{};return !!(e.onGround||e.isInWater||e.isInLava);}
+ onTick(bot,ctx){
+  if(this.placedPos||!hasItemName(bot,'water_bucket'))return null;
+  look(bot,0,-Math.PI/2);
+  const below=bot.blockAt&&bot.blockAt(bot.entity.position.offset(0,-1,0));
+  if(below){
+   equipSafe(bot,{name:'water_bucket'},'hand');
+   const p=bot.placeBlock(below,{x:0,y:1,z:0});p&&p.catch&&p.catch(()=>{});
+   this.placedPos=below.position;
+  }
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+
+export class InteractWithBlockTask extends Task{
+ constructor(blockPos,useItemName){super('InteractWithBlockTask');this.pos=blockPos;this.item=useItemName;}
+ isFinished(bot,ctx){return this.item==='water_bucket'&&hasItemName(bot,'water_bucket');}
+ onTick(bot,ctx){
+  const p=this.pos;if(!p)return null;
+  const block=bot.blockAt&&bot.blockAt(p);
+  if(!block)return null;
+  equipSafe(bot,{name:this.item},'hand');
+  const lookP=bot.lookAt(p.offset(0.5,0.5,0.5));lookP&&lookP.catch&&lookP.catch(()=>{});
+  const use=bot.activateBlock(block);use&&use.catch&&use.catch(()=>{});
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor&&o.pos&&this.pos&&o.pos.equals?o.pos.equals(this.pos):o.pos===this.pos;}
+}
+export class ExtinguishWithWaterTask extends Task{
+ // The pour itself is the worker's verified douseFire() (equip -> confirm -> forced
+ // lookAt -> settle -> activate, the integration-proven use() sequence). The in-task
+ // variants all failed live: the equip never settled across the chain's root churn, and
+ // pours fired on a stale rotation - the A4 probe burned to death twice (2026-10-13).
+ constructor({worker=null}={}){super('ExtinguishWithWaterTask');this.worker=worker;this._pourPromise=null;this._poured=false;}
+ // STICKY until one pour has been attempted: onFire flips false on the client LATE (the
+ // flag arrives with a delay through Via), so a naive "!onFire" finished the task the tick
+ // after it armed - the chain cleared the root before the equip ever settled.
+ isFinished(bot,ctx){
+  if(!this._poured)return false;
+  return !onFire(bot)||!hasItemName(bot,'water_bucket');
+ }
+ onTick(bot,ctx){
+  if(!hasItemName(bot,'water_bucket'))return null;
+  if(this.inFlight&&this.inFlight())return null;
+  // Stop-drop-roll: a moving bot outruns its own aim and the click never lands.
+  try{bot.clearControlStates();}catch{}
+  const w=this.worker||(ctx&&ctx.worker);
+  if(!this._pourPromise&&w&&typeof w.douseFire==='function'){
+   this._pourPromise=(async()=>{
+    try{await w.douseFire();}
+    catch(e){try{w.log('Douse failed: '+e.message);}catch{}}
+    finally{this._poured=true;this._pourPromise=null;}
+   })();
+  }
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// tasks/entity/KillEntitiesTask.java, adapted to 7f: equips the best weapon first and
+// verifies heldItem before every swing; never attacks while holding a block or food;
+// unarmed non-cornered fights abort instead of swinging. Full-charge cooldown per 7b.
+const FOODISH=new Set(['apple','bread','cooked_beef','beef','cooked_porkchop','porkchop','cooked_chicken','chicken','cooked_mutton','mutton','carrot','potato','baked_potato','golden_apple','sweet_berries','melon_slice','pumpkin_pie','cookie','rotten_flesh','spider_eye']);
+const holdsBlockOrFood=(bot,name)=>!!name&&!FOODISH.has(name)&&!!(bot.registry&&bot.registry.blocksByName&&bot.registry.blocksByName[name]);
+export class KillEntitiesTask extends Task{
+ constructor(targets,{lastResort=false}={}){
+  super('KillEntitiesTask');this.targets=targets;this.lastResort=lastResort;
+  this.aborted=false;this._lastAttack=-1e9;this._equipAge=99;this._ticks=0;
+ }
+ currentTargets(bot,ctx){
+  const list=typeof this.targets==='function'?this.targets(bot,ctx):this.targets;
+  return (list||[]).filter(e=>e&&e.position&&e.isValid!==false);
+ }
+ isFinished(bot,ctx){
+  if(inGame(bot)&&bot.health<=6&&!this.lastResort)return true; // bail out; the chain re-evaluates and flees (7f)
+  if(this.aborted)return true;
+  return !this.currentTargets(bot,ctx).some(e=>withinRange(e,bot,24));
+ }
+ onTick(bot,ctx){
+  const list=this.currentTargets(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot));
+  const target=list[0];if(!target)return null;
+  // 7f: equip a real weapon and verify heldItem before the first and every swing
+  const weapon=bestWeapon(bot,{allowPickaxe:this.lastResort});
+  this._ticks++;this._equipAge++;
+  if(weapon){
+   if(!bot.heldItem||bot.heldItem.name!==weapon.name){
+    // re-equip at most every 5 ticks until the held item verifies (equip is async)
+    if(this._equipAge>=5){this._equipAge=0;equipSafe(bot,weapon,'hand');}
+    return null;
+   }
+   this._equipAge=0;
+  }else if(!this.lastResort){this.aborted=true;return null;} // 7f: never fight unarmed when not cornered
+  else if(holdsBlockOrFood(bot,bot.heldItem&&bot.heldItem.name))return null; // cornered bare-hand: never a block or food
+  const d=distanceTo(target,bot);
+  if(d>2.9){ // 26.3 entity_interaction_range: swings past ~3.0 are rejected server-side
+   // close distance: P4 getToEntity when available, otherwise face-and-walk
+   const m=ctx&&ctx.move;
+   if(m&&typeof m.getToEntity==='function'){
+    try{const t=m.getToEntity(target);if(t&&typeof t.onTick==='function')return t;}catch{}
+   }
+   const dx=target.position.x-bot.entity.position.x,dz=target.position.z-bot.entity.position.z;
+   look(bot,Math.atan2(-dx,dz),0);
+   setControl(bot,'forward',true);setControl(bot,'sprint',d>6&&(bot.food||20)>6);
+   return null;
+  }
+  const now=Date.now()/1000;
+  if(now-this._lastAttack<attackCooldown(weapon&&weapon.name))return null;
+  this._lastAttack=now;
+  const swing=bot.attack(target);swing&&swing.catch&&swing.catch(()=>{});
+  return null;
+ }
+ onStop(bot,ctx){forget(bot,'forward','sprint');}
+ isEqual(o){return o&&o.constructor===this.constructor&&o.lastResort===this.lastResort;}
+}
+// 7f ladder step 1 (review directive): craft the sword the moment a hostile approaches and
+// materials exist - sticks first (2 planks, 2x2), then a table (find, place, or craft from
+// 4 planks), then the sword at the table. Every craft is fire-and-forget with a retry gate
+// (the Async-actions contract); the sword/axe in the inventory ends the task.
+const plankCountOf=bot=>inventoryItems(bot).filter(i=>/_planks$/.test(i.name)).reduce((a,i)=>a+(i.count||1),0);
+// Pick the recipe variant the held materials satisfy (see the planks-family note in
+// worker.craft - mc-data lists one variant per species and [0] is just the first).
+const usableVariant=(bot,itemId,table)=>{
+ const variants=bot.recipesFor(bot.registry.itemsByName[itemId].id,null,1,table)||[];
+ const held=inventoryItems(bot);
+ for(const recipe of variants){
+  const cells=recipe.inShape?recipe.inShape.flat().filter(x=>x&&x.id!==-1):(recipe.ingredients||[]);
+  const tally={};
+  for(const x of cells){const id=typeof x==='number'?x:x.id;tally[id]=(tally[id]||0)+1;}
+  let ok=true;
+  for(const [id,need] of Object.entries(tally)){
+   const name=bot.registry.items[id]?.name;
+   const have=name&&/_planks$/.test(name)
+    ?held.filter(i=>/_planks$/.test(i.name)).reduce((a,i)=>a+(i.count||1),0)
+    :(held.find(i=>i.name===name)||{count:0}).count;
+   if(have<need){ok=false;break;}
+  }
+  if(ok)return recipe;
+ }
+ return null;
+};
+export class CraftWeaponTask extends Task{
+ constructor(){super('CraftWeaponTask');this._retryAt=0;}
+ isFinished(bot,ctx){
+  if(hasItemName(bot,'wooden_sword')||hasItemName(bot,'wooden_axe'))return true;
+  // Unachievable right now (not even 2 planks and no sticks to start from): end cleanly so
+  // the chain re-evaluates and walks away instead of standing still (7f).
+  return plankCountOf(bot)<2&&!hasItemName(bot,'stick');
+ }
+ onTick(bot,ctx){
+  const mc=bot.registry&&bot.registry.itemsByName&&bot.registry.itemsByName.wooden_sword;
+  if(!mc||typeof bot.recipesFor!=='function'||typeof bot.craft!=='function')return null;
+  const now=Date.now();
+  if(now<this._retryAt)return null; // every craft is async: gate the retries
+  this._retryAt=now+500;
+  const planks=plankCountOf(bot),sticks=hasItemName(bot,'stick');
+  let table=null;
+  try{table=bot.findBlock({matching:b=>b&&b.name==='crafting_table',useExtraInfo:false,maxDistance:4});}catch{}
+  // 1. Sticks first (2 planks -> 4 sticks): the sword recipe needs one. Any plank species
+  // satisfies the stick recipe - pick the variant the held planks actually match.
+  if(!sticks&&planks>=2){
+   const r=usableVariant(bot,'stick',null);
+   if(r){const p=bot.craft(r,1,null);p&&p.catch&&p.catch(()=>{});}
+   return null;
+  }
+  // 2. A table within reach, else place the held one, else craft one from 4 planks.
+  if(!table){
+   if(hasItemName(bot,'crafting_table')){
+    const ground=bot.blockAt&&bot.blockAt(bot.entity.position.offset(0,-1,0));
+    if(ground){
+     equipSafe(bot,{name:'crafting_table'});
+     const placed=bot.placeBlock(ground,{x:0,y:1,z:0});
+     if(placed&&placed.then)placed.then(()=>{}).catch(()=>{});
+     this._retryAt=now+1200; // place first; craft on a later tick next to the new table
+    }
+    return null;
+   }
+   if(planks>=4){
+    const r=usableVariant(bot,'crafting_table',null);
+    if(r){const p=bot.craft(r,1,null);p&&p.catch&&p.catch(()=>{});}
+   }
+   return null;
+  }
+  // 3. The sword, at the table (variant matched to the held planks species).
+  const r=usableVariant(bot,'wooden_sword',table);
+  if(r){const p=bot.craft(r,1,table);p&&p.catch&&p.catch(()=>{});}
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// 7f night option: sleep skips the night entirely when a bed is reachable.
+export class SleepTask extends Task{
+ constructor(){super('SleepTask');this._tried=false;}
+ isFinished(bot,ctx){
+  const t=bot.time&&bot.time.timeOfDay;
+  return bot.isSleeping===true||(typeof t==='number'&&(t<12000&&t>=0));
+ }
+ onTick(bot,ctx){
+  if(this._tried)return null;
+  let bed=null;
+  try{bed=bot.findBlock({matching:b=>b&&/_bed$/.test(b.name),useExtraInfo:false,maxDistance:32});}catch{}
+  if(!bed){this._tried=true;return null;}
+  this._tried=true;
+  const p=bot.sleep(bed);p&&p.catch&&p.catch(()=>{});
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// 7f night option: hold position through the night, blocking the gap against any hostile
+// that closes in (cornered step: block with a block — zombies cannot break it on normal).
+// Full 3x3x3/hillside building stays with the existing shelter job until the main agent
+// migrates it to a task.
+export class ShelterTask extends Task{
+ constructor(){super('ShelterTask');}
+ isFinished(bot,ctx){
+  const t=bot.time&&bot.time.timeOfDay;
+  return typeof t==='number'?t<12000&&t>=0:false; // hold until morning
+ }
+ onTick(bot,ctx){
+  // A shelter/sleep JOB owns night-shelter building: hold position only, never place -
+  // a chain-placed gap block would contest the job's own placement cells.
+  const jobs=ctx&&ctx.worker&&ctx.worker.jobs;
+  if(jobs&&jobs.some(j=>['running','queued'].includes(j.status)&&['sleep','shelter'].includes((j.spec||{}).type)))return null;
+  const near=getHostiles(bot,ctx).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
+  if(near&&distanceTo(near,bot)<3){
+   const placeable=inventoryItems(bot).find(i=>/^(dirt|cobblestone|netherrack|sandstone|.*_planks)$/.test(i.name));
+   if(placeable){
+    const between=bot.blockAt&&bot.blockAt(bot.entity.position.offset(0,-1,0));
+    if(between){
+     equipSafe(bot,placeable,'hand');
+     const dx=near.position.x-bot.entity.position.x,dz=near.position.z-bot.entity.position.z;
+     look(bot,Math.atan2(-dx,dz),0);
+     const p=bot.placeBlock(between,{x:0,y:1,z:0});p&&p.catch&&p.catch(()=>{});
+    }
+   }
+  }
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// tasks/resources/CollectFoodTask.java (placeholder): the real gathering belongs to P3's
+// resource tasks; this fallback aborts on nearby hostiles per 7f hunting rules and waits.
+export class CollectFoodTask extends Task{
+ constructor(units){super('CollectFoodTask');this.units=units;}
+ isFinished(bot,ctx){
+  const food=inventoryItems(bot).filter(i=>bot.registry&&bot.registry.foodsByName&&bot.registry.foodsByName[i.name]);
+  const total=food.reduce((s,i)=>s+(bot.registry.foodsByName[i.name].foodPoints||0)*(i.count||1),0);
+  return total>=this.units;
+ }
+ onTick(bot,ctx){
+  if(huntBlocked(getHostiles(bot,ctx),bot))return null; // 7f: hostile within 8 — let the threat chain take over
+  return null;
+ }
+ isEqual(o){return o&&o.constructor===this.constructor&&o.units===this.units;}
+}

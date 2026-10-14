@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "bot": "BuilderBot",
+    "difficulty": "normal during fights, peaceful restored",
+    "spawning": "gamerule unavailable on 26.3; stray mobs swept with kill @e[type=...]",
+    "arena": "roofed 12x12: interior 1494..1505 x/z, floor y-61, walls y-60..-57, roof y-56, gate to shooting lane z1507..1525 (bot lane sightline 15 blocks)",
+    "enderman_roof_patch": "3x3 ceiling at y-58 over x/z 1494..1496 (2-high pocket)",
+    "fight_styles_accepted": [
+      "plain",
+      "melee"
+    ],
+    "damage_blocked_by_shield_stat": true,
+    "damage_dealt_stat": true,
+    "started": "2026-10-14T10:20:07",
+    "error": null
+  },
+  "tests": {
+    "1_crit_vs_noncrit": {
+      "time_to_kill_s": [
+        6.2,
+        6.1
+      ],
+      "hits": [
+        5.0,
+        5.0
+      ],
+      "crits": [
+        0.0,
+        0.0
+      ],
+      "damage_taken": [
+        0,
+        0
+      ],
+      "blocked_arrows": [
+        null,
+        null
+      ],
+      "notes": "26.3 SERVER DIFFERENCE: jump-crits gain no damage (measured dd 200 vs 199, +TTK) - the bot uses plain full-charge swings (critJumps off); the two legs are the same technique and their TTKs [6.2, 6.1] are a variance sample; damage_dealt [199, 199]"
+    },
+    "2_zombie_x3": {
+      "time_to_kill_s": 12.4,
+      "hits": 19.0,
+      "crits": 0.0,
+      "damage_taken": 0.3,
+      "blocked_arrows": null,
+      "notes": "tactic=melee; end health 20 | Completed and verified; Fought: no target tactic=melee hits=19 crits=0 sweeps=18 shots=0 damage taken=2.3 | Fight result: zombie tactic=melee hits=19 crits=0 sw"
+    },
+    "3_skeleton_15": {
+      "time_to_kill_s": 19.0,
+      "hits": 4.0,
+      "crits": 0.0,
+      "damage_taken": 0.5,
+      "blocked_arrows": 0,
+      "notes": "approach=melee; end health 20; blocked value is shield-blocked damage events | Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 shots=0 damage taken=0.5 | Fight result: skeleton tactic=mele"
+    },
+    "4_creeper": {
+      "time_to_kill_s": 11.5,
+      "hits": 0.0,
+      "crits": 0.0,
+      "damage_taken": 16.3,
+      "blocked_arrows": null,
+      "notes": "SURVIVED (kill not secured); end health 9.709613800048828; tactic=bow | Health below 8; retreated from the fight | Fight result: creeper tactic=bow hits=0 crits=0 sweeps=0 shots=2 damage taken=0 disengages=0 resu"
+    },
+    "4b_creeper_roofed": {
+      "time_to_kill_s": 6.2,
+      "hits": 0.0,
+      "crits": 0.0,
+      "damage_taken": 15.6,
+      "blocked_arrows": null,
+      "notes": "KILLED; end health 5.432722091674805; tactic=bow | Completed and verified; Fought: no target tactic=bow hits=0 crits=0 sweeps=0 shots=0 damage taken=0 | Fight result: creeper tactic=bow hits="
+    },
+    "5_spiders": {
+      "time_to_kill_s": 24.8,
+      "hits": 4.0,
+      "crits": 0.0,
+      "damage_taken": 4.6,
+      "blocked_arrows": null,
+      "notes": "no mid-fight eat observed; spider killed; CAVE SPIDER SURVIVED the duel (poison out-ticked the eat loop) - recorded, swept; job failed; tactic=melee; end health 13.919998168945312 | Fight timed out; cave_spider is still standing | Fight result: no target tactic=melee hits=4 crits=0 sweeps=0 shots=0 damage taken=4.6 disen"
+    },
+    "6_enderman": {
+      "time_to_kill_s": 0.0,
+      "hits": null,
+      "crits": null,
+      "damage_taken": 0,
+      "blocked_arrows": null,
+      "notes": "provoked by look; under 2-high roof 0/0 samples; job: complete Completed and verified"
+    },
+    "7_witch": {
+      "time_to_kill_s": 1.0,
+      "hits": 0.0,
+      "crits": 0.0,
+      "damage_taken": 0,
+      "blocked_arrows": null,
+      "notes": "NOT KILLED (26.3 measured limit: the witch kites and out-potions the rush); job failed; tactic=avoid; end health 20 | Fight timed out; witch is still standing | Fight result: no target tactic=avoid hits=0 crits=0 sweeps=0 shots=0 damage taken=0 disengages=0 "
+    },
+    "8_low_health": {
+      "time_to_kill_s": 6.2,
+      "hits": null,
+      "crits": null,
+      "damage_taken": 6.9,
+      "blocked_arrows": null,
+      "notes": "started at ~11 hp with a wooden sword; ate and disengaged; job: failed Health below 8; retreated from zombie"
+    },
+    "9_gear": {
+      "time_to_kill_s": null,
+      "hits": null,
+      "crits": null,
+      "damage_taken": null,
+      "blocked_arrows": null,
+      "notes": "crafted from fixture materials: {\"stone_sword\": 13.9, \"shield\": 12.4, \"bow\": 11.3, \"arrow\": 9.3}"
+    },
+    "10_baseline_comparison": {
+      "time_to_kill_s": {
+        "plain_plain": 8.2,
+        "combat": 8.3
+      },
+      "hits": null,
+      "crits": null,
+      "damage_taken": {
+        "plain_plain": 2,
+        "combat": 2
+      },
+      "blocked_arrows": null,
+      "notes": "baseline via style plain; {\"plain_plain\": {\"time_to_kill_s\": 8.2, \"damage_taken\": 2, \"damage_dealt\": 199, \"end_health\": 20, \"outcome\": \"complete Completed and verified; Fought: no target tactic=melee hits=\"}, \"combat\": {\"time_to_kill_s\": 8.3, \"damage_taken\": 2, \"damage_dealt\": 199, \"end_health\": 20, \"crits\": 0.0, \"tactic\": \"melee\"}}"
+    }
+  }
+}

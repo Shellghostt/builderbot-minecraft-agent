@@ -1,0 +1,5102 @@
+{
+  "runs": [
+    {
+      "index": "normal1a1",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            320,
+            126,
+            33
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            319,
+            122,
+            34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 2,
+          "planks": 8,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            326,
+            126,
+            34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            331,
+            137,
+            29
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            328,
+            130,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 7,
+          "planks": 0,
+          "sticks": 5,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            327,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            333,
+            129,
+            28
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 8,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            331,
+            131,
+            29
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 16,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            330,
+            131,
+            27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 23,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            329,
+            138,
+            28
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            331,
+            128,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 4,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            332,
+            129,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 4,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 37,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 391,
+          "pos": [
+            336,
+            148,
+            5
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 4,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 421,
+          "pos": [
+            337,
+            147,
+            6
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 451,
+          "pos": [
+            353,
+            103,
+            37
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 481,
+          "pos": [
+            332,
+            158,
+            2
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 511,
+          "pos": [
+            273,
+            166,
+            1
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 541,
+          "pos": [
+            275,
+            159,
+            6
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "backing off (5s): food",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 572,
+          "pos": [
+            303,
+            98,
+            62
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 602,
+          "pos": [
+            273,
+            114,
+            64
+          ],
+          "hp": 20,
+          "food": 19,
+          "step": "food",
+          "apstate": "food: explore",
+          "logs": 3,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        }
+      ],
+      "interventions": [],
+      "resumes": 0,
+      "deaths": 0,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9368623,
+      "deaths_before": 0,
+      "peaks": {
+        "logs": {
+          "max": 7,
+          "at": 150
+        },
+        "planks": {
+          "max": 12,
+          "at": 180
+        },
+        "sticks": {
+          "max": 12,
+          "at": 361
+        },
+        "cobble": {
+          "max": 37,
+          "at": 361
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 90
+        },
+        "table": {
+          "max": 1,
+          "at": 60
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 361
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 361
+        },
+        "furnace": {
+          "max": 1,
+          "at": 391
+        }
+      },
+      "first": {
+        "wood_pick": 90,
+        "table": 60,
+        "cobble": 211,
+        "stone_pick": 361,
+        "furnace": 391
+      },
+      "achieved": {
+        "stick": 12,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 27,
+        "stone_pickaxe": 1,
+        "stone_axe": 1,
+        "stone_sword": 1,
+        "stone_shovel": 1,
+        "furnace": 1,
+        "torch": 0,
+        "logs_total": 3,
+        "planks_total": 8,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": true,
+      "wood_at": 90,
+      "stone_at": 361,
+      "final_state": {
+        "enabled": true,
+        "state": "food: explore",
+        "step": "food",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "explore",
+          "of": null,
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Navigation made no progress at (273, 166, 1) (last path: success, 64 steps, 964 nodes)"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Navigation made no progress at (273, 166, 1) (last path: success, 64 steps, 964 nodes)"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Navigation made no progress at (273, 166, 1) (last path: success, 64 steps, 964 nodes)"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Navigation made no progress at (337, 153, 1) (last path: success, 42 steps, 2199 nodes)"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 10,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 8,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 5,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": "normal2a2",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            330,
+            135,
+            25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            332,
+            141,
+            25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: gather",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            332,
+            137,
+            25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: craft",
+          "logs": 0,
+          "planks": 7,
+          "sticks": 2,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            335,
+            135,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 5,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            335,
+            133,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 5,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            334,
+            129,
+            28
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 6,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 210,
+          "pos": [
+            333,
+            133,
+            24
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 12,
+          "sticks": 13,
+          "cobble": 15,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            335,
+            133,
+            22
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 12,
+          "sticks": 15,
+          "cobble": 20,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            334,
+            129,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 12,
+          "sticks": 15,
+          "cobble": 28,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            332,
+            128,
+            28
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 3,
+          "planks": 12,
+          "sticks": 13,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            333,
+            128,
+            27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 8,
+          "cobble": 31,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            337,
+            153,
+            1
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 391,
+          "pos": [
+            412,
+            135,
+            2
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 421,
+          "pos": [
+            459,
+            146,
+            -39
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 451,
+          "pos": [
+            460,
+            148,
+            -53
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 1,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 481,
+          "pos": [
+            462,
+            143,
+            -18
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 18,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 511,
+          "pos": [
+            465,
+            153,
+            -63
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "food: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 541,
+          "pos": [
+            530,
+            121,
+            -47
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 571,
+          "pos": [
+            483,
+            144,
+            -1
+          ],
+          "hp": 20,
+          "food": 18,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 602,
+          "pos": [
+            439,
+            140,
+            64
+          ],
+          "hp": 20,
+          "food": 15,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        }
+      ],
+      "interventions": [],
+      "resumes": 0,
+      "deaths": 0,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9370346,
+      "deaths_before": 0,
+      "peaks": {
+        "logs": {
+          "max": 5,
+          "at": 120
+        },
+        "planks": {
+          "max": 12,
+          "at": 180
+        },
+        "sticks": {
+          "max": 15,
+          "at": 241
+        },
+        "cobble": {
+          "max": 64,
+          "at": 511
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 90
+        },
+        "table": {
+          "max": 1,
+          "at": 60
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 301
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 331
+        },
+        "furnace": {
+          "max": 1,
+          "at": 361
+        }
+      },
+      "first": {
+        "wood_pick": 90,
+        "table": 60,
+        "cobble": 180,
+        "stone_pick": 301,
+        "furnace": 361
+      },
+      "achieved": {
+        "stick": 12,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 64,
+        "stone_pickaxe": 1,
+        "stone_axe": 1,
+        "stone_sword": 1,
+        "stone_shovel": 1,
+        "furnace": 1,
+        "torch": 0,
+        "logs_total": 3,
+        "planks_total": 10,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": true,
+      "wood_at": 90,
+      "stone_at": 301,
+      "final_state": {
+        "enabled": true,
+        "state": "working: explore",
+        "step": "food",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "explore",
+          "of": null,
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Navigation made no progress at (337, 153, 1) (last path: success, 40 steps, 2243 nodes)"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 2,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 7,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": "normal3a3",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            335,
+            135,
+            28
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            333,
+            134,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 6,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            329,
+            129,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 14,
+          "sticks": 4,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            328,
+            128,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            332,
+            130,
+            29
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 4,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            332,
+            129,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 5,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            333,
+            134,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 7,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            333,
+            134,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 9,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            330,
+            129,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 11,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            329,
+            129,
+            27
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 12,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            333,
+            134,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 15,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            331,
+            128,
+            26
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 16,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 391,
+          "pos": [
+            335,
+            128,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 19,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 421,
+          "pos": [
+            331,
+            125,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 16,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 451,
+          "pos": [
+            335,
+            126,
+            33
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 14,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 481,
+          "pos": [
+            335,
+            125,
+            33
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 511,
+          "pos": [
+            330,
+            102,
+            51
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 2,
+          "sticks": 13,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 541,
+          "pos": [
+            332,
+            78,
+            92
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 2,
+          "sticks": 13,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 572,
+          "pos": [
+            361,
+            78,
+            93
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 13,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 602,
+          "pos": [
+            328,
+            76,
+            89
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 13,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        }
+      ],
+      "interventions": [],
+      "resumes": 0,
+      "deaths": 0,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9371874,
+      "deaths_before": 0,
+      "peaks": {
+        "logs": {
+          "max": 6,
+          "at": 60
+        },
+        "planks": {
+          "max": 14,
+          "at": 90
+        },
+        "sticks": {
+          "max": 16,
+          "at": 150
+        },
+        "cobble": {
+          "max": 32,
+          "at": 451
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 120
+        },
+        "table": {
+          "max": 1,
+          "at": 90
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 451
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 481
+        },
+        "furnace": {
+          "max": 1,
+          "at": 511
+        }
+      },
+      "first": {
+        "wood_pick": 120,
+        "table": 90,
+        "cobble": 150,
+        "stone_pick": 451,
+        "furnace": 511
+      },
+      "achieved": {
+        "stick": 13,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 24,
+        "stone_pickaxe": 1,
+        "stone_axe": 1,
+        "stone_sword": 1,
+        "stone_shovel": 1,
+        "furnace": 1,
+        "torch": 0,
+        "logs_total": 3,
+        "planks_total": 10,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": true,
+      "wood_at": 120,
+      "stone_at": 451,
+      "final_state": {
+        "enabled": true,
+        "state": "working: explore",
+        "step": "food",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "explore",
+          "of": null,
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 2,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "spruce_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Current job cancelled"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": "hard1a1",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            140,
+            130,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: craft",
+          "logs": 0,
+          "planks": 12,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            141,
+            132,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 14,
+          "sticks": 4,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            141,
+            131,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 2,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            135,
+            130,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 2,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            135,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 9,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            135,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 7,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            143,
+            128,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 4,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            139,
+            129,
+            25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 16,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            139,
+            128,
+            29
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 20,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            140,
+            125,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 22,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            140,
+            125,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 28,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            139,
+            125,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 2,
+          "sticks": 13,
+          "cobble": 30,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 391,
+          "pos": [
+            139,
+            121,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 2,
+          "sticks": 10,
+          "cobble": 30,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 421,
+          "pos": [
+            142,
+            123,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 12,
+          "cobble": 41,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 451,
+          "pos": [
+            198,
+            136,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 481,
+          "pos": [
+            199,
+            157,
+            25
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 511,
+          "pos": [
+            203,
+            161,
+            48
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 2,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 541,
+          "pos": [
+            263,
+            101,
+            89
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 2,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 571,
+          "pos": [
+            349,
+            78,
+            91
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 2,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 601,
+          "pos": [
+            392,
+            61,
+            129
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 2,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 38,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        }
+      ],
+      "interventions": [],
+      "resumes": 0,
+      "deaths": 0,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9373693,
+      "deaths_before": 0,
+      "peaks": {
+        "logs": {
+          "max": 3,
+          "at": 150
+        },
+        "planks": {
+          "max": 14,
+          "at": 60
+        },
+        "sticks": {
+          "max": 13,
+          "at": 361
+        },
+        "cobble": {
+          "max": 41,
+          "at": 421
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 90
+        },
+        "table": {
+          "max": 1,
+          "at": 90
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 361
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 391
+        },
+        "furnace": {
+          "max": 1,
+          "at": 451
+        }
+      },
+      "first": {
+        "wood_pick": 90,
+        "table": 90,
+        "cobble": 211,
+        "stone_pick": 361,
+        "furnace": 451
+      },
+      "achieved": {
+        "stick": 12,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 38,
+        "stone_pickaxe": 1,
+        "stone_axe": 1,
+        "stone_sword": 1,
+        "stone_shovel": 1,
+        "furnace": 1,
+        "torch": 0,
+        "logs_total": 2,
+        "planks_total": 8,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": true,
+      "wood_at": 90,
+      "stone_at": 361,
+      "final_state": {
+        "enabled": true,
+        "state": "working: explore",
+        "step": "food",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "explore",
+          "of": null,
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 10,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 2,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": "hard2a2",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            132,
+            129,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 2,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 60,
+          "pos": [
+            135,
+            128,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: craft",
+          "logs": 0,
+          "planks": 11,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 90,
+          "pos": [
+            134,
+            128,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 10,
+          "sticks": 4,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 120,
+          "pos": [
+            135,
+            130,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 11,
+          "sticks": 5,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 150,
+          "pos": [
+            136,
+            125,
+            32
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 2,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 180,
+          "pos": [
+            140,
+            126,
+            36
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 10,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 211,
+          "pos": [
+            137,
+            124,
+            36
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 19,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 241,
+          "pos": [
+            141,
+            126,
+            34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 4,
+          "sticks": 11,
+          "cobble": 28,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 271,
+          "pos": [
+            140,
+            121,
+            31
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 2,
+          "sticks": 13,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 301,
+          "pos": [
+            143,
+            124,
+            30
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 12,
+          "cobble": 34,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 331,
+          "pos": [
+            146,
+            123,
+            57
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 12,
+          "cobble": 31,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 0
+        },
+        {
+          "t": 361,
+          "pos": [
+            92,
+            141,
+            -34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "paused: died - resume to continue",
+          "logs": 0,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 391,
+          "pos": [
+            92,
+            135,
+            -35
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 421,
+          "pos": [
+            92,
+            135,
+            -36
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 451,
+          "pos": [
+            93,
+            135,
+            -34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 4,
+          "planks": 0,
+          "sticks": 1,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 481,
+          "pos": [
+            93,
+            135,
+            -35
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "wood: craft",
+          "logs": 0,
+          "planks": 14,
+          "sticks": 5,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 511,
+          "pos": [
+            91,
+            134,
+            -35
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 7,
+          "sticks": 3,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 542,
+          "pos": [
+            94,
+            139,
+            -41
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 2,
+          "planks": 7,
+          "sticks": 3,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 572,
+          "pos": [
+            97,
+            133,
+            -52
+          ],
+          "hp": 20,
+          "food": 19,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 13,
+          "sticks": 7,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 602,
+          "pos": [
+            98,
+            132,
+            -52
+          ],
+          "hp": 20,
+          "food": 19,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 4,
+          "sticks": 12,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        }
+      ],
+      "interventions": [
+        "operator: resumed the ladder after death at t=361"
+      ],
+      "resumes": 1,
+      "deaths": 1,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9375291,
+      "deaths_before": 1,
+      "death_tods": [
+        {
+          "at": 361,
+          "tod": "day",
+          "light": 15,
+          "pos": [
+            92,
+            141,
+            -34
+          ]
+        }
+      ],
+      "death_causes": [
+        "System chat: BuilderBot fell from a high place"
+      ],
+      "peaks": {
+        "logs": {
+          "max": 4,
+          "at": 451
+        },
+        "planks": {
+          "max": 14,
+          "at": 481
+        },
+        "sticks": {
+          "max": 13,
+          "at": 271
+        },
+        "cobble": {
+          "max": 34,
+          "at": 301
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 120
+        },
+        "table": {
+          "max": 1,
+          "at": 60
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 271
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 301
+        },
+        "furnace": {
+          "max": 1,
+          "at": 331
+        }
+      },
+      "first": {
+        "wood_pick": 120,
+        "table": 60,
+        "cobble": 150,
+        "stone_pick": 271,
+        "furnace": 331
+      },
+      "achieved": {
+        "stick": 12,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 0,
+        "stone_pickaxe": 0,
+        "stone_axe": 0,
+        "stone_sword": 0,
+        "stone_shovel": 0,
+        "furnace": 0,
+        "torch": 0,
+        "logs_total": 0,
+        "planks_total": 4,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": false,
+      "wood_at": 120,
+      "stone_at": 271,
+      "final_state": {
+        "enabled": true,
+        "state": "working: gather",
+        "step": "stone",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "oak_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 7,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "oak_planks",
+          "status": "complete",
+          "progress": 9,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 5,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "oak_planks",
+          "status": "complete",
+          "progress": 8,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "failed",
+          "progress": 8,
+          "message": "Missing ingredients or a nearby crafting table"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Health or food is low"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Took to long to decide path to goal!"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 8,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 2,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        }
+      ]
+    },
+    {
+      "index": "hard3a3",
+      "errors": [],
+      "samples": [
+        {
+          "t": 30,
+          "pos": [
+            139,
+            133,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 2,
+          "planks": 0,
+          "sticks": 0,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 0,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 60,
+          "pos": [
+            140,
+            131,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 0,
+          "planks": 10,
+          "sticks": 4,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 90,
+          "pos": [
+            138,
+            133,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: gather",
+          "logs": 3,
+          "planks": 10,
+          "sticks": 4,
+          "cobble": 0,
+          "wood_pick": 0,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 120,
+          "pos": [
+            138,
+            130,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 3,
+          "planks": 13,
+          "sticks": 6,
+          "cobble": 0,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 150,
+          "pos": [
+            140,
+            128,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 3,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 180,
+          "pos": [
+            141,
+            126,
+            20
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 10,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 210,
+          "pos": [
+            141,
+            126,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 18,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 241,
+          "pos": [
+            139,
+            125,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 12,
+          "sticks": 11,
+          "cobble": 26,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 271,
+          "pos": [
+            140,
+            126,
+            19
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: gather",
+          "logs": 1,
+          "planks": 10,
+          "sticks": 13,
+          "cobble": 30,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 0,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 301,
+          "pos": [
+            141,
+            125,
+            20
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "stone",
+          "apstate": "working: craft",
+          "logs": 1,
+          "planks": 10,
+          "sticks": 10,
+          "cobble": 32,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 0,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 331,
+          "pos": [
+            109,
+            118,
+            3
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 1,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 24,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 361,
+          "pos": [
+            77,
+            59,
+            21
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "wood",
+          "apstate": "working: craft",
+          "logs": 0,
+          "planks": 0,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 0,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 391,
+          "pos": [
+            142,
+            116,
+            70
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "backing off (1s): food",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 27,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 421,
+          "pos": [
+            111,
+            62,
+            82
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 33,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 451,
+          "pos": [
+            87,
+            62,
+            55
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 33,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 481,
+          "pos": [
+            85,
+            62,
+            -15
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 33,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 511,
+          "pos": [
+            87,
+            63,
+            -34
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 63,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 541,
+          "pos": [
+            97,
+            63,
+            -42
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 572,
+          "pos": [
+            117,
+            63,
+            -42
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 1,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        },
+        {
+          "t": 602,
+          "pos": [
+            126,
+            63,
+            -43
+          ],
+          "hp": 20,
+          "food": 20,
+          "step": "food",
+          "apstate": "working: explore",
+          "logs": 0,
+          "planks": 8,
+          "sticks": 12,
+          "cobble": 64,
+          "wood_pick": 1,
+          "table": 1,
+          "stone_pick": 0,
+          "stone_sword": 1,
+          "furnace": 1,
+          "food_items": 0,
+          "deaths": 1
+        }
+      ],
+      "interventions": [
+        "operator: resumed the ladder after death at t=30",
+        "operator: returned the bot from below the anchor at [77, 59, 21]"
+      ],
+      "resumes": 1,
+      "deaths": 0,
+      "world_ok": true,
+      "tod_at_start": "day",
+      "vitals_ok": true,
+      "logmark": 9376818,
+      "deaths_before": 1,
+      "death_tods": [
+        {
+          "at": 30,
+          "tod": "day",
+          "light": 14,
+          "pos": [
+            139,
+            133,
+            21
+          ]
+        }
+      ],
+      "returns": 1,
+      "peaks": {
+        "logs": {
+          "max": 3,
+          "at": 90
+        },
+        "planks": {
+          "max": 13,
+          "at": 120
+        },
+        "sticks": {
+          "max": 13,
+          "at": 271
+        },
+        "cobble": {
+          "max": 64,
+          "at": 541
+        },
+        "wood_pick": {
+          "max": 1,
+          "at": 120
+        },
+        "table": {
+          "max": 1,
+          "at": 60
+        },
+        "stone_pick": {
+          "max": 1,
+          "at": 271
+        },
+        "stone_sword": {
+          "max": 1,
+          "at": 301
+        },
+        "furnace": {
+          "max": 1,
+          "at": 331
+        }
+      },
+      "first": {
+        "wood_pick": 120,
+        "table": 60,
+        "cobble": 150,
+        "stone_pick": 271,
+        "furnace": 331
+      },
+      "achieved": {
+        "stick": 12,
+        "crafting_table": 1,
+        "wooden_pickaxe": 1,
+        "wooden_axe": 1,
+        "wooden_sword": 1,
+        "wooden_shovel": 0,
+        "cobblestone": 64,
+        "stone_pickaxe": 0,
+        "stone_axe": 1,
+        "stone_sword": 1,
+        "stone_shovel": 1,
+        "furnace": 1,
+        "torch": 0,
+        "logs_total": 0,
+        "planks_total": 8,
+        "edible_food": 0
+      },
+      "wood": true,
+      "stone": false,
+      "wood_at": 120,
+      "stone_at": 271,
+      "final_state": {
+        "enabled": true,
+        "state": "working: explore",
+        "step": "food",
+        "goal": null,
+        "home": {
+          "x": 1,
+          "y": -60,
+          "z": 0
+        }
+      },
+      "jobs": [
+        {
+          "type": "explore",
+          "of": null,
+          "status": "running",
+          "progress": 0,
+          "message": "Working"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "failed",
+          "progress": 0,
+          "message": "Took to long to decide path to goal!"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "explore",
+          "of": null,
+          "status": "complete",
+          "progress": 0,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "furnace",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_shovel",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 2,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 3,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stone_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "complete",
+          "progress": 32,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_sword",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 13,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 11,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_pickaxe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 14,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 6,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "crafting_table",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "log",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "gather",
+          "of": "stone",
+          "status": "cancelled",
+          "progress": 0,
+          "message": "Current job cancelled"
+        },
+        {
+          "type": "craft",
+          "of": "stick",
+          "status": "complete",
+          "progress": 12,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "wooden_axe",
+          "status": "complete",
+          "progress": 1,
+          "message": "Completed and verified"
+        },
+        {
+          "type": "craft",
+          "of": "dark_oak_planks",
+          "status": "complete",
+          "progress": 4,
+          "message": "Completed and verified"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "wood_runs": 6,
+    "stone_runs": 4,
+    "wood_at": [
+      90,
+      90,
+      120,
+      90,
+      120,
+      120
+    ],
+    "stone_at": [
+      361,
+      301,
+      451,
+      361,
+      271,
+      271
+    ],
+    "deaths": 1,
+    "resumes": 2,
+    "interventions": 3,
+    "median": {
+      "logs_total": 2.5,
+      "planks_total": 8.0,
+      "stick": 12.0,
+      "crafting_table": 1.0,
+      "wooden_pickaxe": 1.0,
+      "cobblestone": 32.5,
+      "stone_pickaxe": 1.0,
+      "stone_axe": 1.0,
+      "stone_sword": 1.0,
+      "stone_shovel": 1.0,
+      "furnace": 1.0
+    },
+    "peak_median": {
+      "logs": 4.5,
+      "planks": 13.5,
+      "sticks": 13.0,
+      "cobble": 39.0,
+      "wood_pick": 1.0,
+      "table": 1.0,
+      "stone_pick": 1.0,
+      "stone_sword": 1.0,
+      "furnace": 1.0
+    }
+  },
+  "errors": [],
+  "invalid_attempts": [],
+  "anchors": {
+    "hard": [
+      142,
+      133,
+      31
+    ],
+    "normal": [
+      310,
+      131,
+      30
+    ]
+  }
+}

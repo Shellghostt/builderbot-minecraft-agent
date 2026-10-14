@@ -1,0 +1,11 @@
+import mineflayer from 'mineflayer';
+import {installMovementFix} from '../src/compat.js';
+const b=mineflayer.createBot({host:'127.0.0.1',port:25569,version:process.env.MC_VERSION||'1.21.6',username:'ProtocolTest',auth:'offline'});
+installMovementFix(b);
+const original=b._client.write.bind(b._client);let count=0;
+b._client.write=(name,data)=>{if(['position','position_look','look'].includes(name)&&count++<12)console.log('OUT',name,JSON.stringify(data));return original(name,data);};
+b._client.on('position',p=>console.log('IN position',JSON.stringify(p)));
+b._client.on('player_rotation',p=>console.log('IN rotation',JSON.stringify(p)));
+b.on('spawn',()=>console.log('SPAWN',b.entity.position,b.entity.yaw,b.entity.pitch));
+b.on('kicked',p=>console.log('KICK',JSON.stringify(p)));
+b.on('error',e=>console.log(e));b.on('end',()=>process.exit());setTimeout(()=>{console.log('STILL CONNECTED');b.quit();},10000);

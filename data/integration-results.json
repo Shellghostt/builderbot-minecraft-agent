@@ -1,0 +1,1783 @@
+{
+  "passed": true,
+  "time": "2026-10-14T04:02:47",
+  "tests": [
+    "join through ViaBackwards",
+    "gather logs",
+    "craft planks",
+    "deposit in chest",
+    "build platform",
+    "repeat build without duplicate placement",
+    "mine cobblestone",
+    "move",
+    "stop",
+    "observe",
+    "place block",
+    "eat food",
+    "equip best gear",
+    "collect drops",
+    "gather radius and search",
+    "explore digs stone",
+    "explore refuses planks",
+    "craft places a table",
+    "sleep in a bed",
+    "shelter for the night",
+    "fight a zombie",
+    "fight retreats at low health",
+    "smelt raw iron",
+    "reflex kills",
+    "reflex flees",
+    "reflex avoids creeper",
+    "reflex auto-eats",
+    "reflex auto-armour",
+    "reflex drowning",
+    "reflex pauses and resumes a job",
+    "gather digs natural cover",
+    "gather refuses player-made blocks",
+    "staircase mining and climb back",
+    "obtain stone bricks",
+    "obtain glass pane",
+    "obtain oak stairs",
+    "obtain lantern",
+    "obtain refuses the End",
+    "use strips a log",
+    "use tills with a hoe",
+    "use bone meals a crop",
+    "use fills and empties a bucket",
+    "shear sheep and leaves",
+    "breed cows",
+    "hunt cows"
+  ],
+  "state": {
+    "connected": true,
+    "connecting": false,
+    "server": {
+      "host": "127.0.0.1",
+      "port": 25569,
+      "version": "1.21.4",
+      "username": "BuilderBot",
+      "auth": "offline"
+    },
+    "position": {
+      "x": 1647.668556766649,
+      "y": -59.59562400000001,
+      "z": 1647.5
+    },
+    "health": 20,
+    "food": 20,
+    "inventory": [
+      {
+        "name": "bucket",
+        "count": 1
+      }
+    ],
+    "jobs": [
+      {
+        "id": "de00665d-d0b0-4f4d-8147-48fdcee1c047",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 4,
+          "radius": 32
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:32:20.800Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "12ab5cf5-ba71-45a4-b753-7ee908338cdf",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1,
+          "radius": 24
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:32:05.654Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f5f3507f-318d-4e1b-aa4a-6d882de29574",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:31:30.076Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f880e972-5fc3-4bf6-a50b-6b20312ff66b",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:31:05.562Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "b51d7d06-a5b5-40aa-aac7-13c900076560",
+        "spec": {
+          "type": "craft",
+          "item": "wooden_pickaxe",
+          "count": 1,
+          "keepTable": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:55.706Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ec3823bd-ef34-4ca2-ad44-dea1b9192e66",
+        "spec": {
+          "type": "craft",
+          "item": "oak_planks",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:52.643Z",
+        "progress": 14,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f9883fc1-7bd1-40e7-b50d-e32abee47e7f",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:49.595Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d00df976-3bff-4933-a841-07f84c70941f",
+        "spec": {
+          "type": "craft",
+          "item": "oak_planks",
+          "count": 3
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:46.542Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "7d59b34b-cc11-438c-aeb2-82e706920db3",
+        "spec": {
+          "type": "gather",
+          "block": "log",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true,
+          "belowFoots": true,
+          "surface": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:33.394Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "fddcc26f-fefa-49a0-86f6-6dc82451628a",
+        "spec": {
+          "type": "craft",
+          "item": "crafting_table",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:28.337Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "6c9b861b-c7e0-4803-957d-1da27c09da4f",
+        "spec": {
+          "type": "craft",
+          "item": "oak_planks",
+          "count": 11
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:21.244Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "3f694060-7dce-42e5-b972-1966c3d4bb8f",
+        "spec": {
+          "type": "gather",
+          "block": "log",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true,
+          "belowFoots": true,
+          "surface": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:28:08.043Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "bc47f248-7736-4b54-97e7-75d827217d63",
+        "spec": {
+          "type": "craft",
+          "item": "wooden_pickaxe",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:27:23.814Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "2ae4ba0d-0c26-4254-90c4-f60ae279ae87",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:27:20.747Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "4489407c-e4b6-4b7f-a4c6-5f8e10bd74ec",
+        "spec": {
+          "type": "craft",
+          "item": "dark_oak_planks",
+          "count": 12
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:27:14.683Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "3797f702-6620-47ad-bf6a-a59260df7f90",
+        "spec": {
+          "type": "hunt",
+          "entity": "cow",
+          "count": 2
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:27:05.042Z",
+        "progress": 100,
+        "message": "Completed and verified; Fought: no target tactic=melee hits=3 crits=0 sweeps=0 shots=0 damage taken=0"
+      },
+      {
+        "id": "cd59d01b-125e-4eac-8967-713786855dc5",
+        "spec": {
+          "type": "breed",
+          "entity": "cow"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:54.817Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ffc9004d-0b3b-423e-9e3f-57b297944b95",
+        "spec": {
+          "type": "use",
+          "item": "shears",
+          "position": {
+            "x": 1044,
+            "y": -57,
+            "z": 1016
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:49.017Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "e2ee989c-4d93-4e1e-9353-7b467566038c",
+        "spec": {
+          "type": "shear",
+          "maxSeconds": 40
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:45.435Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f9821ed8-ecdb-407f-af5b-6860e9bc6de0",
+        "spec": {
+          "type": "craft",
+          "item": "shears",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:41.852Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "be1c8fb6-9145-4e99-9b8c-cf11301c278e",
+        "spec": {
+          "type": "use",
+          "item": "water_bucket",
+          "position": {
+            "x": 1035,
+            "y": -61,
+            "z": 1019
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:30.647Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "e347f859-9406-4664-b8c8-60df5343cac9",
+        "spec": {
+          "type": "use",
+          "item": "bucket",
+          "position": {
+            "x": 1035,
+            "y": -61,
+            "z": 1019
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:22.921Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "3bc9cfcf-b260-4bf6-8382-b4bc67b3fe17",
+        "spec": {
+          "type": "use",
+          "item": "bone_meal",
+          "position": {
+            "x": 1030,
+            "y": -60,
+            "z": 1000
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:15.754Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "51aff8c4-5f6a-4cb3-8a1b-350bdf1dba04",
+        "spec": {
+          "type": "use",
+          "item": "wooden_hoe",
+          "position": {
+            "x": 1028,
+            "y": -61,
+            "z": 1000
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:13.121Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "2c189327-6b6f-4050-a2cc-12e0e6fa90c2",
+        "spec": {
+          "type": "use",
+          "item": "iron_axe",
+          "position": {
+            "x": 1026,
+            "y": -60,
+            "z": 1002
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:26:10.515Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "66f10c32-a59c-4550-a35c-8268c28d15c0",
+        "spec": {
+          "type": "obtain",
+          "item": "elytra",
+          "count": 1
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:26:07.299Z",
+        "progress": 0,
+        "message": "Cannot obtain elytra: the End (no portal ability)"
+      },
+      {
+        "id": "425bd380-6a59-4650-b7e0-28cbec19bd02",
+        "spec": {
+          "type": "obtain",
+          "item": "lantern",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:25:42.327Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "3109c036-7916-44e1-b8d0-4943fe3e04a2",
+        "spec": {
+          "type": "obtain",
+          "item": "oak_stairs",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:25:25.328Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "1ec5d3c5-ba44-4d62-ab24-3ebf3ae5cad8",
+        "spec": {
+          "type": "obtain",
+          "item": "glass_pane",
+          "count": 16
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:24:06.989Z",
+        "progress": 2,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "69d5a3da-276d-480d-9179-a1d857d3885e",
+        "spec": {
+          "type": "obtain",
+          "item": "stone_bricks",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:23:02.174Z",
+        "progress": 2,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "47afa697-c1d7-4c40-87c7-a76b1662559a",
+        "spec": {
+          "type": "gather",
+          "block": "dark_oak_log",
+          "count": 3,
+          "radius": 16
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:22:31.051Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f2484541-904f-4e76-82c6-0ad1eb24f8bc",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 4,
+          "radius": 2,
+          "targetY": -63
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:22:05.189Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d2f40f05-2d98-4347-b252-3de26fb5dabe",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 1
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:21:44.771Z",
+        "progress": 0,
+        "message": "No matching blocks within the allowed radius",
+        "anchor": {
+          "x": 1004,
+          "y": -60,
+          "z": 999
+        },
+        "startCount": 0,
+        "dropName": "cobblestone",
+        "startDrop": 1,
+        "searches": 0,
+        "descents": 0,
+        "badColumns": []
+      },
+      {
+        "id": "4208acb7-3d87-4f8f-ac5c-1317ebd67c50",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:21:39.038Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ec54d84b-010e-41ca-981a-5ce1a06694e2",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1
+        },
+        "status": "cancelled",
+        "created": "2026-10-13T22:21:28.243Z",
+        "progress": 0,
+        "message": "Health or food is low"
+      },
+      {
+        "id": "8480e46a-5bf1-400d-8798-cb5e3076ff8a",
+        "spec": {
+          "type": "smelt",
+          "item": "raw_iron",
+          "count": 3
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:21:22.960Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "74817096-c55e-4038-9480-c56b2ac18dbf",
+        "spec": {
+          "type": "fight",
+          "maxSeconds": 45
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:21:12.786Z",
+        "progress": 0,
+        "message": "Unarmed; retreated from the fight - threat policy takes over (flee/shelter/get armed)"
+      },
+      {
+        "id": "ef940a25-7da6-4e96-a146-97723e9bef58",
+        "spec": {
+          "type": "equip"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:21:11.695Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "792f56fc-e075-4c9e-b5f6-3ddb2e457ea6",
+        "spec": {
+          "type": "fight",
+          "maxSeconds": 40
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:21:00.984Z",
+        "progress": 100,
+        "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 shots=0 damage taken=0"
+      },
+      {
+        "id": "868ea8e4-ce4b-4dd4-bb10-215bb868f930",
+        "spec": {
+          "type": "shelter"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:19:28.541Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "0fcac6b9-0dd4-4aa3-9870-f70ad0cc2de0",
+        "spec": {
+          "type": "sleep"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:19:21.871Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "58b3a661-432f-4511-97e6-c3dd08938cf5",
+        "spec": {
+          "type": "craft",
+          "item": "chest",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:18:58.411Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "3409526a-6c9d-4fee-8723-625ca32e3444",
+        "spec": {
+          "type": "explore",
+          "direction": "west",
+          "distance": 32
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:18:36.919Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "5aa0c4c1-46c3-4b00-a029-301a10354626",
+        "spec": {
+          "type": "explore",
+          "direction": "east",
+          "distance": 32
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:18:22.629Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "e5e04eef-e81a-44be-bfb4-a856fb604823",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1,
+          "radius": 32
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:18:15.505Z",
+        "progress": 0,
+        "message": "No matching blocks within the allowed radius",
+        "anchor": {
+          "x": 0,
+          "y": -60,
+          "z": 0
+        },
+        "startCount": 2,
+        "dropName": "oak_log",
+        "startDrop": 2,
+        "searches": 0,
+        "descents": 0
+      },
+      {
+        "id": "a7db814f-0553-4aea-960f-777df52f7d77",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:18:09.874Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "96b79d68-4e19-4ca1-9719-3f9e32befaa5",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 1,
+          "radius": 48
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:17:46.986Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "fa35cdfe-df14-4e58-aea8-e1dc2cdf919d",
+        "spec": {
+          "type": "collect"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:17:22.626Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "c8e396fc-c924-48a6-881f-233ad1b23dcc",
+        "spec": {
+          "type": "equip"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:17:20.401Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "925f6e9e-8f9f-453f-8a3b-61d471e1107f",
+        "spec": {
+          "type": "eat"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:17:16.792Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ebefeb1f-c1c9-410c-82ac-ffda975953a1",
+        "spec": {
+          "type": "place",
+          "block": "cobblestone",
+          "position": {
+            "x": 2,
+            "y": -60,
+            "z": 6
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:17:06.671Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "a2b90e1b-5974-486f-a60c-8b01eb50ec62",
+        "spec": {
+          "type": "goto",
+          "position": {
+            "x": 32,
+            "y": -60,
+            "z": 0
+          }
+        },
+        "status": "cancelled",
+        "created": "2026-10-13T22:17:00.329Z",
+        "progress": 0,
+        "message": "Stopped by user"
+      },
+      {
+        "id": "1fd6f501-0774-4523-b3ea-9ad6ccfb2b75",
+        "spec": {
+          "type": "goto",
+          "position": {
+            "x": 0,
+            "y": -60,
+            "z": 0
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:57.309Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "668dfb31-4dfb-4aab-aed7-1ef6f12e1fa7",
+        "spec": {
+          "type": "gather",
+          "block": "cobblestone",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:55.237Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "9441386b-dce5-47a6-859a-2edc0a697ffc",
+        "spec": {
+          "type": "build",
+          "blueprint": "platform",
+          "origin": {
+            "x": 5,
+            "y": -60,
+            "z": 0
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:45.182Z",
+        "progress": 9,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "8016b3a1-ed86-4774-a3f9-bd0f44bc6968",
+        "spec": {
+          "type": "build",
+          "blueprint": "platform",
+          "origin": {
+            "x": 5,
+            "y": -60,
+            "z": 0
+          }
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:30.950Z",
+        "progress": 9,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "5f46ec57-58cf-4981-a4ea-330ab33ffa34",
+        "spec": {
+          "type": "deposit",
+          "position": {
+            "x": -3,
+            "y": -60,
+            "z": 0
+          },
+          "item": "oak_planks"
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:25.804Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "8eb0abaf-6d02-4463-8add-a2462a332cd7",
+        "spec": {
+          "type": "craft",
+          "item": "oak_planks",
+          "count": 32
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:16:08.931Z",
+        "progress": 32,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "5b916a54-1ace-4f04-92f1-87dde46509d8",
+        "spec": {
+          "type": "gather",
+          "block": "oak_log",
+          "count": 8
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:15:55.677Z",
+        "progress": 8,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d8a51fde-34a5-454e-95a0-836205998f93",
+        "spec": {
+          "type": "craft",
+          "item": "stone_pickaxe",
+          "count": 1
+        },
+        "status": "cancelled",
+        "created": "2026-10-13T22:14:14.305Z",
+        "progress": 1,
+        "message": "Stopped by user"
+      },
+      {
+        "id": "9bcb4128-343b-413d-8d8b-4c7fbdd90c60",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:13:10.122Z",
+        "progress": 0,
+        "message": "Took to long to decide path to goal!",
+        "direction": "north"
+      },
+      {
+        "id": "d2f35229-223d-42eb-84e5-946cc0b52260",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:11:55.926Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "4308559f-4288-4b48-a52a-a4769250c72d",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:11:16.021Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "f5d7f1b3-c5be-4d0c-b6dd-2e64f0d2a147",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:11:10.953Z",
+        "progress": 0,
+        "message": "Took to long to decide path to goal!",
+        "direction": "west"
+      },
+      {
+        "id": "b873fd3e-dd1c-4cbb-a173-d62349beb865",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:10:30.468Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "2070591b-21f9-40f4-ac90-fd5f0cb3c4f5",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:10:07.294Z",
+        "progress": 0,
+        "message": "Navigation made no progress at (126, 125, 48) (last path: partial, 48 steps, 3842 nodes)",
+        "direction": "west"
+      },
+      {
+        "id": "4f632093-6517-48ff-9bd0-91f81816bf2f",
+        "spec": {
+          "type": "craft",
+          "item": "furnace",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:53.159Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d36a9cf6-8d59-4891-8ef1-a01b882b79f1",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 1,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:49.115Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "48b557f7-58bd-4a20-9cd3-5af01d331fd3",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 2
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:46.069Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "362d248c-2a23-47cb-9464-8147b7e4702d",
+        "spec": {
+          "type": "craft",
+          "item": "stone_shovel",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:37.013Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "e6b82cec-7f4b-4b10-ba58-b184ce718280",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:30.972Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "79204c83-97ee-4a8f-995d-fff92526cdee",
+        "spec": {
+          "type": "craft",
+          "item": "stone_axe",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:18.905Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "08b5a870-045e-4f46-b43c-93eaf3fc0915",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 2,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:11.819Z",
+        "progress": 2,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d74d8dbc-a924-4218-9e4d-2f6d1fd9afb3",
+        "spec": {
+          "type": "craft",
+          "item": "stone_sword",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:09:01.744Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "16f26be0-1be0-4e95-86ee-4f883a539e9b",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:08:53.656Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "edc8600e-91a5-4da7-95c0-1215a03b44ba",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:08:50.629Z",
+        "progress": 13,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "01ff46a6-d2d6-4cb9-bed9-0842f7dfc967",
+        "spec": {
+          "type": "craft",
+          "item": "stone_pickaxe",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:08:38.533Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "0edd518f-7a94-465c-982d-fabf7e122f4b",
+        "spec": {
+          "type": "gather",
+          "block": "stone",
+          "count": 32,
+          "radius": 32,
+          "searchIfMissing": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:42.757Z",
+        "progress": 32,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "daa578bb-8005-4496-8bd3-cec3adeb60b4",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 7
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:36.680Z",
+        "progress": 11,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "1b37a845-6775-4115-8b09-61157154ae20",
+        "spec": {
+          "type": "craft",
+          "item": "wooden_axe",
+          "count": 1,
+          "keepTable": true,
+          "collectTable": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:31.616Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "542dca5b-5264-419a-959e-91addf6771d4",
+        "spec": {
+          "type": "craft",
+          "item": "wooden_sword",
+          "count": 1,
+          "keepTable": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:27.571Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ba7d355b-4644-4d06-9da7-5c434d0a8c77",
+        "spec": {
+          "type": "craft",
+          "item": "dark_oak_planks",
+          "count": 2
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:24.528Z",
+        "progress": 13,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "10532cae-3410-4411-b860-30c2d588f6ee",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:21.487Z",
+        "progress": 6,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "2a215bc0-2d9a-4776-b590-afc1ae44e3ae",
+        "spec": {
+          "type": "craft",
+          "item": "wooden_pickaxe",
+          "count": 1,
+          "keepTable": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:15.418Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "8df11430-42e6-4737-bf11-b8015e91fd91",
+        "spec": {
+          "type": "craft",
+          "item": "dark_oak_planks",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:06:13.380Z",
+        "progress": 14,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "8e3b734a-8349-4163-b650-ecd5c7d621d8",
+        "spec": {
+          "type": "gather",
+          "block": "log",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true,
+          "belowFoots": true,
+          "surface": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:05:38.071Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "c09e4661-55a3-442f-8aff-787241b6a5a1",
+        "spec": {
+          "type": "craft",
+          "item": "stick",
+          "count": 4
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:05:35.027Z",
+        "progress": 4,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "ca8b8ecd-392e-475d-ba16-4dcba8bb5809",
+        "spec": {
+          "type": "craft",
+          "item": "dark_oak_planks",
+          "count": 3
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:05:32.995Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "de27fe78-75c3-412c-a754-6b6022badd88",
+        "spec": {
+          "type": "craft",
+          "item": "crafting_table",
+          "count": 1
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:05:27.934Z",
+        "progress": 1,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "fefe3bac-878c-4e59-baf2-aa84dc22900c",
+        "spec": {
+          "type": "craft",
+          "item": "dark_oak_planks",
+          "count": 11
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:05:19.846Z",
+        "progress": 12,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "485c0b57-4ec2-448d-af75-2499ba969c36",
+        "spec": {
+          "type": "gather",
+          "block": "log",
+          "count": 3,
+          "radius": 32,
+          "searchIfMissing": true,
+          "belowFoots": true,
+          "surface": true
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:04:21.293Z",
+        "progress": 3,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "a28bd583-5c99-4361-addb-872acd8c293c",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "failed",
+        "created": "2026-10-13T22:03:03.064Z",
+        "progress": 0,
+        "message": "No path to the goal!",
+        "direction": "east"
+      },
+      {
+        "id": "e54f8738-d32c-4985-9347-305cdfc2c3bb",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:02:39.815Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "d7ccb1a3-4d49-414d-af35-aaa069193666",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:02:24.684Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "b6290f29-84b9-43c3-bd3c-85a665172c55",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:01:57.929Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "82f6a3a4-4eaf-4160-9882-a8c8b8b9a78a",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:01:38.633Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "6d2538dd-c871-4103-ad1d-bd139b46dbc0",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:01:23.508Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "b014efee-5c8e-4d4b-a360-3d540a2510fd",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:01:07.390Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "738b5d4e-7d89-4760-9f82-8e8b09dea8f4",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:00:44.980Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      },
+      {
+        "id": "acc36da2-ec9e-4c61-bf28-391cbbe9daf4",
+        "spec": {
+          "type": "explore",
+          "distance": 64
+        },
+        "status": "complete",
+        "created": "2026-10-13T22:00:27.829Z",
+        "progress": 0,
+        "message": "Completed and verified"
+      }
+    ],
+    "events": [
+      {
+        "time": "2026-10-13T22:32:46.635Z",
+        "message": "[Server] AGENT_VERIFIED_0ea43000e8cf45a896f09f6f8d61f29e"
+      },
+      {
+        "time": "2026-10-13T22:32:46.345Z",
+        "message": "Bucket-into-lava skipped: Douse interrupted: control changed hands"
+      },
+      {
+        "time": "2026-10-13T22:32:46.345Z",
+        "message": "Runner: claim-bump for Misc World Survival Chain (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:32:46.344Z",
+        "message": "Reflex: Misc World Survival Chain engaging"
+      },
+      {
+        "time": "2026-10-13T22:32:44.784Z",
+        "message": "Server set position to (1648, -60, 1647) (teleport #277)"
+      },
+      {
+        "time": "2026-10-13T22:32:43.081Z",
+        "message": "Chains: equipped leather_boots"
+      },
+      {
+        "time": "2026-10-13T22:32:42.817Z",
+        "message": "Chains: equipped leather_leggings"
+      },
+      {
+        "time": "2026-10-13T22:32:42.555Z",
+        "message": "Chains: equipped leather_chestplate"
+      },
+      {
+        "time": "2026-10-13T22:32:42.291Z",
+        "message": "Chains: equipped leather_helmet"
+      },
+      {
+        "time": "2026-10-13T22:32:38.137Z",
+        "message": "Server set position to (1650, -60, 1650) (teleport #276)"
+      },
+      {
+        "time": "2026-10-13T22:32:38.112Z",
+        "message": "Completed gather"
+      },
+      {
+        "time": "2026-10-13T22:32:14.814Z",
+        "message": "Chains: equipped leather_boots"
+      },
+      {
+        "time": "2026-10-13T22:32:14.565Z",
+        "message": "Chains: equipped leather_leggings"
+      },
+      {
+        "time": "2026-10-13T22:32:14.301Z",
+        "message": "Chains: equipped leather_chestplate"
+      },
+      {
+        "time": "2026-10-13T22:32:14.039Z",
+        "message": "Chains: equipped leather_helmet"
+      },
+      {
+        "time": "2026-10-13T22:32:10.786Z",
+        "message": "Server set position to (1300, -60, 1300) (teleport #275)"
+      },
+      {
+        "time": "2026-10-13T22:32:10.351Z",
+        "message": "Completed gather"
+      },
+      {
+        "time": "2026-10-13T22:31:45.387Z",
+        "message": "Server set position to (1100, -60, 1100) (teleport #274)"
+      },
+      {
+        "time": "2026-10-13T22:31:44.820Z",
+        "message": "Completed gather"
+      },
+      {
+        "time": "2026-10-13T22:31:35.873Z",
+        "message": "Reflex: resumed the gather job"
+      },
+      {
+        "time": "2026-10-13T22:31:35.635Z",
+        "message": "Fight result: zombie tactic=melee hits=4 crits=0 sweeps=0 shots=0 damage taken=0 disengages=0 result=stopped"
+      },
+      {
+        "time": "2026-10-13T22:31:33.505Z",
+        "message": "Combat: spacing zombie"
+      },
+      {
+        "time": "2026-10-13T22:31:33.444Z",
+        "message": "Combat: strike zombie"
+      },
+      {
+        "time": "2026-10-13T22:31:30.291Z",
+        "message": "Combat: spacing zombie"
+      },
+      {
+        "time": "2026-10-13T22:31:30.244Z",
+        "message": "Check: token 57 epoch 58 busy false"
+      },
+      {
+        "time": "2026-10-13T22:31:30.244Z",
+        "message": "Check: token 57 epoch 58 busy false"
+      },
+      {
+        "time": "2026-10-13T22:31:30.242Z",
+        "message": "Job: Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:30.242Z",
+        "message": "Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:30.240Z",
+        "message": "Pause trace: gather -> Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:30.240Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:31:30.239Z",
+        "message": "Combat: strike zombie"
+      },
+      {
+        "time": "2026-10-13T22:31:30.239Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:31:26.087Z",
+        "message": "Server set position to (200, -60, 200) (teleport #272)"
+      },
+      {
+        "time": "2026-10-13T22:31:25.535Z",
+        "message": "[Server] AGENT_VERIFIED_f9ecad79bbd442bd9a462c453d32799d"
+      },
+      {
+        "time": "2026-10-13T22:31:19.491Z",
+        "message": "Server set position to (900, -60, 900) (teleport #271)"
+      },
+      {
+        "time": "2026-10-13T22:31:18.884Z",
+        "message": "[Server] AGENT_VERIFIED_3c2b9d28fbc34819922df0829da59e40"
+      },
+      {
+        "time": "2026-10-13T22:31:18.334Z",
+        "message": "[Server] AGENT_VERIFIED_cd8b72d49e2b4796bfa2aecdec8be985"
+      },
+      {
+        "time": "2026-10-13T22:31:17.735Z",
+        "message": "[Server] AGENT_VERIFIED_6577ce4d69f2408c8160d5885a814e44"
+      },
+      {
+        "time": "2026-10-13T22:31:14.734Z",
+        "message": "Server set position to (0, -60, 0) (teleport #270)"
+      },
+      {
+        "time": "2026-10-13T22:31:13.065Z",
+        "message": "Completed gather"
+      },
+      {
+        "time": "2026-10-13T22:31:06.945Z",
+        "message": "Reflex: resumed the gather job"
+      },
+      {
+        "time": "2026-10-13T22:31:05.740Z",
+        "message": "Check: token 56 epoch 57 busy false"
+      },
+      {
+        "time": "2026-10-13T22:31:05.740Z",
+        "message": "Check: token 56 epoch 57 busy false"
+      },
+      {
+        "time": "2026-10-13T22:31:05.737Z",
+        "message": "Job: Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:05.737Z",
+        "message": "Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:05.735Z",
+        "message": "Pause trace: gather -> Reflex: preempted by Mob Defense"
+      },
+      {
+        "time": "2026-10-13T22:31:05.735Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:31:05.735Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:31:05.735Z",
+        "message": "Reflex: fleeing creeper (never melee a creeper)"
+      },
+      {
+        "time": "2026-10-13T22:30:57.487Z",
+        "message": "Server set position to (0, -60, 0) (teleport #268)"
+      },
+      {
+        "time": "2026-10-13T22:30:44.385Z",
+        "message": "Server set position to (861, -62, 861) (teleport #267)"
+      },
+      {
+        "time": "2026-10-13T22:30:40.387Z",
+        "message": "Server set position to (860, -60, 860) (teleport #266)"
+      },
+      {
+        "time": "2026-10-13T22:30:40.284Z",
+        "message": "Chains: equipped iron_chestplate"
+      },
+      {
+        "time": "2026-10-13T22:30:28.433Z",
+        "message": "Chains: equipped leather_boots"
+      },
+      {
+        "time": "2026-10-13T22:30:28.183Z",
+        "message": "Chains: equipped leather_leggings"
+      },
+      {
+        "time": "2026-10-13T22:30:27.933Z",
+        "message": "Chains: equipped leather_chestplate"
+      },
+      {
+        "time": "2026-10-13T22:30:27.676Z",
+        "message": "Chains: equipped leather_helmet"
+      },
+      {
+        "time": "2026-10-13T22:30:18.487Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:18.486Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:18.486Z",
+        "message": "Reflex: fleeing creeper (never melee a creeper)"
+      },
+      {
+        "time": "2026-10-13T22:30:14.435Z",
+        "message": "Server set position to (1400, -60, 1400) (teleport #265)"
+      },
+      {
+        "time": "2026-10-13T22:30:14.271Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:14.271Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:14.271Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:14.097Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:14.097Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:14.097Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.934Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.934Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.934Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.833Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.833Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.833Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.649Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.648Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.648Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.534Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.534Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.534Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.355Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.355Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.355Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.184Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:13.184Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:13.183Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.885Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.884Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:12.884Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.764Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.764Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:12.764Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.584Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.584Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:12.584Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.285Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:12.284Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:12.284Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      },
+      {
+        "time": "2026-10-13T22:30:11.999Z",
+        "message": "Runner: claim-bump for Mob Defense (a job was running)"
+      },
+      {
+        "time": "2026-10-13T22:30:11.999Z",
+        "message": "Reflex: Mob Defense engaging"
+      },
+      {
+        "time": "2026-10-13T22:30:11.999Z",
+        "message": "Reflex: fleeing zombie (daylight - they burn)"
+      }
+    ],
+    "model": {
+      "enabled": true,
+      "url": "http://127.0.0.1:8081/v1",
+      "name": "Qwen3-8B"
+    },
+    "reflexes": true,
+    "busy": false,
+    "reflexBusy": false,
+    "autopilot": {
+      "enabled": false,
+      "state": "idle",
+      "step": "wood",
+      "goal": null,
+      "home": {
+        "x": 1,
+        "y": -60,
+        "z": 0
+      }
+    },
+    "runner": {
+      "running": true,
+      "chain": "Misc World Survival Chain",
+      "task": null
+    }
+  }
+}

@@ -1,0 +1,266 @@
+// Port of adris/altoclef chains/MobDefenseChain.java, with the fight/no-fight decision
+// adapted to docs/COMBAT_SPEC.md 7f: never fight unarmed (get-armed -> walk away ->
+// daylight burn -> shelter -> cornered last resort), health >= 14 (>= 10 armoured),
+// at most 2 melee mobs, no creeper within 5 blocks without a bow, equip and verify the
+// weapon before every swing, eat to full and return to the task only at health >= 14.
+// The client-only KillAura force field is NOT ported (a server would see the swings;
+// attacks happen only through KillEntitiesTask behind the 7f gate).
+// Original AltoClef (https://github.com/gaucho-matrero/altoclef,
+// commit af22e3bc2f03dde45da703f5f7535baae18ea486), MIT License,
+// Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
+import {SingleTaskChain} from './singleTaskChain.js';
+import {chainConfig,inGame,onFire} from './settings.js';
+import {getHostiles,nearestDistance,withinRange,distanceTo,armorValue,BURNS_IN_SUNLIGHT,canDealWithCount,evaluateFight,isCornered,canCraftWoodenSword,hasItemName,inventoryItems,nightish} from './combatPolicy.js';
+import {movementTask,RunAwayFromHostilesTask,RunAwayFromCreepersTask,DodgeProjectilesTask,KeepDistanceTask,KillEntitiesTask,CraftWeaponTask,ShelterTask,SleepTask,projectileClose,approachingProjectiles} from './fallbackTasks.js';
+import {FightTask} from './fightTask.js';
+import {creeperSwell} from '../creeper.js';
+// MobDefenseChain.java constants.
+const CREEPER_KEEP_DISTANCE=10;
+const ARROW_KEEP_DISTANCE_HORIZONTAL=2;
+const ARROW_KEEP_DISTANCE_VERTICAL=10;
+const DANGER_KEEP_DISTANCE=15*2;
+const SAFE_KEEP_DISTANCE=8;
+const fireTouching=bot=>{
+ if(!bot.entity)return false;
+ const p=bot.entity.position;
+ for(const[dx,dz]of[[0,0],[1,0],[1,1],[1,-1],[0,1],[0,-1],[-1,1],[-1,-1],[-1,0]]){
+  const b=bot.blockAt&&bot.blockAt(p.offset(dx,0,dz));
+  if(b&&/fire/.test(b.name))return true;
+ }
+ return false;
+};
+export class MobDefenseChain extends SingleTaskChain{
+ constructor({food=null,mlg=null}={}){
+  super('Mob Defense');
+  this.food=food;this.mlg=mlg;
+  this._runAwayTask=null;
+  this._closeAnnoying=new Map(); // entity id -> TimerGame (MobDefenseChain._closeAnnoyingEntities)
+  this._targetEntity=null;
+  this._dangerUntil=0;
+  this.now=()=>Date.now()/1000;
+ }
+ setTargetEntity(e){this._targetEntity=e;}
+ resetTargetEntity(){this._targetEntity=null;}
+ // The flee bands re-evaluate every tick: log each episode once, not 20 times a second.
+ _fleeLog(ctx,tag,message){
+  if(this._fleeTag===tag)return;
+  this._fleeTag=tag;
+  if(ctx&&ctx.worker&&ctx.worker.log)try{ctx.worker.log(message);}catch{}
+ }
+ priority(bot,ctx){
+  const p=this._priorityInner(bot,ctx);
+  this._cachedLastPriority=p;
+  return p;
+ }
+ _priorityInner(bot,ctx){
+  if(!inGame(bot))return -1;
+  const cfg=chainConfig(ctx);
+  if(cfg.mobDefense===false)return -1;
+  // Fire under our feet: WorldSurvivalChain handles it at priority 100 (Java digs it out
+  // here with Baritone look/click; stepping aside keeps one owner of that behaviour).
+  if(onFire(bot)&&fireTouching(bot))return -1;
+  // prioritizeEating: let FoodChain's critical eat happen before dodging anything.
+  if(this.food&&this.food.needsToEatCritical&&this.food.needsToEatCritical(bot))return -1;
+  this._doingFunkyStuff=false;
+  const hostiles=getHostiles(bot,ctx);
+  if(hostiles.some(e=>withinRange(e,bot,16)))this._dangerUntil=this.now()+8;
+  const policy=evaluateFight(bot,hostiles);
+  // A swelling creeper (metadata swell_dir === 1) outranks every other flee: sprint past 7,
+  // or 14 when powered. Distance alone is not the fuse.
+  const swelling=hostiles.filter(e=>e.name==='creeper'&&creeperSwell(e).fusing)
+   .sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
+  if(swelling){
+   const info=creeperSwell(swelling);
+   this._runAwayTask=null;
+   this._doingFunkyStuff=true;
+   this.root=new RunAwayFromCreepersTask(info.keep);
+   this._fleeLog(ctx,'creeper-fuse','Reflex: creeper fuse (swell '+info.swell+(info.powered?', powered':'')+') sprinting past '+info.keep);
+   return 96;
+  }
+  // Run away from the closest creeper (AltoClef: 50 + fuse*50; mineflayer does not expose
+  // the client fuse, so proximity stands in for urgency — 7f says walk away regardless).
+  const creeper=hostiles.filter(e=>e.name==='creeper'&&withinRange(e,bot,CREEPER_KEEP_DISTANCE))
+   .sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot))[0];
+  if(creeper){
+   this._runAwayTask=null;
+   this._doingFunkyStuff=true;
+   const fuse=Math.max(0,Math.min(1,1-distanceTo(creeper,bot)/CREEPER_KEEP_DISTANCE));
+   this.root=new RunAwayFromCreepersTask(CREEPER_KEEP_DISTANCE);
+   this._fleeLog(ctx,'creeper','Reflex: fleeing creeper (never melee a creeper)');
+   return 50+fuse*50;
+  }
+  // Witches are never engaged (7c/26.3 measured: they kite and out-potion every rush,
+  // knockback does not apply, arrows cannot be calibrated) - break line of sight instead:
+  // the run-away band covers armed and unarmed bots alike.
+  if(hostiles.some(e=>e.name==='witch'&&withinRange(e,bot,16))){
+   this._runAwayTask=movementTask(ctx,'RunAwayFromHostilesTask',()=>new RunAwayFromHostilesTask(30,true));
+   this.root=this._runAwayTask;
+   if(ctx.worker&&ctx.worker.log)try{ctx.worker.log('Reflex: fleeing witch (26.3: it kites and out-potions the rush)');}catch{}
+   return 68;
+  }
+  // Universally dangerous mobs (wither skeleton wither / hoglin chipping us down at low health).
+  if(this._universallyDangerous(hostiles,bot)){
+   this._runAwayTask=movementTask(ctx,'RunAwayFromHostilesTask',()=>new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE,false));
+   this.root=this._runAwayTask;
+   return 70;
+  }
+  // Dodge incoming projectiles while not busy eating.
+  if(!(this.food&&this.food.isTryingToEat&&this.food.isTryingToEat())&&cfg.dodgeProjectiles!==false&&projectileClose(bot,ARROW_KEEP_DISTANCE_HORIZONTAL,ARROW_KEEP_DISTANCE_VERTICAL)){
+   this._doingFunkyStuff=true;
+   this._runAwayTask=null;
+   this.root=movementTask(ctx,'DodgeProjectilesTask',()=>new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL,ARROW_KEEP_DISTANCE_VERTICAL));
+   return 65;
+  }
+  // Dodge everything while vulnerable (AltoClef isInDanger; skeletons burn/are ranged).
+  if(this._inDanger(bot,hostiles)){
+   this._fleeLog(ctx,'vulnerable','Reflex: fleeing '+hostiles.map(e=>e.name).join(',')+' (vulnerable)');
+   this._runAwayTask=movementTask(ctx,'RunAwayFromHostilesTask',()=>new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE,false));
+   this.root=this._runAwayTask;
+   return 70;
+  }
+  // 7f hard gates fire immediately when a hostile is close (AltoClef force-fielded in the
+  // interim; we do not swing unequipped, so escaping now is the only safe move).
+  const nearest=nearestDistance(hostiles,bot);
+  if(!policy.allowed&&hostiles.length&&nearest<=SAFE_KEEP_DISTANCE+2)return this._escapeLadder(bot,ctx,hostiles,cfg,policy);
+  // User-approved close-threat bypass: any hostile within ~5 blocks with line of sight
+  // answers NOW, outside AltoClef's 12 s annoyance window. The 7f gates already passed
+  // above when they forbid the fight, so here the armed bot engages at once; the FightTask
+  // still verifies the held weapon before every swing.
+  if(policy.allowed&&hostiles.some(e=>withinRange(e,bot,5)&&canSee(bot,e,5))){
+   this._runAwayTask=null;
+   this.root=this._fight(ctx);
+   return 65;
+  }
+  // 7f: after a dangerous encounter, eat to full and return to the task only at health >= 14.
+  // Only when the fight policy still forbids fighting: a winnable fight comes first.
+  if(!policy.allowed&&hostiles.length&&this._dangerUntil>this.now()&&bot.health<14){
+   // Keep distance FROM the hostiles: with none nearby the band must stay inactive (its
+   // task otherwise wanders the bot - e.g. out of a drowning pool it should sit in).
+   this._fleeLog(ctx,'recovering','Reflex: fleeing '+hostiles.map(e=>e.name).join(',')+' (still recovering)');
+   this.root=new KeepDistanceTask(16);
+   return 60;
+  }
+  // 7f: night preparation starts at dusk, not when the first mob arrives.
+  if(!policy.weapon&&!policy.daylight&&nightish(bot)&&!hostiles.some(e=>withinRange(e,bot,16))){
+   this.root=hasBed(bot)?new SleepTask():new ShelterTask();
+   return 55;
+  }
+  // Hostiles lingering close for a while (AltoClef shouldDealWithAnnoyingHostiles).
+  const deal=this._annoying(bot,ctx,hostiles,cfg);
+  if(deal.length&&!policy.allowed)return this._escapeLadder(bot,ctx,hostiles,cfg,policy);
+  if(deal.length){
+   // Creepers are never melee targets (7c bow/shield tactics live in src/combat.js and the
+   // flee branch above owns every creeper within 10). The fight runs as a FightTask: the
+   // controller re-picks the nearest hostile per tick under the 7d priority.
+   const fightable=deal.filter(e=>e.name!=='creeper');
+   if(fightable.length){
+    if(canDealWithCount(policy)+1>=fightable.length){
+     this._runAwayTask=null;
+     this.root=this._fight(ctx);
+     return 65;
+    }
+    this._runAwayTask=movementTask(ctx,'RunAwayFromHostilesTask',()=>new RunAwayFromHostilesTask(30,true));
+    this.root=this._runAwayTask;
+    return 80;
+   }
+   return this._escapeLadder(bot,ctx,hostiles,cfg,policy);
+  }
+  // By default, if not immediately in danger but already running away, keep running (cached priority).
+  if(this._runAwayTask&&!this._runAwayTask.isFinished(bot,ctx)){
+   this.root=this._runAwayTask;
+   return this._cachedLastPriority>0?this._cachedLastPriority:70;
+  }
+  // Java returns 0 here; -1 is the frozen API's "inactive" and behaviourally identical
+  // (the chain holds no task, so the runner simply skips it).
+  this._fleeTag=null; // idle: the next episode logs again
+  return -1;
+ }
+ // The armed response as a FightTask (ActionTask subclass): the TaskRunner is the single
+ // owner, the controller only ever sees the ownership-guarded move helper.
+ _fight(ctx){
+  const w=ctx&&ctx.worker;
+  return new FightTask({
+   move:ctx&&ctx.move||{},
+   log:w&&w.log?(m=>{try{w.log(m);}catch{}}):null,
+   opts:{range:16}});
+ }
+ // 7f "no weapon / fight not winnable" ladder, in the spec's order of preference.
+ _escapeLadder(bot,ctx,hostiles,cfg,policy){
+  const nearest=nearestDistance(hostiles,bot);
+  // 5. Cornered with no escape path: very last resort, best item (axe > pickaxe > fist; never a block).
+  if(isCornered(hostiles,bot)){
+   this._runAwayTask=null;
+   this.root=new KillEntitiesTask(hostiles,{lastResort:true});
+   return 85;
+  }
+  // 1. Get armed first — but only while there is time (a zombie covers ~8 blocks while a sword is crafted).
+  if(!policy.weapon&&canCraftWoodenSword(bot)&&nearest>SAFE_KEEP_DISTANCE){
+   this.root=new CraftWeaponTask();
+   return 75;
+  }
+  // 3. Daytime threats burn: staying out of reach is often enough.
+  if(policy.daylight&&hostiles.every(e=>BURNS_IN_SUNLIGHT.has(e.name))){
+   this._fleeLog(ctx,'daylight','Reflex: fleeing '+hostiles.map(e=>e.name).join(',')+' (daylight - they burn)');
+   this.root=new KeepDistanceTask(16);
+   return 65;
+  }
+  // 2. Walk away (sprint if food > 6, break line of sight, keep far more than the 16-block minimum).
+  this._fleeLog(ctx,'unarmed','Reflex: fleeing '+hostiles.map(e=>e.name).join(',')+' (unarmed - COMBAT_SPEC 7f)');
+  this._runAwayTask=movementTask(ctx,'RunAwayFromHostilesTask',()=>new RunAwayFromHostilesTask(30,true));
+  this.root=this._runAwayTask;
+  return 80;
+ }
+ _universallyDangerous(hostiles,bot){
+  const angry=e=>true; // mineflayer has no anger state; presence within range stands in
+  const wither=hostiles.find(e=>e.name==='wither_skeleton'&&withinRange(e,bot,SAFE_KEEP_DISTANCE-2));
+  if(wither&&angry(wither))return true;
+  if(bot.health<10&&hostiles.some(e=>(e.name==='hoglin'||e.name==='zoglin')&&withinRange(e,bot,SAFE_KEEP_DISTANCE-1)))return true;
+  return false;
+ }
+ _inDanger(bot,hostiles){
+  const armor=armorValue(bot),health=bot.health;
+  const vulnerable=(armor<=15&&health<3)||(armor<10&&health<10)||(armor<5&&health<18);
+  if(!vulnerable)return false;
+  return hostiles.some(e=>e.name!=='skeleton'&&e.name!=='stray'&&e.name!=='bogged'&&withinRange(e,bot,SAFE_KEEP_DISTANCE));
+ }
+ // MobDefenseChain's per-hostile timers: close for killAnnoyingHostileWhenCloseForSeconds -> deal with it.
+ _annoying(bot,ctx,hostiles,cfg){
+  const out=[];
+  for(const e of hostiles){
+   const range=(e.name==='skeleton'||e.name==='stray'||e.name==='bogged'||e.name==='witch')?18:5;
+   if(!withinRange(e,bot,range))continue;
+   if(!canSee(bot,e,range))continue;
+   let timer=this._closeAnnoying.get(e.id);
+   if(!timer){
+    timer={t0:this.now(),period:cfg.killAnnoyingHostileWhenCloseForSeconds};
+    this._closeAnnoying.set(e.id,timer);
+   }
+   if(this.now()-timer.t0>=timer.period)out.push(e);
+  }
+  for(const id of[...this._closeAnnoying.keys()]){
+   const e=(bot.entities||{})[id];
+   if(!e||e.isValid===false)this._closeAnnoying.delete(id);
+  }
+  return out;
+ }
+}
+// LookHelper.seesPlayer port: sample the eye line for solid blocks. With no block data
+// (fake bots, unloaded chunks) the target counts as visible.
+const canSee=(bot,from,range)=>{
+ try{
+  const me=bot.entity.position;
+  const eyes=from.position.offset(0,from.height?from.height*0.9:1.6,0);
+  const mine=me.offset(0,1.6,0);
+  const steps=Math.ceil(from.position.distanceTo(me)*2);
+  for(let i=1;i<steps;i++){
+   const t=i/steps;
+   const b=bot.blockAt&&bot.blockAt(mine.offset((eyes.x-mine.x)*t,(eyes.y-mine.y)*t,(eyes.z-mine.z)*t));
+   if(b&&b.boundingBox==='block')return false;
+  }
+ }catch{}
+ return true;
+};
+const hasBed=bot=>{
+ if(hasItemName(bot,'bed')||inventoryItems(bot).some(i=>/_bed$/.test(i.name)))return true;
+ try{return !!bot.findBlock({matching:b=>b&&/_bed$/.test(b.name),useExtraInfo:false,maxDistance:32});}catch{return false;}
+};

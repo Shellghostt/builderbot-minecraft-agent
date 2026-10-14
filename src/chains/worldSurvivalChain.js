@@ -1,0 +1,132 @@
+// Port of adris/altoclef chains/WorldSurvivalChain.java: lava escape (100), fire escape
+// (100), self-extinguishing with a water bucket (90, pick the water back up at 60),
+// drowning swim-up (input side effect, like the Java getPriority side effect), and the
+// nether-portal stuck shimmy (60). Baritone goals map to ctx.move helpers (P4) with local
+// guarded fallbacks of the same names.
+// Original AltoClef (https://github.com/gaucho-matrero/altoclef,
+// commit af22e3bc2f03dde45da703f5f7535baae18ea486), MIT License,
+// Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
+import {SingleTaskChain} from './singleTaskChain.js';
+import {chainConfig,inGame,hasEffect,onFire,TimerGame} from './settings.js';
+// (TimerGame is still used for the lava tail timer below.)
+import {hasItemName} from './combatPolicy.js';
+import {movementTask,EscapeFromLavaTask,EscapeFreezingTask,GetToBlockTask,PutOutFireTask,SafeRandomShimmyTask,ExtinguishWithWaterTask,InteractWithBlockTask} from './fallbackTasks.js';
+import {inLava as blockInLava} from '../tasks/movement/escape-from-lava-task.js';
+export class WorldSurvivalChain extends SingleTaskChain{
+ constructor(){
+  super('Misc World Survival Chain');
+  this._wasInLavaTimer=new TimerGame(()=>Date.now()/1000,1);
+  this._portalStuckTimer=new TimerGame(()=>Date.now()/1000,5);
+  this._wasAvoidingDrowning=false;
+  this._extinguishWaterPosition=null;
+  this._portalSince=null;
+  this._lavaUntil=0; // recent-lava window: douse on exit even if the fire metadata bit never arrives
+  this.now=()=>Date.now()/1000;
+ }
+ priority(bot,ctx){
+  if(!inGame(bot))return -1;
+  const cfg=chainConfig(ctx);
+  // A finished root must not block the NEXT band: onTick only runs while the chain is
+  // selected, and right after a lava exit the escape's priority is already -1 - a stale
+  // EscapeFromLavaTask root then suppressed the douse forever (A4, measured 2026-10-13).
+  if(this.root&&this.root.isFinished&&!this.root.stopped&&this.root.isFinished(bot,ctx))this.root=null;
+  // Drowning: swim up while out of air (side effect, as in the Java getPriority).
+  this._handleDrowning(bot,cfg);
+  // Lava escape
+  if(this._isInLavaOhShit(bot)){
+   this._lavaUntil=this.now()+4; // a lava exit leaves you burning; the flag may not arrive (Via)
+   this.root=movementTask(ctx,'EscapeFromLavaTask',()=>new EscapeFromLavaTask());
+   return 100;
+  }
+  // Fire escape
+  if(this._isInFire(bot)){
+   this.root=movementTask(ctx,'PutOutFireTask',()=>new PutOutFireTask());
+   return 100;
+  }
+  // Powder snow: get out before the freeze damage starts (normal2 froze to death 2026-10-14).
+  if(EscapeFreezingTask.inPowderSnow(bot)){
+   if(!this._freezeLogged){this._freezeLogged=true;const w=ctx&&ctx.worker;if(w&&w.log)try{w.log('WorldSurvival: in powder snow (frozen '+EscapeFreezingTask.ticksFrozen(bot)+' ticks), escaping');}catch{}}
+   this.root=movementTask(ctx,'EscapeFreezingTask',()=>new EscapeFreezingTask());
+   return 100;
+  }
+  this._freezeLogged=false;
+  // Extinguish with water. The recent-lava window covers the 26.3/Via path where the fire
+  // metadata bit was not observed in the A4 probe: the burn ran its full clock (hp 20 -> 1)
+  // because onFire stayed false and the douse never armed.
+  if(cfg.extinguishWithWater!==false){
+   const burning=onFire(bot)||this.now()<this._lavaUntil;
+   if(this.root?.name!=='EscapeFromLavaTask'&&burning&&!hasEffect(bot,'fire_resistance')){
+    if(hasItemName(bot,'water_bucket')){
+     if(!this._douseLogged){
+      this._douseLogged=true;
+      const w=ctx&&ctx.worker;
+      if(w&&w.log)try{w.log('WorldSurvival: dousing (onFire '+!!onFire(bot)+', lavaWindow '+(this.now()<this._lavaUntil)+')');}catch{}
+     }
+     this.root=new ExtinguishWithWaterTask({worker:ctx&&ctx.worker});
+     this._extinguishWaterPosition=bot.entity.position.clone?bot.entity.position.clone():bot.entity.position;
+     return 90;
+    }
+    this.root=movementTask(ctx,'GetToBlockTask',()=>new GetToBlockTask('water'));
+    return 90;
+   }
+   if(hasItemName(bot,'bucket')&&!hasItemName(bot,'water_bucket')&&this._extinguishWaterPosition&&this._stillWater(bot,this._extinguishWaterPosition)){
+    this.root=new InteractWithBlockTask(this._extinguishWaterPosition,'water_bucket');
+    return 60;
+   }
+   this._extinguishWaterPosition=null;this._douseLogged=false;
+  }
+  // Portal stuck: after 5s inside a portal, shimmy out (interaction pauses are handled by
+  // the main wiring, like Java's setInteractionPaused).
+  if(this._isStuckInPortal(bot)){
+   if(this._portalSince==null)this._portalSince=this.now();
+  }else this._portalSince=null;
+  if(this._portalSince!=null&&this.now()-this._portalSince>=5){
+   this.root=movementTask(ctx,'SafeRandomShimmyTask',()=>new SafeRandomShimmyTask());
+   return 60;
+  }
+  return -1; // Java NEGATIVE_INFINITY: nothing world-threatening right now
+ }
+ _handleDrowning(bot,cfg){
+  if(cfg.avoidDrowning===false)return;
+  const e=bot.entity||{};
+  // ViaVersion: entity.isInWater may never flip and the air metadata only arrives on change
+  // (bot.oxygenLevel is the reliable 0-20 field - see worker.js's spawn handler), so also
+  // check the block at head height for water.
+  const touchingWater=e.isInWater===true||/water/.test((bot.blockAt&&bot.blockAt(e.position.offset(0,1.4,0))||{}).name||'');
+  const air=typeof bot.oxygenLevel==='number'?bot.oxygenLevel:(typeof bot.oxygen==='number'?bot.oxygen:20);
+  const lowAir=air<=6; // surface at the old reflex's threshold: below it the test's <10 floor must be reachable
+  if(touchingWater&&lowAir){
+   try{bot.setControlState('jump',true);}catch{}
+   this._wasAvoidingDrowning=true;
+  }else if(this._wasAvoidingDrowning){
+   this._wasAvoidingDrowning=false;
+   try{bot.setControlState('jump',false);}catch{}
+  }
+ }
+ _isInLavaOhShit(bot){
+  // Block-aware check only: ViaVersion's isInLava sticks true after exiting, which kept
+  // this band (and the escape task under it) alive through the whole post-exit burn. The
+  // old onFire 1s tail is gone on purpose - every tail second is a full burn second; the
+  // block check at feet/-1/+1 already covers lava adjacency, and the fire belongs to the
+  // douse the moment the blocks are dry (A4 probe: burn ended ~3.3 s with the tail,
+  // douse armed at 3.1; without it the pour lands ~1.5 s earlier).
+  return blockInLava(bot)&&!hasEffect(bot,'fire_resistance');
+ }
+ _isInFire(bot){
+  if(!onFire(bot)||hasEffect(bot,'fire_resistance'))return false;
+  const p=bot.entity.position;
+  for(const[dx,dz]of[[0,0],[1,0],[1,1],[1,-1],[0,1],[0,-1],[-1,1],[-1,-1],[-1,0]]){
+   const b=bot.blockAt&&bot.blockAt(p.offset(dx,0,dz));
+   if(b&&/fire/.test(b.name))return true;
+  }
+  return false;
+ }
+ _stillWater(bot,pos){
+  const b=bot.blockAt&&bot.blockAt(pos);
+  return !!b&&/water/.test(b.name);
+ }
+ _isStuckInPortal(bot){
+  const b=bot.blockAt&&bot.blockAt(bot.entity.position);
+  return !!b&&b.name==='nether_portal';
+ }
+}

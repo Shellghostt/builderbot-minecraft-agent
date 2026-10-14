@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "seconds": 1.22,
+  "plan": {
+    "explanation": "Gather 8 oak logs using the gather job, then craft 32 oak planks from the collected logs.",
+    "jobs": [
+      {
+        "type": "gather",
+        "block": "oak_log",
+        "count": 8
+      },
+      {
+        "type": "craft",
+        "item": "oak_planks",
+        "count": 32
+      }
+    ]
+  },
+  "missing_coordinates": {
+    "explanation": "You need to specify the origin coordinates for the platform blueprint before it can be built.",
+    "jobs": []
+  },
+  "http_checks": [
+    "authentication required",
+    "cross-origin mutations refused",
+    "invalid count refused"
+  ]
+}

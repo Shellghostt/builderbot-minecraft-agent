@@ -1,0 +1,24 @@
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
+import {z} from 'zod';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {jobSchema} from './schema.js';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const config=JSON.parse(fs.readFileSync(path.join(root,'config.json'),'utf8'));
+const server=new McpServer({name:'minecraft-worker',version:'1.0.0'});
+async function call(route,data){const token=fs.readFileSync(path.join(root,'data/dashboard-token'),'utf8');const response=await fetch(`http://127.0.0.1:${config.dashboardPort}/api/${route}`,{method:data===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});const value=await response.json();return {content:[{type:'text',text:JSON.stringify(value)}],isError:!response.ok};}
+server.tool('minecraft_status','Read the bot inventory, position and saved job status',{},()=>call('state'));
+server.tool('minecraft_observe','Survey the bot surroundings: position, biome, time, weather, vitals, held item, armour, grouped inventory, nearby blocks and entities within 24 blocks, current job and recent events',{},()=>call('observe'));
+server.tool('minecraft_connect','Connect the bot to its configured server',{},()=>call('connect',{}));
+server.tool('minecraft_submit','Queue a reviewed Minecraft job; only supported structured actions', {job:jobSchema},({job})=>call('jobs',job));
+server.tool('minecraft_stop','Immediately pause all Minecraft jobs',{},()=>call('stop',{}));
+server.tool('minecraft_resume','Resume a saved job after checking its status',{id:z.string().uuid()},({id})=>call('resume',{id}));
+server.tool('minecraft_cancel','Cancel a queued, paused or failed job so it never runs',{id:z.string().uuid()},({id})=>call('cancel',{id}));
+server.tool('minecraft_blueprints','List blueprint names usable by build jobs',{},()=>call('blueprints'));
+server.tool('minecraft_reflexes','Enable or disable the always-on safety reflexes (auto-eat, flee, drown, lava, armour)',{enabled:z.boolean()},({enabled})=>call('reflexes',{enabled}));
+server.tool('minecraft_autopilot_start','Start the autonomous progression ladder (wood, stone tools, food, iron, bed, home, explore)',{goal:z.string().max(200).optional()},({goal})=>call('autopilot',{enabled:true,goal}));
+server.tool('minecraft_autopilot_stop','Stop the autonomous progression ladder',{},()=>call('autopilot',{enabled:false}));
+server.tool('minecraft_howto','Version-accurate acquisition guide for an item: gather/smelt/craft/hunt chain from minecraft-data, with unsupported leaves and reasons',{item:z.string().regex(/^[a-z0-9_]{1,64}$/),count:z.number().int().min(1).max(1024).optional()},({item,count})=>call('howto?item='+encodeURIComponent(item)+(count?'&count='+count:'')));
+await server.connect(new StdioServerTransport());

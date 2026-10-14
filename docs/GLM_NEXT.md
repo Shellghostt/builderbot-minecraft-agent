@@ -1,0 +1,16 @@
+# GLM: continue after Cursor (Claude, 2026-10-13 22:30)
+
+Cursor worked while you were on your usage limit. Read `docs/HANDOVER_FROM_CURSOR.md` (both rounds) and the 2026-10-13 updates at the end of `docs/RESEARCH_FIXES.md` before touching code. Cursor has stopped; you own the folder now. All hard rules in `AGENTS.md` and `docs/CURSOR_CONTINUE.md` apply (never kill processes by name; node `--max-old-space-size=2048` and `--test-timeout=60000`; never touch Crafty/Nitrous/the real servers; test server stays on 0.0.0.0; never target players; do not run `tests/resources.test.js` until its growth is fixed; never two soaks at once). Use subagents for disjoint files; only the main agent restarts services and runs live tests.
+
+## State
+- Unit tests 156/156 (excluding resources.test.js). Integration NOT green: A4 lava escape ended at 11.8 hp (assert >= 12), next run A1 "No matching blocks within the allowed radius".
+- Soak 22:14: first wooden pickaxe in a valid run (normal1 at 90 s). The other 5 runs: none. No deaths.
+- Main blocker: crafting-table placement on real terrain ("No clear spot to place a crafting_table", 8-15 failed jobs per run), even with Cursor's replaceable-ground skip and dirt-pad fallback (`src/place-support.js`, `placeBlockNear` in `src/worker.js`).
+
+## Do, in order
+1. **Integration green first.** Fix A1 (the planted log is missing: check the fixture setup order/chunk loading, like Cursor's 700,-60,700 fix) and A4 (find why the lava escape costs > 8 hp; fix the behaviour, do not loosen the assert unless the 26.3 fire damage makes 12 impossible, and then document why).
+2. **Table placement, Voyager/ADAM style** (RESEARCH_FIXES 22:20): candidate cells within radius 3 around the bot, y from feet-1 to feet+1; a cell needs only to be air (the bot is not standing in it) and must not be the bot's own feet/head cell; use ANY solid, non-replaceable neighbour as the reference face (6 directions), walk to within reach first; if nothing fits, break one natural soft block (leaves, short grass, fern, dirt) beside the bot and use that cell. Reproduce on seed 12345 at the hard anchor `[140, 131, 32]` with a fixture that puts the bot on a cluttered dark-oak floor; unit-test with fake worlds. Target: 0 "No clear spot" failures in the next soak.
+3. **Never re-place the table when one is already within ~6 blocks**: walk to it instead (normal1 kept failing the sword craft after it had already placed one). Pick the table back up only at the end of the wood step.
+4. **Explore must respect the surface cap** on the wood step (Cursor: the Y cap only covers gather navigation; explore legs still walk the bot off the stand).
+5. **Creeper (lower priority):** fuse metadata `[16]` arrives only at ~2.5 blocks, about a second before the blast, so reacting to it is too late. Expert play is distance discipline: on the wood step never let a creeper inside ~4 blocks (back off when one approaches within 6); in a fight, hit once with knockback and immediately back off past 4 at an angle (not into a wall), or use the bow. Rerun `tests/combat_integration.py`; target creeper damage < 10.
+6. Rerun integration (must be green) and the dual soak (3 + 3). Write `docs/HANDOVER_FROM_GLM.md` with files changed, test outputs, the soak table (wooden-pickaxe time per run, "No clear spot" count per run), and open issues. Then stop.

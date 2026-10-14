@@ -1,0 +1,24 @@
+# Installed tools, models and caches (large; recreated by bootstrap.py)
+node_modules/
+vendor/
+runtime/
+downloads/
+models/
+cache/
+temp/
+logs/
+test-server/
+.codex/
+__pycache__/
+*.pyc
+*.local.json
+
+# Runtime state and secrets; keep only test results
+data/*
+!data/*-results*.json
+!data/soak-results-*.json
+!data/combat-ablation.json
+!data/runtime-verification.json
+
+# Run logs
+*.log

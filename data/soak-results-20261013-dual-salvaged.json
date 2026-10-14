@@ -1,0 +1,104 @@
+{
+ "meta": {
+  "note": "salvaged from logs/soak-run.log sample lines after the summarise crash",
+  "date": "2026-10-13"
+ },
+ "runs": {
+  "normal1": {
+   "samples": 20,
+   "deaths": 0,
+   "peaks": {
+    "logs": 3,
+    "planks": 14,
+    "table": 1,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "backing off (2s): wood"
+  },
+  "normal2": {
+   "samples": 20,
+   "deaths": 0,
+   "peaks": {
+    "logs": 5,
+    "planks": 14,
+    "table": 1,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "queued: craft"
+  },
+  "normal3": {
+   "samples": 20,
+   "deaths": 0,
+   "peaks": {
+    "logs": 0,
+    "planks": 0,
+    "table": 0,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "queued: gather"
+  },
+  "hard1": {
+   "samples": 20,
+   "deaths": 0,
+   "peaks": {
+    "logs": 0,
+    "planks": 0,
+    "table": 0,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "queued: gather"
+  },
+  "hard2": {
+   "samples": 20,
+   "deaths": 1,
+   "peaks": {
+    "logs": 6,
+    "planks": 8,
+    "table": 1,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "queued: gather"
+  },
+  "hard3": {
+   "samples": 20,
+   "deaths": 3,
+   "peaks": {
+    "logs": 0,
+    "planks": 11,
+    "table": 0,
+    "stick": 0,
+    "wood_pick": 0,
+    "stone_pick": 0,
+    "stone_sword": 0,
+    "furnace": 0
+   },
+   "final_step": "wood",
+   "final_apstate": "working: gather"
+  }
+ }
+}

@@ -1,0 +1,226 @@
+{
+  "achieved": {
+    "oak_log": 0,
+    "oak_planks": 0,
+    "stick": 0,
+    "crafting_table": 0,
+    "wooden_pickaxe": 0,
+    "wooden_axe": 0,
+    "cobblestone": 0,
+    "stone_pickaxe": 0,
+    "stone_axe": 0,
+    "stone_sword": 0,
+    "stone_shovel": 0,
+    "furnace": 0,
+    "torch": 0,
+    "logs_total": 0,
+    "planks_total": 0
+  },
+  "deaths": 0,
+  "stuck_points": [],
+  "samples": [
+    {
+      "t": 30,
+      "pos": [
+        102,
+        142,
+        -24
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 60,
+      "pos": [
+        102,
+        141,
+        -24
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 90,
+      "pos": [
+        102,
+        140,
+        -23
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 120,
+      "pos": [
+        101,
+        139,
+        -23
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 150,
+      "pos": [
+        101,
+        138,
+        -23
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 181,
+      "pos": [
+        102,
+        137,
+        -24
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 211,
+      "pos": [
+        98,
+        136,
+        -30
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 241,
+      "pos": [
+        98,
+        136,
+        -29
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 271,
+      "pos": [
+        101,
+        136,
+        -30
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    }
+  ],
+  "errors": [
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "final read: 'inventory'"
+  ]
+}

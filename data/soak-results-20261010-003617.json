@@ -1,0 +1,406 @@
+{
+  "achieved": {
+    "oak_log": 0,
+    "oak_planks": 0,
+    "stick": 0,
+    "crafting_table": 0,
+    "wooden_pickaxe": 0,
+    "wooden_axe": 0,
+    "cobblestone": 0,
+    "stone_pickaxe": 0,
+    "stone_axe": 0,
+    "stone_sword": 0,
+    "stone_shovel": 0,
+    "furnace": 0,
+    "torch": 0,
+    "logs_total": 0,
+    "planks_total": 0
+  },
+  "deaths": 3,
+  "stuck_points": [],
+  "samples": [
+    {
+      "t": 30,
+      "pos": [
+        106,
+        143,
+        -24
+      ],
+      "hp": 17.5,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 1
+    },
+    {
+      "t": 60,
+      "pos": [
+        91,
+        128,
+        -29
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 90,
+      "pos": [
+        89,
+        127,
+        -55
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 120,
+      "pos": [
+        103,
+        133,
+        -52
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 150,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 181,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 211,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 241,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 271,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 301,
+      "pos": [
+        87,
+        126,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 331,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 361,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 391,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 421,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 451,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 481,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 511,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    },
+    {
+      "t": 542,
+      "pos": [
+        105,
+        144,
+        -22
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "paused: died - resume to continue",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 3
+    }
+  ],
+  "errors": [
+    "sample error: 'position'",
+    "sample error: 'position'",
+    "final read: 'inventory'"
+  ]
+}

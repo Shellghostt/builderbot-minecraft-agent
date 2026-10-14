@@ -1,0 +1,452 @@
+{
+  "achieved": {
+    "oak_log": 0,
+    "oak_planks": 0,
+    "stick": 0,
+    "crafting_table": 0,
+    "wooden_pickaxe": 0,
+    "wooden_axe": 0,
+    "cobblestone": 0,
+    "stone_pickaxe": 0,
+    "stone_axe": 0,
+    "stone_sword": 0,
+    "stone_shovel": 0,
+    "furnace": 0,
+    "torch": 0,
+    "logs_total": 0,
+    "planks_total": 0,
+    "edible_food": 0
+  },
+  "deaths": 0,
+  "stuck_points": [],
+  "samples": [
+    {
+      "t": 30,
+      "pos": [
+        92,
+        127,
+        -27
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 60,
+      "pos": [
+        97,
+        134,
+        -24
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 90,
+      "pos": [
+        104,
+        136,
+        -29
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 120,
+      "pos": [
+        106,
+        135,
+        -46
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 150,
+      "pos": [
+        104,
+        135,
+        -46
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 181,
+      "pos": [
+        101,
+        136,
+        -55
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 211,
+      "pos": [
+        103,
+        133,
+        -54
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 241,
+      "pos": [
+        105,
+        140,
+        -47
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 271,
+      "pos": [
+        115,
+        140,
+        -41
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 301,
+      "pos": [
+        109,
+        135,
+        -61
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 331,
+      "pos": [
+        116,
+        141,
+        -57
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 361,
+      "pos": [
+        118,
+        141,
+        -58
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "wood: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 391,
+      "pos": [
+        116,
+        141,
+        -57
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 421,
+      "pos": [
+        119,
+        145,
+        -60
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 451,
+      "pos": [
+        125,
+        147,
+        -62
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 482,
+      "pos": [
+        124,
+        148,
+        -61
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 512,
+      "pos": [
+        136,
+        146,
+        -66
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 542,
+      "pos": [
+        119,
+        145,
+        -60
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "wood",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 572,
+      "pos": [
+        123,
+        141,
+        -60
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "dusk-dirt",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    },
+    {
+      "t": 602,
+      "pos": [
+        123,
+        141,
+        -57
+      ],
+      "hp": 20,
+      "food": 20,
+      "step": "night",
+      "apstate": "working: gather",
+      "logs": 0,
+      "planks": 0,
+      "cobble": 0,
+      "wood_pick": 0,
+      "stone_pick": 0,
+      "stone_sword": 0,
+      "furnace": 0,
+      "food_items": 0,
+      "deaths": 0
+    }
+  ],
+  "errors": [],
+  "final_state": {
+    "enabled": true,
+    "state": "working: gather",
+    "step": "night",
+    "goal": null,
+    "home": null
+  }
+}

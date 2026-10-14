@@ -1,0 +1,850 @@
+{
+  "meta": {
+    "date": "2026-10-13T01:25:09",
+    "runs_per_cell": 2,
+    "note": "keep=true requires strictly lower damage, lower ttk, or more kills than the all-off baseline"
+  },
+  "results": {
+    "zombie": {
+      "all-off": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=6 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {}
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {}
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 6.1,
+        "median_damage": 0
+      },
+      "+backpedal": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=6 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 6.1,
+        "median_damage": 0
+      },
+      "+shield": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 s",
+            "ttk": 52.7,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "shield": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "shield": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 52.7,
+        "median_damage": 0
+      },
+      "+sprintKnockback": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=6 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=6 crits=0 sweeps=0 s",
+            "ttk": 14.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 14.1,
+        "median_damage": 0
+      },
+      "all-on": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=2 sweeps=0 s",
+            "ttk": 7.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=1 sweeps=0 s",
+            "ttk": 7.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 7.1,
+        "median_damage": 0
+      }
+    },
+    "skeleton": {
+      "all-off": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {}
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "arrow": 2,
+              "bone": 2
+            },
+            "primitives": {}
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 5.1,
+        "median_damage": 0
+      },
+      "+backpedal": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "arrow": 1,
+              "bone": 2
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 4.1,
+        "median_damage": 0
+      },
+      "+shield": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 s",
+            "ttk": 25.2,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "arrow": 1,
+              "bone": 1
+            },
+            "primitives": {
+              "shield": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "shield": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 25.2,
+        "median_damage": 0
+      },
+      "+sprintKnockback": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 6.0,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "arrow": 2,
+              "rotten_flesh": 2
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 6.0,
+        "median_damage": 0
+      },
+      "+kite": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bone": 3
+            },
+            "primitives": {
+              "kite": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=4 crits=0 sweeps=0 s",
+            "ttk": 4.0,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "kite": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 5.1,
+        "median_damage": 0
+      },
+      "all-on": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=4 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=5 crits=3 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "arrow": 1,
+              "bone": 1
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 5.1,
+        "median_damage": 0
+      }
+    },
+    "creeper": {
+      "all-off": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=0 crits=0 sweeps=0 s",
+            "ttk": 35.4,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3
+            },
+            "primitives": {}
+          },
+          {
+            "outcome": "failed",
+            "message": "Fight timed out; creeper is still standing",
+            "ttk": 21.2,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 21,
+              "cooked_beef": 3
+            },
+            "primitives": {}
+          }
+        ],
+        "kills": 1,
+        "median_ttk": 35.4,
+        "median_damage": 0
+      },
+      "+backpedal": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 2.1,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 28,
+              "cooked_beef": 3,
+              "gunpowder": 2
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 7.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "backpedal": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 7.1,
+        "median_damage": 2.1
+      },
+      "+shield": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 30,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "shield": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 6.1,
+            "damage_taken": 2.1,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3,
+              "glowstone_dust": 5
+            },
+            "primitives": {
+              "shield": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 6.1,
+        "median_damage": 2.1
+      },
+      "+sprintKnockback": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 7.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 5.1,
+            "damage_taken": 4.4,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 30,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "sprintKnockback": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 7.1,
+        "median_damage": 4.4
+      },
+      "+kite": {
+        "runs": [
+          {
+            "outcome": "failed",
+            "message": "Health below 8; retreated from the fight",
+            "ttk": 10.1,
+            "damage_taken": 9.8,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "kite": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 10.1,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 29,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "kite": true
+            }
+          }
+        ],
+        "kills": 1,
+        "median_ttk": 10.1,
+        "median_damage": 0
+      },
+      "all-on": {
+        "runs": [
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=avoid hits=0 crits=0 sweeps=0 s",
+            "ttk": 32.3,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 30,
+              "cooked_beef": 3,
+              "gunpowder": 1
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          },
+          {
+            "outcome": "complete",
+            "message": "Completed and verified; Fought: no target tactic=melee hits=0 crits=0 sweeps=0 s",
+            "ttk": 35.2,
+            "damage_taken": 0,
+            "inventory": {
+              "stone_sword": 1,
+              "bow": 1,
+              "arrow": 31,
+              "cooked_beef": 3
+            },
+            "primitives": {
+              "backpedal": true,
+              "shield": true,
+              "sprintKnockback": true,
+              "kite": true,
+              "crit": true
+            }
+          }
+        ],
+        "kills": 2,
+        "median_ttk": 35.2,
+        "median_damage": 0
+      }
+    }
+  },
+  "verdicts": {
+    "zombie": {
+      "+backpedal": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            6.1,
+            6.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "+shield": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            6.1,
+            52.7
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "+sprintKnockback": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            6.1,
+            14.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "all-on": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            6.1,
+            7.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    "skeleton": {
+      "+backpedal": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            5.1,
+            4.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "+shield": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            5.1,
+            25.2
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "+sprintKnockback": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            5.1,
+            6.0
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "+kite": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            5.1,
+            5.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      },
+      "all-on": {
+        "keep": false,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            5.1,
+            5.1
+          ],
+          "kills": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    "creeper": {
+      "+backpedal": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            2.1
+          ],
+          "ttk": [
+            35.4,
+            7.1
+          ],
+          "kills": [
+            1,
+            2
+          ]
+        }
+      },
+      "+shield": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            2.1
+          ],
+          "ttk": [
+            35.4,
+            6.1
+          ],
+          "kills": [
+            1,
+            2
+          ]
+        }
+      },
+      "+sprintKnockback": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            4.4
+          ],
+          "ttk": [
+            35.4,
+            7.1
+          ],
+          "kills": [
+            1,
+            2
+          ]
+        }
+      },
+      "+kite": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            35.4,
+            10.1
+          ],
+          "kills": [
+            1,
+            1
+          ]
+        }
+      },
+      "all-on": {
+        "keep": true,
+        "evidence": {
+          "dmg": [
+            0,
+            0
+          ],
+          "ttk": [
+            35.4,
+            35.2
+          ],
+          "kills": [
+            1,
+            2
+          ]
+        }
+      }
+    }
+  }
+}
