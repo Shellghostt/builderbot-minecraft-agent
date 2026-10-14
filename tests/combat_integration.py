@@ -101,6 +101,21 @@ def drain_food():
 def record(name,ttk=None,hits=None,crits=None,dmg=None,blocked=None,notes=''):
     RESULTS[name]={'time_to_kill_s':ttk,'hits':hits,'crits':crits,'damage_taken':dmg,'blocked_arrows':blocked,'notes':notes}
     print(name+': ttk='+json.dumps(ttk)+' hits='+json.dumps(hits)+' crits='+json.dumps(crits)+' damage_taken='+json.dumps(dmg)+' blocked='+json.dumps(blocked),flush=True)
+def damage_from(samples):
+    # Damage from the bot's real health series: every drop between consecutive samples,
+    # i.e. start - end + whatever was healed or eaten back in between. A death (drop to 0,
+    # respawn at 20) still counts the hp lost. The old start-minus-minimum over the job's
+    # own polls read 0 for the lane creeper (2026-10-14) while the bot ended at 3.86: the
+    # blast landed after the job settled, outside every sample.
+    hs=[h for h in samples if isinstance(h,(int,float))]
+    return round(sum(max(0,a-b) for a,b in zip(hs,hs[1:])),1)
+def settle(m):
+    # Close a fight's health series with the current health (after kills/sweeps/asserts
+    # that took time) and recompute its damage. Returns the end health.
+    end=api('state')['health']
+    m['health'].append(end);m['end_health']=end
+    m['damage_taken']=damage_from(m['health'])
+    return end
     if notes:print(name+' notes: '+notes,flush=True)
 def fight_report(job_obj,marker):
     # 7d requires combat to log mob, tactic, hits, crits, damage taken, result per fight.
@@ -159,7 +174,8 @@ def run_fight(spec,seconds=150,keep=('zombie',),markers=(),probe_roof=False):
     s0=api('state')
     m={'start_health':s0['health'] if s0['health'] is not None else 20,'min_health':s0['health'] if s0['health'] is not None else 20,
        'start_food':s0['food'] if s0['food'] is not None else 20,'max_food':s0['food'] if s0['food'] is not None else 20,
-       'under_roof':0,'samples':0,'job':None,'marker':marker,'spec':used}
+       'under_roof':0,'samples':0,'job':None,'marker':marker,'spec':used,
+       'health':[s0['health'] if s0['health'] is not None else 20]}
     deadline=started+seconds;n=0
     while True:
         j=next((j for j in api('state')['jobs'] if j['id']==created['id'] and j['status'] in ('complete','failed','paused')),None)
@@ -168,7 +184,7 @@ def run_fight(spec,seconds=150,keep=('zombie',),markers=(),probe_roof=False):
         if time.time()>deadline:raise TimeoutError('fight job did not settle within '+str(seconds)+'s')
         time.sleep(1);n+=1
         st=api('state')
-        if st['health'] is not None:m['min_health']=min(m['min_health'],st['health'])
+        if st['health'] is not None:m['min_health']=min(m['min_health'],st['health']);m['health'].append(st['health'])
         if st['food'] is not None:m['max_food']=max(m['max_food'],st['food'])
         if probe_roof and st['position'] is not None:
             m['samples']+=1;p=st['position']
@@ -178,8 +194,7 @@ def run_fight(spec,seconds=150,keep=('zombie',),markers=(),probe_roof=False):
             for kind in HOSTILES:
                 if kind not in keep:command('kill @e[type=minecraft:'+kind+']')
     m['ttk']=round(time.time()-started,1);m['job']=j
-    m['damage_taken']=round(max(0,m['start_health']-m['min_health']),1)
-    m['end_health']=api('state')['health']
+    settle(m)
     return m
 def build_arena():
     # Load the arena chunks FIRST: fills at unloaded positions silently no-op on this build
@@ -278,12 +293,13 @@ def test2_zombie_triple():
     reset_bot(gear=[('iron_sword',1),('shield',1)],armor='leather')
     summon('zombie',1504,1504);summon('zombie',1496,1504);summon('zombie',1504,1496)
     m=run_fight({'type':'fight','maxSeconds':120},seconds=180,keep=('zombie',))
+    rep=fight_report(m['job'],m['marker'])
+    # Record first: a failed leg is still a measurement (status, damage, end health).
+    record('2_zombie_x3',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
+           notes='job '+m['job']['status']+'; tactic='+(rep['tactic'] or 'not reported')+'; end health '+str(m['end_health'])+' | '+rep['log'][:160])
     assert m['job']['status']=='complete','zombie x3 fight did not win: '+m['job']['message']
     verify_dead('zombie','all three arena zombies were defeated');assert_at_arena()
     assert m['end_health'] is not None and m['end_health']>0,'the bot died to the zombie group'
-    rep=fight_report(m['job'],m['marker'])
-    record('2_zombie_x3',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
-           notes='tactic='+(rep['tactic'] or 'not reported')+'; end health '+str(m['end_health'])+' | '+rep['log'][:160])
     print('PASS: bot beat 3 zombies, lost '+str(m['damage_taken'])+' hp, tactic '+(rep['tactic'] or 'not reported'),flush=True)
 def test3_skeleton():
     print('== Test 3: skeleton at 15 blocks ==',flush=True)
@@ -293,15 +309,15 @@ def test3_skeleton():
     shield=Marker('if data entity BuilderBot OffHandItem{id:"minecraft:shield"}')
     bow=Marker('if data entity BuilderBot SelectedItem{id:"minecraft:bow"}')
     m=run_fight({'type':'fight','maxSeconds':90},seconds=150,keep=('skeleton',),markers=(shield,bow))
-    assert m['job']['status']=='complete','skeleton fight did not win: '+m['job']['message']
-    verify_dead('skeleton','the skeleton was defeated');assert_at_arena()
-    assert m['end_health'] is not None and m['end_health']>0,'the bot died to the skeleton'
     blocked=stat_read('cblk')
     rep=fight_report(m['job'],m['marker'])
     approach='shield up' if shield.ok else ('bow' if bow.ok else (rep['tactic'] or 'unknown'))
-    assert shield.ok or bow.ok or rep['tactic'],'the bot neither raised the shield nor used the bow: '+rep['log']
     record('3_skeleton_15',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],blocked=blocked,
-           notes='approach='+approach+'; end health '+str(m['end_health'])+'; blocked value is shield-blocked damage events'+((' | '+rep['log'][:140]) if rep['log'] else ''))
+           notes='job '+m['job']['status']+'; approach='+approach+'; end health '+str(m['end_health'])+'; blocked value is shield-blocked damage events'+((' | '+rep['log'][:140]) if rep['log'] else ''))
+    assert m['job']['status']=='complete','skeleton fight did not win: '+m['job']['message']
+    verify_dead('skeleton','the skeleton was defeated');assert_at_arena()
+    assert m['end_health'] is not None and m['end_health']>0,'the bot died to the skeleton'
+    assert shield.ok or bow.ok or rep['tactic'],'the bot neither raised the shield nor used the bow: '+rep['log']
     print('PASS: skeleton beaten, approach '+approach+', shield-blocked damage events '+str(blocked),flush=True)
 def test4_creeper():
     print('== Test 4: creeper without an explosion ==',flush=True)
@@ -315,7 +331,6 @@ def test4_creeper():
     # MEASURED 26.3 LIMIT: without knockback, trackable arrows or a working shield raise,
     # a creeper in a 12-wide arena either dies to the kite arrows or is survived by the
     # disengage-eat-retreat (the hp floor and the kill are both recorded, neither assumed).
-    assert m['job']['status'] in ('complete','failed'),'creeper fight neither won nor retreated: '+m['job']['message']
     won=m['job']['status']=='complete'
     killed=False;repelled=False
     if won:
@@ -329,13 +344,14 @@ def test4_creeper():
             command('kill @e[type=minecraft:creeper]')
     else:
         command('kill @e[type=minecraft:creeper]')  # swept: a retreated duel leaves it alive
-    assert_at_arena()
-    end=api('state')['health']
-    assert end is not None and end>0,'the bot died to the creeper blast (hp '+str(end)+')'
+    end=settle(m)  # a blast after the job settled still counts
     rep=fight_report(m['job'],m['marker'])
     outcome='KILLED; ' if killed else ('REPELLED (fuse cancelled by the LOS wall, creeper left alive); ' if repelled else 'SURVIVED (kill not secured); ')
     record('4_creeper',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
-           notes=outcome+'end health '+str(end)+'; tactic='+(rep['tactic'] or 'not reported')+' | '+rep['log'][:140])
+           notes=outcome+'job '+m['job']['status']+'; end health '+str(end)+'; tactic='+(rep['tactic'] or 'not reported')+' | '+rep['log'][:140])
+    assert m['job']['status'] in ('complete','failed'),'creeper fight neither won nor retreated: '+m['job']['message']
+    assert_at_arena()
+    assert end is not None and end>0,'the bot died to the creeper blast (hp '+str(end)+')'
     server_assert('if block 1504 -61 1504 minecraft:dirt','no crater at the creeper spawn corner')
     server_assert('if block 1500 -61 1500 minecraft:dirt','no crater at the arena center')
     # 1496,1504 is at the gate; an unloaded chunk makes execute-if silent (no say).
@@ -352,7 +368,6 @@ def test4b_creeper_roofed():
     reset_bot(gear=[('bow',1),('arrow',32),('shield',1),('stone_sword',1),('cooked_beef',3),('cobblestone',16)],armor='leather',pos=(1496,-60,1497))
     summon('creeper',1504,1504)
     m=run_fight({'type':'fight','maxSeconds':90},seconds=150,keep=('creeper',))
-    assert m['job']['status'] in ('complete','failed'),'roofed creeper fight neither won nor retreated: '+m['job']['message']
     won=m['job']['status']=='complete'
     killed=False;repelled=False
     if won:
@@ -363,13 +378,14 @@ def test4b_creeper_roofed():
             command('kill @e[type=minecraft:creeper]')
     else:
         command('kill @e[type=minecraft:creeper]')
-    assert_at_arena()
-    end=api('state')['health']
-    assert end is not None and end>0,'the bot died to the roofed creeper blast (hp '+str(end)+')'
+    end=settle(m)
     rep=fight_report(m['job'],m['marker'])
     record('4b_creeper_roofed',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
            notes=('KILLED; ' if killed else ('REPELLED (fuse cancelled by the LOS wall); ' if repelled else 'SURVIVED (kill not secured); '))
-                 +'end health '+str(end)+'; tactic='+(rep['tactic'] or 'not reported')+' | '+rep['log'][:140])
+                 +'job '+m['job']['status']+'; end health '+str(end)+'; tactic='+(rep['tactic'] or 'not reported')+' | '+rep['log'][:140])
+    assert m['job']['status'] in ('complete','failed'),'roofed creeper fight neither won nor retreated: '+m['job']['message']
+    assert_at_arena()
+    assert end is not None and end>0,'the bot died to the roofed creeper blast (hp '+str(end)+')'
     server_assert('if block 1504 -61 1504 minecraft:dirt','no crater at the creeper spawn corner (roofed)')
     server_assert('if block 1500 -61 1500 minecraft:dirt','no crater at the arena center (roofed)')
     if m['damage_taken'] is not None and m['damage_taken']>=10:
@@ -399,7 +415,6 @@ def test5_spiders():
                notes='BOT DIED to the spider pair (poison race lost) - recorded honestly, swept, respawn handled')
         print('NOTE: bot died to the spider pair - recorded as a measured lethality loss',flush=True)
         return
-    assert m['job']['status'] in ('complete','failed'),'spider fight neither won nor retreated: '+m['job']['message']
     spider_dead=True
     try:verify_dead('spider','the spider was defeated',8)
     except Exception:spider_dead=False
@@ -410,8 +425,7 @@ def test5_spiders():
     try:verify_dead('cave_spider','the cave spider was defeated',8)
     except Exception:cave_dead=False
     command('kill @e[type=minecraft:cave_spider]')
-    assert_at_arena()
-    assert m['end_health'] is not None and m['end_health']>0,'the bot died to the spiders'
+    settle(m)
     rep=fight_report(m['job'],m['marker'])
     ate=m['max_food']>m['start_food']
     record('5_spiders',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
@@ -419,6 +433,9 @@ def test5_spiders():
                  +('spider killed; ' if spider_dead else 'SPIDER SURVIVED (timeout) - swept; ')
                  +('cave spider killed; ' if cave_dead else 'CAVE SPIDER SURVIVED the duel (poison out-ticked the eat loop) - recorded, swept; ')
                  +'job '+m['job']['status']+'; tactic='+(rep['tactic'] or 'not reported')+'; end health '+str(m['end_health'])+' | '+rep['log'][:140])
+    assert m['job']['status'] in ('complete','failed'),'spider fight neither won nor retreated: '+m['job']['message']
+    assert_at_arena()
+    assert m['end_health'] is not None and m['end_health']>0,'the bot died to the spiders'
     print('PASS: spider '+('killed' if spider_dead else 'survived (recorded)')+', cave spider '+('killed' if cave_dead else 'survived (recorded)')+(' and poison handled (ate mid-fight)' if ate else ''),flush=True)
 def test6_enderman():
     print('== Test 6: enderman neutral, then provoked ==',flush=True)
@@ -447,12 +464,12 @@ def test6_enderman():
     assert provoked,'the enderman could not be provoked by a controlled look'
     print('enderman provoked'+(' via damage fallback' if fallback else ' by the look'),flush=True)
     m=run_fight({'type':'fight','maxSeconds':75,'entity':'enderman'},seconds=150,keep=('enderman',),probe_roof=True)
-    alive=api('state')['health']
-    assert alive and alive>0,'the bot died to the provoked enderman'
-    assert_at_arena();sweep()
+    alive=settle(m)
     rep=fight_report(m['job'],m['marker'])
     record('6_enderman',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
-           notes='provoked by look'+(' (damage fallback)' if fallback else '')+'; under 2-high roof '+str(m['under_roof'])+'/'+str(m['samples'])+' samples; job: '+m['job']['status']+' '+m['job']['message'][:80])
+           notes='provoked by look'+(' (damage fallback)' if fallback else '')+'; under 2-high roof '+str(m['under_roof'])+'/'+str(m['samples'])+' samples; end health '+str(alive)+'; job: '+m['job']['status']+' '+m['job']['message'][:80])
+    assert alive and alive>0,'the bot died to the provoked enderman'
+    assert_at_arena();sweep()
     print('PASS: bot survived the provoked enderman (roof samples '+str(m['under_roof'])+'/'+str(m['samples'])+', lost '+str(m['damage_taken'])+' hp)',flush=True)
 def test7_witch():
     print('== Test 7: witch ==',flush=True)
@@ -468,10 +485,11 @@ def test7_witch():
         verify_dead('witch','the witch was defeated')
     else:
         command('kill @e[type=minecraft:witch]')  # never let it cascade into the next legs
-    assert_at_arena()
+    settle(m)
     rep=fight_report(m['job'],m['marker'])
     record('7_witch',ttk=m['ttk'],hits=rep['hits'],crits=rep['crits'],dmg=m['damage_taken'],
            notes=('KILLED; tactic=' if won else 'NOT KILLED (26.3 measured limit: the witch kites and out-potions the rush); ')+'job '+m['job']['status']+'; tactic='+(rep['tactic'] or 'not reported')+'; end health '+str(m['end_health'])+' | '+rep['log'][:140])
+    assert_at_arena()
     print(('PASS: witch killed, lost '+str(m['damage_taken'])+' hp') if won else ('NOTE: witch survived the duel (job '+m['job']['status']+', lost '+str(m['damage_taken'])+' hp) - recorded as a measured 26.3 limit'),flush=True)
 def test8_low_health():
     print('== Test 8: low health mid-fight ==',flush=True)
@@ -485,13 +503,13 @@ def test8_low_health():
     command('give BuilderBot minecraft:cooked_beef 3');time.sleep(1)
     summon('zombie',1504,1500)
     m=run_fight({'type':'fight','maxSeconds':75},seconds=150,keep=('zombie',))
-    alive=api('state')['health']
-    assert alive and alive>0,'the bot died instead of disengaging'
+    alive=settle(m)
     ate=m['max_food']>m['start_food']
-    assert ate,'the bot never ate during the low-health fight (food '+str(m['start_food'])+' -> '+str(m['max_food'])+')'
     outcome=m['job']['status']+' '+m['job']['message'][:90]
     record('8_low_health',ttk=m['ttk'],dmg=m['damage_taken'],
-           notes='started at ~11 hp with a wooden sword; ' +('ate and re-engaged' if m['job']['status']=='complete' else 'ate and disengaged')+'; job: '+outcome)
+           notes='started at ~11 hp with a wooden sword; '+(('ate and re-engaged' if m['job']['status']=='complete' else 'ate and disengaged') if ate else 'DID NOT EAT')+'; end health '+str(alive)+'; job: '+outcome)
+    assert alive and alive>0,'the bot died instead of disengaging'
+    assert ate,'the bot never ate during the low-health fight (food '+str(m['start_food'])+' -> '+str(m['max_food'])+')'
     print('PASS: low-health fight disengaged and ate (food '+str(m['start_food'])+' -> '+str(m['max_food'])+', ended '+str(alive)+' hp; '+outcome+')',flush=True)
 def test9_gear():
     print('== Test 9: crafts stone sword, shield, bow + arrows ==',flush=True)
