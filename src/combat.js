@@ -451,7 +451,7 @@ export class CombatController{
    drawSeconds:FULL_DRAW_SECONDS,shotGap:0.3,bowMin:6,bowMax:24,
    healthDisengage:12,healthRetreat:8,recoverHealth:14,sprintFood:6,
    projectileMiss:1.6,projectileHorizon:3,creeperFuse:3.0,
-   groupReach:3.5,pillarTrigger:8,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
+   groupReach:3.5,pillarTrigger:8,pillarStepTrigger:12,pillarStepGap:4.5,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
   // Wall clock. 73186 released a bow at 0.27 s because bot.time.age/20 jumped
   // (Via/26.x tick skip). Tests inject opts.now; never read age for draw/cooldown.
   this.now=opts.now||(()=>Date.now()/1000);
@@ -767,20 +767,79 @@ export class CombatController{
   const blocks=this._pillarBlocks();
   if(!blocks)return null;
   const x=Math.floor(e.position.x),y=Math.floor(e.position.y),z=Math.floor(e.position.z);
-  const sup=blockAt(bot,{x,y:y-1,z});
-  if(!sup||sup.boundingBox!=='block')return null;
-  // Headroom: standing h up needs the cells up to y+h+1 free (head at the jump apex).
-  let height=0;
-  for(let h=1;h<=Math.min(this.opts.pillarHeight,blocks.count);h++){
-   if(!passable(bot,{x,y:y+h+1,z}))break;
-   height=h;
-  }
+  const height=this._pillarFits(x,y,z,Math.min(this.opts.pillarHeight,blocks.count));
   return height>=2?{x,y,z,height,item:blocks.item.name}:null;
  }
+ // Pillar height (0..max) a standing cell allows: solid support under the feet, and the
+ // cells up to y+h+1 free (head at the jump apex).
+ _pillarFits(x,y,z,max){
+  const sup=blockAt(this.bot,{x,y:y-1,z});
+  if(!sup||sup.boundingBox!=='block')return 0;
+  let height=0;
+  for(let h=1;h<=max;h++){
+   if(!passable(this.bot,{x,y:y+h+1,z}))break;
+   height=h;
+  }
+  return height;
+ }
+ // Round 2 roofed arena (17.1 damage): the bow draw backpedalled into the arena's 2-high
+ // corner pocket, where no pillar fits, and the wall won. A cell 1-2 blocks off where one
+ // fits is a step away: walk there first. The creeper must stay pillarStepGap+ away from
+ // the new cell (the fuse ring is 3), and the way there must be open and floored.
+ _pillarStepCell(t){
+  const bot=this.bot,e=bot.entity;
+  if(this.now()<(this._pillarFailUntil||0)||this.now()<(this._pillarStepFailUntil||0))return null;
+  if(!e.onGround||e.isInWater||e.isInLava)return null;
+  const blocks=this._pillarBlocks();
+  if(!blocks)return null;
+  const max=Math.min(this.opts.pillarHeight,blocks.count);
+  const fx=Math.floor(e.position.x),y=Math.floor(e.position.y),fz=Math.floor(e.position.z);
+  const open=c=>{const b=blockAt(bot,c);return !b||(b.boundingBox!=='block'&&!/^(lava|water|fire)$/.test(b.name));};
+  const floored=c=>{const b=blockAt(bot,{x:c.x,y:c.y-1,z:c.z});return !!b&&b.boundingBox==='block';};
+  let best=null;
+  for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){
+   if(!dx&&!dz)continue;
+   const x=fx+dx,z=fz+dz;
+   if(this._pillarFits(x,y,z,max)<2)continue;
+   const gap=Math.hypot(t.position.x-(x+0.5),t.position.z-(z+0.5));
+   if(gap<this.opts.pillarStepGap)continue;
+   let clear=true;
+   for(const f of [0.25,0.5,0.75,1]){
+    const c={x:Math.floor(e.position.x+(x+0.5-e.position.x)*f),y,z:Math.floor(e.position.z+(z+0.5-e.position.z)*f)};
+    if(!open(c)||!open({x:c.x,y:y+1,z:c.z})||!floored(c)){clear=false;break;}
+   }
+   if(!clear)continue;
+   const walk=Math.hypot(x+0.5-e.position.x,z+0.5-e.position.z);
+   const score=walk-0.1*gap;
+   if(!best||score<best.score)best={x,y,z,score};
+  }
+  return best;
+ }
+ // The bow backpedal must not leave a cell where a pillar fits for one where none does.
+ _backKeepsPillar(yaw){
+  const blocks=this._pillarBlocks();
+  if(!blocks)return true;
+  const e=this.bot.entity,max=Math.min(this.opts.pillarHeight,blocks.count),y=Math.floor(e.position.y);
+  if(this._pillarFits(Math.floor(e.position.x),y,Math.floor(e.position.z),max)<2)return true;
+  const {x:dx,z:dz}=headingOf(yaw);
+  for(const off of [0.8,1.6])if(this._pillarFits(Math.floor(e.position.x+dx*off),y,Math.floor(e.position.z+dz*off),max)<2)return false;
+  return true;
+ }
  _pillarStart(t,d,now){
-  if(!(d<=this.opts.pillarTrigger||creeperSwell(t).fusing))return false;
+  const trigger=d<=this.opts.pillarTrigger||creeperSwell(t).fusing;
   const spot=this._pillarSpot();
-  if(!spot)return false;
+  if(!spot){
+   // No pillar fits here (a low ceiling): step out from under it inside the wall's range,
+   // so the pillar, not the wall, answers the creeper.
+   if(!trigger&&d>=this.opts.pillarStepTrigger)return false;
+   const cell=this._pillarStepCell(t);
+   if(!cell)return false;
+   this._pillar={phase:'step',x:cell.x,z:cell.z,base:cell.y,started:now};
+   this._lowerShield();this._cancelDraw();
+   this.log('Combat: pillar step to '+cell.x+','+cell.y+','+cell.z+' (no headroom here; creeper at '+d.toFixed(1)+')');
+   return true;
+  }
+  if(!trigger)return false;
   const {x,y,z,height}=spot;
   this._pillar={phase:'climb',x,z,base:y,height,item:spot.item,started:now,clickAt:-1e9,clickY:null,farSince:null,landing:null};
   this._lowerShield();this._cancelDraw();
@@ -798,6 +857,25 @@ export class CombatController{
   if(!this._pillar&&!this._pillarStart(t,d,now))return false;
   const p=this._pillar;
   const off=Math.floor(e.position.x)!==p.x||Math.floor(e.position.z)!==p.z;
+  if(p.phase==='step'){
+   if(!off&&e.onGround){
+    // In the cell: climb now when the creeper is in range, else the bow shoots from here.
+    this._pillar=null;this._controls({forward:false,sprint:false});
+    return this._pillarSpot()?this._pillarStart(t,d,now):false;
+   }
+   if(now-p.started>1.5){
+    this.log('Combat: pillar step failed (did not reach '+p.x+','+p.base+','+p.z+')');
+    this._pillar=null;this._pillarStepFailUntil=now+5;
+    this._controls({forward:false,sprint:false});
+    return false;
+   }
+   this._setState('pillar-step');
+   if(off){
+    this._snapYaw(yawToward(p.x+0.5-e.position.x,p.z+0.5-e.position.z));
+    this._controls({forward:true,back:false,left:false,right:false,sprint:false,jump:false});
+   }else this._controls({forward:false,sprint:false});
+   return true;
+  }
   if(p.phase==='climb'){
    const top=this._pillarTop(p);
    if(top>=p.height&&e.position.y>=p.base+p.height-0.01){
@@ -1161,7 +1239,8 @@ export class CombatController{
   const me=this.bot.entity.position;
   const yaw=yawToward(t.position.x-me.x,t.position.z-me.z);
   this._snapYaw(yaw);
-  this._controls({forward:false,back:true,sprint:(this.bot.food??20)>this.opts.sprintFood,left:false,right:false});
+  const back=this._backKeepsPillar(yaw+Math.PI);
+  this._controls({forward:false,back,sprint:back&&(this.bot.food??20)>this.opts.sprintFood,left:false,right:false});
  }
  _awayTick(t,keep=4){
   const {yaw}=this._bestAway(t);
@@ -1513,7 +1592,7 @@ export class CombatController{
    const me=bot.entity.position;
    const face=yawToward(t.position.x-me.x,t.position.z-me.z);
    const room=this._openAlong(face+Math.PI);
-   if(room>=2)this._controls({forward:false,back:true,sprint:(bot.food??20)>this.opts.sprintFood,left:false,right:false});
+   if(room>=2&&this._backKeepsPillar(face+Math.PI))this._controls({forward:false,back:true,sprint:(bot.food??20)>this.opts.sprintFood,left:false,right:false});
    else this._controls({forward:false,back:false,sprint:false,left:false,right:false});
   }else{
    this._controls({forward:false,back:false,sprint:false,left:false,right:false});

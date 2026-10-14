@@ -852,8 +852,10 @@ test('controller: pillar height follows the headroom and the blocks held; else t
  let c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
  c.setTarget(creeper);c.tick();
  assert.equal(c._pillar.height,2);
- // A 1-block ceiling gap: no pillar - the existing wall/flee logic runs instead.
- blocks=flatWorld();cell(blocks,0,-57,0,'stone');
+ // A 1-block ceiling gap over the whole patch (no cell within a step has room either): no
+ // pillar - the existing wall/flee logic runs instead. A ceiling over this cell alone is a
+ // pillar step (the roofed-pocket tests below).
+ blocks=flatWorld();for(let x=-3;x<=3;x++)for(let z=-3;z<=3;z++)cell(blocks,x,-57,z,'stone');
  creeper.metadata=[,,,,,,,,,,,,,,,,1];
  t=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[creeper],blocks});
  c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
@@ -921,6 +923,85 @@ test('controller: with a bow, a pillar-capable bot skips the 12-block wall and p
  assert.equal(c.state,'pillar-draw');
  clock.T+=1.05;c.tick();
  assert.equal(c.stats.shots,1);
+});
+// Round 2 roofed arena (4b_creeper_roofed, 17.1 damage): one arrow landed at ~9.6, then the
+// bot logged los-break and built a wall while the gap closed to 2.8 - no pillar line. The
+// draw backpedals away from the creeper, and that walked it into the arena's 2-high corner
+// pocket (ceiling at y-58), where no pillar fits, so the wall branch won.
+function pocketWorld(){
+ const blocks=flatWorld(12);
+ for(let x=-6;x<=-1;x++)for(let z=-3;z<=3;z++)cell(blocks,x,-58,z,'cobblestone');
+ return blocks;
+}
+test('controller: bow shot, then a creeper closing - the draw never backs into a low pocket; it pillars',()=>{
+ const clock={T:0};
+ const blocks=pocketWorld();
+ const creeper=mob(620,'creeper',at(10.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','bow','arrow','stone_sword'],counts:{cobblestone:16,arrow:32},heldItem:'bow',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);
+ c.tick();
+ assert.equal(c.state,'draw');
+ for(let i=0;i<12;i++){clock.T+=0.1;c.tick();}
+ assert.equal(c.stats.shots,1,'the arrow was released');
+ assert.ok(!calls.some(x=>x[0]==='control'&&x[1]==='back'&&x[2]===true),'no backpedal into the 2-high pocket behind');
+ creeper.position=at(9.1,-60,0.5);clock.T+=0.1;c.tick();
+ assert.equal(c._losCells,null,'no wall while a pillar fits here');
+ creeper.position=at(7.5,-60,0.5);clock.T+=0.1;c.tick();
+ assert.equal(c.state,'pillar-climb');
+ assert.ok(calls.some(x=>x[0]==='equip'&&x[1]==='cobblestone'),'switches from the bow to the blocks');
+ climb(c,bot,calls,blocks,clock);
+ assert.equal(c._pillar.phase,'perch');
+ assert.equal(c._pillar.height,3);
+ assert.ok(!calls.some(x=>x[0]==='place'&&x[1]&&x[1].x!==0),'every place went on the column, none on a wall');
+});
+test('controller: under a low roof the bot steps out to headroom and pillars instead of walling',()=>{
+ const clock={T:0};
+ const blocks=pocketWorld();
+ // The bot already stands in the pocket (x=-2): no pillar fits, the creeper is at 9.6.
+ const creeper=mob(621,'creeper',at(8.1,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','bow','arrow','stone_sword'],counts:{cobblestone:16,arrow:32},heldItem:'bow',
+  position:[-1.5,-60,0.5],entities:[creeper],blocks});
+ const logs=[];
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T,log:m=>logs.push(m)});
+ c.setTarget(creeper);
+ c.tick();
+ assert.equal(c.state,'pillar-step');
+ assert.equal(c._losCells,null,'no wall');
+ assert.ok(!calls.some(x=>x[0]==='place'));
+ assert.deepEqual([c._pillar.x,c._pillar.z],[0,0],'the nearest cell with headroom');
+ assert.equal(lastControl(calls,'forward'),true);
+ assert.ok(headingOf(bot.entity.yaw).x>0.9,'walking out toward +x');
+ assert.ok(logs.some(l=>/pillar step to 0,-60,0/.test(l)));
+ // Out of the pocket; the creeper closed to 7.
+ bot.entity.position=at(0.5,-60,0.5);creeper.position=at(7.5,-60,0.5);
+ clock.T+=0.4;c.tick();
+ assert.equal(c._pillar.phase,'climb');
+ clock.T+=0.05;c.tick();
+ assert.equal(c.state,'pillar-climb');
+ climb(c,bot,calls,blocks,clock);
+ assert.equal(c._pillar.phase,'perch');
+});
+test('controller: a pocket step is never toward a creeper already close, and gives up after 1.5 s',()=>{
+ const clock={T:0};
+ const blocks=pocketWorld();
+ // Creeper 4 away on the open side: every cell with headroom is inside the 4.5 gap.
+ const near=mob(622,'creeper',at(2.6,-60,0.5));
+ let t=makeBot({inventory:['cobblestone','stone_sword'],counts:{cobblestone:16},heldItem:'stone_sword',position:[-1.5,-60,0.5],entities:[near],blocks});
+ let c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(near);c.tick();
+ assert.notEqual(c.state,'pillar-step');
+ // A step that never arrives ends, and is not retried at once.
+ const far=mob(623,'creeper',at(8.1,-60,0.5));
+ t=makeBot({inventory:['cobblestone','stone_sword'],counts:{cobblestone:16},heldItem:'stone_sword',position:[-1.5,-60,0.5],entities:[far],blocks});
+ c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(far);c.tick();
+ assert.equal(c.state,'pillar-step');
+ clock.T+=1.6;c.tick();
+ assert.equal(c._pillar,null);
+ clock.T+=0.05;c.tick();
+ assert.notEqual(c.state,'pillar-step');
 });
 // ---- look convention (cloud session 2026-10-14) ----------------------------------------
 // combat.js aimed with the Notchian convention (z=+cos(yaw), positive pitch down) through
