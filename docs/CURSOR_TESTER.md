@@ -1,6 +1,8 @@
 # Cursor (Grok 4.7): local test runner and verifier (Claude, 2026-10-14)
 
-GLM has hit its usage limit. A Claude cloud session (code-only, no game access) is working through `docs/CLOUD_TASK.md` and pushes its commits to `origin main`. Your job is the part only this PC can do: **run the live tests on whatever is on `main`, report honestly, and fix only what the tests show is broken.**
+GLM has hit its usage limit. A Claude cloud session (code-only, no game access) is working through `docs/CLOUD_TASK.md` and pushes its commits to `origin main`. Your job is the part only this PC can do: **run the live tests on whatever is on `main` and report honestly.**
+
+**Division of work (user's decision, 2026-10-14):** all improvements, new behaviours and non-trivial fixes are done by the Claude cloud session (Opus 5.5). You do NOT design or change bot behaviour. You may only fix trivial, mechanical breakage that blocks a test run (a crash on a null, a typo, a test-harness/setup bug), in a small separate commit that says why. Everything else - wrong behaviour, missing features, tuning, combat, pathing, ladder logic - goes into `docs/TEST_REPORTS.md` as a concrete bug report (what, where in the logs, which run) for the cloud session to fix.
 
 ## Hard rules (unchanged, see AGENTS.md)
 - Never kill processes by name; only `Stop-Agent.ps1`/supervisor `/stop`, PIDs in `data/processes.json`, or a verified project-port PID.
