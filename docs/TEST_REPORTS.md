@@ -131,3 +131,11 @@ The iron step never started. No `[iron]` line, no ore, no ingots, no iron pickax
 - hard1 was unstuck four times, at [135, 129, 31], [139, 129, 34], [145, 126, 38], and [147, 130, 40].
 - normal3's food explore went down to y=62 at [308, 62, 105] with health still 20, then climbed. No idle resumes.
 - No deaths.
+
+## 2026-10-14 21:22–21:40 IST — integration (`d4e3aac`)
+
+`git pull --rebase` was already at `d4e3aac` (round 3, `669b652`..`d4e3aac`). Unit tests, every `tests/*.test.js` except `resources.test.js`: **270 passed, 0 failed**.
+
+The first start failed: port 8765 was held by an orphaned `python -m http.server 8765` (pid 58972, parent already dead, not the agent). That pid was stopped, then `Start-Agent.ps1 -NoBrowser` with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
+
+`python tests/integration.py` exit 0, 1069 s. `All in-game integration tests passed`. A4: `escaped the lava trench (hp 18.8, at [1652, -59, 1650])`. No `Bucket-into-lava skipped` line on this run, and the suite printed no douse NOTE.
