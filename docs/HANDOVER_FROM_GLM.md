@@ -428,3 +428,126 @@ of the round, plus 28 new). Offline Python checks: `tests/combat_damage_check.py
   where walls limit the headings.
 - **Not changed:** bow ballistics constants and the shield ablation. The night soak branch
   (Cursor's harness fix) is still unmeasured from round 1.
+
+
+## Cloud session round 3 (Claude, 2026-10-14, code only - `docs/CLOUD_TASK_3.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **270 passed, 0 failed** (250 at the start
+of the round, plus 20 new). Offline Python checks: `tests/soak_metrics_check.py` (now with
+iron) and `tests/combat_damage_check.py` both pass. One commit per task on `main`. All five
+tasks were done.
+
+1. **Hard-mode stone step** (`669b652`, new `src/digDown.js`).
+   - Cause: on the dirt hill under the canopy, `findBlocks` returns stone *buried* under
+     the dirt. Every walk to it failed "Cannot reach or harvest", and the round-2 blacklist
+     skipped the next buried block within milliseconds.
+   - Stone-family gathers without `targetY` (the ladder's stone step) now go through
+     `stonePlan`:
+     1. Exposed stone (a face open to air) within 16 of the bot: mine those.
+     2. Otherwise, when the scan saw stone under the bot (up to 12 below, 16 across) and
+        dig-downs are left (3 per job): dig down where it stands with the existing staircase.
+     3. Otherwise: the old list (exposed first).
+   - `pickStairDir` simulates the 2-high 45-degree staircase in the four directions. A
+     direction is refused at bedrock, at fluid touching a cell, at a non-natural block (logs
+     count as non-natural), or at a missing floor. It needs 3+ clear steps and takes the
+     deepest, then the one through the most stone.
+   - The staircase takes `dir`, `natural` and `stopWhen`. It stops early (3+ down) once a
+     side wall is stone, then the walls are mined from inside the tunnel. `digTunnelStep`
+     can refuse non-natural cells and missing floors. The bot climbs the recorded tunnel at
+     the job's end as before.
+   - The block under the feet is never a stone target, so repeated floor drops cannot make
+     a shaft. Nothing digs straight down.
+   - The gather loop rescans at most once per second (`GATHER_RESCAN_MS`) while it collects
+     nothing.
+   - Integration legs that gather stone (stone sealed behind dirt, the planks shell,
+     `targetY` staircase) go down the same paths as before: exposed-near or `targetY`.
+2. **Roofed creeper: no pillar** (`9c70135`).
+   - Precondition that failed: headroom. While drawing, the bow backpedals away from the
+     creeper. From (1496,1497) that heading leads into the arena's 2-high corner pocket
+     (ceiling y-58 over x/z 1494..1496, the enderman patch). `_pillarSpot` found no room
+     there, so `_losBreak` built the wall.
+   - Held item and `bowMode` were not the cause: the climb already switches to blocks, and
+     `_pillarTick` runs before the bow branch.
+   - Fixes:
+     - The creeper backpedal (draw and `_creeperBack`) never leaves a cell where a pillar
+       fits for one where none does (`_backKeepsPillar`).
+     - New `step` pillar phase. Inside the wall's range (12) with no room here, walk to the
+       nearest cell within 2 where a pillar fits, then climb. The path must be open and
+       floored, and the creeper must stay 4.5+ from the new cell. It gives up after 1.5 s
+       with a 5 s retry block.
+   - Tests:
+     - "bow shot, then a creeper closing next to a low pocket": no backpedal, pillar 3,
+       no wall.
+     - "bot already in the pocket": steps out, then pillars.
+     - No step toward a close creeper; the step timeout.
+   - One test fixture changed: the old headroom-fallback test put a ceiling over the bot's
+     cell only, and that is now (correctly) a step. Its ceiling now covers the whole patch,
+     so the wall-fallback assertion still means "no room anywhere".
+3. **Soak length for iron** (`90be045`, `tests/soak.py`).
+   - `NORMAL_SECONDS=1200` (frozen-day rules unchanged). `HARD_SECONDS=1250`. A full soak is
+     now about 30 min longer.
+   - Samples carry `iron_ore` (raw iron + ore items), `ingots` and `iron_pick`. Per run:
+     `iron`, `iron_ore_peak`, `ingots_peak`, `iron_pick_at`. The summary adds `iron_runs`
+     and the per-run lists. The run line prints them.
+   - The operator unstuck (+4 teleport) now fires only within 8 of the anchor height.
+     Underground, on the iron staircase, it would land the bot inside rock.
+4. **A4 lava fixture** (`adf41c8`).
+   - The fixture race: the lava was filled on top of the bot. Its escape poured the water
+     bucket into the trench before `execute if block` ran, and the cell read water.
+   - New order: sweep, park the bot 2 blocks off the trench, wait until it is idle
+     (`wait_bot_idle`: no running/queued job, no acting survival tree, not moving), fill,
+     verify both trench ends, then tp the bot in.
+   - The escape predicate is read only after the first lava damage. Right after the tp the
+     bot is at 20 hp and would satisfy the `health>=18` clause before it ever burned. A lost
+     douse is printed as a NOTE.
+   - **The douse interruption is a real ownership bug.** `runner.tick()` claims control
+     *after* `tickChain()`. A task that calls `worker.douseFire()` from the first `onTick`
+     of a fresh tree therefore failed the synchronous `owned()` check, and one of the two
+     bucket attempts was lost.
+   - `douseFire` now waits up to about 200 ms for the claim. A real owner change mid-pour
+     still throws.
+   - `tests/douse-ownership.test.js` reproduces the live message with the real `TaskRunner`,
+     `WorldSurvivalChain` and `EscapeFromLavaTask`.
+5. **Bed before dusk** (`f6fe921`, `bedPrepJob` in `src/autopilot.js`).
+   - Window: tod 9000 until dusk, with no bed held or placed.
+   - Wool is cheap only when a sheep is within 32 and the bot holds shears (`shear`) or a
+     sword (`hunt` sheep, one wool each, capped at the sheep near). The planks for the bed
+     (+4 when no table is held or within 4) must come from what is held.
+   - Order: 3 wool of one colour, then planks, then the bed. Step name `bed-prep`, at most
+     5 jobs a day. A failed prep job ends it for the day.
+   - Otherwise the dusk dirt and the shelter are unchanged. A held bed already turns the
+     night job into `sleep`.
+
+### Files
+
+`src/digDown.js` (new), `src/worker.js`, `src/combat.js`, `src/autopilot.js`;
+`tests/soak.py`, `tests/soak_metrics_check.py`, `tests/integration.py`; new tests
+`stone-step`, `douse-ownership`, `bed-prep` (`.test.js`), plus three new cases and one widened
+fixture in `tests/combat.test.js`.
+
+### Needs live verification
+
+- **Soak, hard anchor (stone):**
+  - Expect `Gather: No exposed stone within reach; digging down to y=N (staircase x, 0, z)`.
+    Then cobble from the tunnel, the step finishing, and the climb back up.
+  - The `skipping stone` bursts should be gone, at most one rescan a second.
+  - Watch for `dig-down stopped: Tunnel stopped: ... is not natural terrain` or
+    `no floor` (canopy roots, caves). After 3 dig-downs the job falls back to the old list.
+- **Soak, normal runs at 1200 s:** the iron step should start (`[iron]` lines), with
+  `iron_ore_peak`, `ingots_peak` and `iron_pick_at` in the summary. Confirm no operator
+  teleport fires underground.
+- **Soak, hard nights:** look for `[bed-prep] {"type":"hunt","entity":"sheep",...}` (or
+  `shear`) before dusk, then `craft *_bed`, then `[night] {"type":"sleep"}`. No sheep means
+  the dusk dirt and the shelter, as before.
+- **Combat `4b_creeper_roofed`:**
+  - Expect no backpedal into the corner pocket, then `pillar-up 2` at 8. Or, if the bot
+    starts there, `Combat: pillar step to x,y,z (no headroom here; ...)` and then
+    `pillar-up`.
+  - Damage should be under 10 if the 2-high perch holds. The roof leaves no room for 3.
+- **Integration A4:**
+  - The verify should pass now. Then measure the escape hp.
+  - `Bucket-into-lava skipped: Douse interrupted` should not appear. If the NOTE prints
+    anyway, the remaining cause is a later owner change (a tp or a job), not the first tick.
+- **Not changed:** the lane `4_creeper` repelled-in-1.1 s case, the bow ballistics, and
+  MobDefenseChain's wild-creeper flee. The pillar still runs only inside fight jobs.
