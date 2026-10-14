@@ -159,3 +159,14 @@ test('leaves, slabs and open air at the head are not a wall',()=>{
  for(const n of ['oak_leaves','stone_slab','air'])assert.equal(EscapeSuffocationTask.inWall(wallBot({'0,-59,0':n}).bot),false,n);
  assert.equal(EscapeSuffocationTask.inWall(wallBot({'0,-59,0':'dirt'}).bot),true);
 });
+test('a tunnel step clears snow blocks bare-handed but still refuses stone without a pickaxe',async()=>{
+ // Round 3, 16:42Z: 'Tunnel needs a suitable tool in the inventory for snow_block'.
+ const w=world({'1,129,0':'snow_block','1,130,0':'snow_block','1,131,0':'snow_block'});
+ const {worker,bot}=tunneller(w);
+ const real=bot.blockAt;
+ bot.blockAt=p=>{const bl=real(p);if(bl.name==='snow_block')Object.assign(bl,{hardness:0.2,harvestTools:{900:true}});if(bl.name==='stone')Object.assign(bl,{hardness:1.5,harvestTools:{901:true}});return bl;};
+ const snowy=bl=>natural(bl)||bl.name==='snow_block';
+ await worker.digTunnelStep({},0,new Vec3(1,129,0),true,snowy);
+ for(const y of [129,130,131])assert.ok(air(w,new Vec3(1,y,0)));
+ await assert.rejects(worker.digTunnelStep({},0,new Vec3(1,124,0),true,snowy),/needs a suitable tool in the inventory for stone/);
+});

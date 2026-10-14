@@ -50,6 +50,12 @@ export const GATHER_BLACKLIST_SECONDS=600;
 // Tunnel settle: rounds of re-digging a step while sand/gravel keeps falling into it, and the
 // wait for a falling block to land before the cells are read again.
 export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
+// A tunnel opens a block with no harvest tool when a bare hand breaks it this fast (hardness
+// 0.5: 2.5 s by hand). The passage needs no drop: snow blocks (0.2) stopped a normal-anchor
+// dig-down at 16:42Z, round 3, with 'needs a suitable tool'.
+export const HAND_CLEAR_HARDNESS=0.5;
+// The smelt job takes its output every this many items.
+export const SMELT_TAKE=8;
 // Jobs that climb out of a stranded tunnel before they start (surface work).
 const STRANDED_CLIMB=new Set(['goto','explore','hunt','collect','shear','breed','deposit','build','place']);
 // Stops that are not the user's: they pause the queue but leave the autopilot running. A
@@ -591,17 +597,33 @@ export class Worker extends EventEmitter {
    await this.walk(block.position,token,2);
    this.check(token);
    const furnace=await b.openFurnace(block);
+   // The output is taken as it comes (every SMELT_TAKE items) and, when the job ends early
+   // (a stop, a reflex, the time limit, a soak bell), whatever is done plus the unsmelted
+   // input come back before the window closes: round 3 normal1 ended its iron step with 30
+   // raw iron in the furnace and 0 ingots held. The furnace this job placed is picked up
+   // below, and breaking it would have spilled them on the ground.
+   let taken=0,done=false;
+   const out=()=>furnace.outputItem()?.count||0;
+   const take=async()=>{const n=out();if(n){await furnace.takeOutput();taken+=n;}};
    try{
     await furnace.putInput(input.id,null,s.count);
     await furnace.putFuel(fuel.id,null,fuel.count);
     const deadline=Date.now()+s.count*10000+30000;
-    while((furnace.outputItem()?.count||0)<s.count){
+    while(taken+out()<s.count){
      if(Date.now()>deadline)throw Error('Smelting timed out waiting for the output');
      await sleep(1000);this.check(token);
+     if(out()>=SMELT_TAKE)await take();
     }
-    await furnace.takeOutput();
+    await take();done=true;
     await sleep(300);
-   }finally{try{await b.closeWindow(furnace);}catch{}}
+   }finally{
+    if(!done){
+     try{await take();}catch{}
+     try{if(furnace.inputItem&&furnace.inputItem())await furnace.takeInput();}catch{}
+     if(taken)this.log('Smelt ended early: took '+taken+' '+outputName+' and the unsmelted input back');
+    }
+    try{await b.closeWindow(furnace);}catch{}
+   }
   }finally{
    if(placedAt){try{await this.pickUp(placedAt,'crafting_table',token);}catch(e){this.log('Left the crafting table at '+placedAt);}}
    // A furnace this job placed goes back into the inventory like the table: left standing,
@@ -1701,7 +1723,7 @@ export class Worker extends EventEmitter {
     this.check(token);
     if(natural&&!natural(block))throw Error('Tunnel stopped: '+block.name+' at '+block.position+' is not natural terrain');
     // Digging without the required tool destroys the block for nothing; refuse instead.
-    if(block.harvestTools&&!Object.keys(block.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id)))throw Error('Tunnel needs a suitable tool in the inventory for '+block.name);
+    if(block.harvestTools&&!(block.hardness<=HAND_CLEAR_HARDNESS)&&!Object.keys(block.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id)))throw Error('Tunnel needs a suitable tool in the inventory for '+block.name);
     await b.tool.equipForBlock(block);
     if(block.material==='incorrect_for_wooden_tool')block.material='mineable/pickaxe';
     await b.dig(block);await sleep(80);

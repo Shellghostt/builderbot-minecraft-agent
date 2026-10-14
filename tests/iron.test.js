@@ -97,3 +97,39 @@ test('an ore job with a targetY digs its staircase before any surface search',as
  await assert.rejects(Worker.prototype.gather.call(u.w,u.job,0),e=>e===STOP);
  assert.deepEqual(steps,['explore']);
 });
+// Round 3 normal1 ended its iron step with 30 raw iron in the furnace and 0 ingots held: the
+// smelt job only took the output once all of it was done.
+// The furnace smelts perSecond items each second of real time.
+function slowFurnace(inv,perSecond){
+ const calls=[];let total=0,smelted=0,out=0,t0=0;
+ const tick=()=>{const now=Math.min(total,Math.floor((Date.now()-t0)/1000)*perSecond);out+=now-smelted;smelted=now;};
+ const furnace={
+  async putInput(id,meta,n){inv.raw_iron-=n;total=n;t0=Date.now();},async putFuel(){},
+  outputItem(){tick();return {count:out};},
+  inputItem(){tick();return total>smelted?{count:total-smelted}:null;},
+  async takeOutput(){tick();calls.push(['take',out]);inv.iron_ingot+=out;out=0;},
+  async takeInput(){tick();calls.push(['back',total-smelted]);inv.raw_iron+=total-smelted;total=smelted;}};
+ return {furnace,calls};
+}
+function smeltWorker(inv,furnace,check=()=>{}){
+ return {bot:{registry:{itemsByName:{raw_iron:{id:1},iron_ingot:{id:2},coal:{id:3},furnace:{id:4}},blocksByName:{furnace:{id:40}}},
+   inventory:{items(){return Object.entries(inv).filter(([,n])=>n>0).map(([name,count])=>({name,count}));}},
+   findBlock(){return {position:new Vec3(2,64,0),name:'furnace'};},async openFurnace(){return furnace;},async closeWindow(){}},
+  log(){},check,count(n){return inv[n]||0;},fuelPlan:Worker.prototype.fuelPlan,async walk(){},async pickUp(){}};
+}
+test('a smelt takes its output as it comes, not only at the end',async()=>{
+ const inv={raw_iron:16,coal:2,iron_ingot:0};
+ const {furnace,calls}=slowFurnace(inv,8);
+ await Worker.prototype.smelt.call(smeltWorker(inv,furnace),{spec:{type:'smelt',item:'raw_iron',count:16}},0);
+ assert.equal(inv.iron_ingot,16);
+ assert.ok(calls.filter(c=>c[0]==='take').length>=2,'taken in batches: '+JSON.stringify(calls));
+});
+test('a smelt stopped half-way brings back the ingots so far and the unsmelted raw iron',async()=>{
+ const inv={raw_iron:30,coal:4,iron_ingot:0};
+ const {furnace,calls}=slowFurnace(inv,4);
+ let polls=0;const check=()=>{if(++polls>3)throw Error('Job interrupted');};
+ await assert.rejects(Worker.prototype.smelt.call(smeltWorker(inv,furnace,check),{spec:{type:'smelt',item:'raw_iron',count:30}},0),/Job interrupted/);
+ assert.ok(inv.iron_ingot>0,'ingots held: '+inv.iron_ingot);
+ assert.equal(inv.iron_ingot+inv.raw_iron,30,'nothing left in the furnace');
+ assert.ok(calls.some(c=>c[0]==='back'));
+});
