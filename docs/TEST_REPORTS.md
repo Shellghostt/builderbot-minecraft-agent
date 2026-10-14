@@ -189,3 +189,11 @@ No `[bed-prep]` line and no `[night] sleep`. Two shelters: 17:30Z (hard1, after 
 `git pull --rebase` was already at `b5c7c7b`. Unit tests (`tests/*.test.js` except `resources.test.js`): **313 passed, 0 failed** (the cloud note said 304; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
 
 `python tests/integration.py`, exit 0, 1074 s. `All in-game integration tests passed`. A4: escaped the lava trench at 18.8 hp, at [1648, -59, 1648].
+
+## 2026-10-15 00:37–00:42 IST — combat run 1 (`6dd5421`, bot code `b5c7c7b`)
+
+`python tests/combat_integration.py`, model off, same services. Exit 0, 303 s. `All combat acceptance tests passed`. No second run.
+
+`4b_creeper_roofed`: two ground shots first (`arrow creeper` released at 3.01 and 2.98 b/t, both landed), then `Combat: pillar-up 2 at 1496,-60,1497 (creeper at 7.9)`, perched 2 up, and a third shot that landed. Summary: `shots=3 released=3 landed=3`. Suite `damage_taken=0`, end health 20, ttk 6.2 s, creeper killed, no crater. No `pillar step` line and no `los-break` on this leg.
+
+`4_creeper` (lane) is still the known gap: ttk 0.0, recorded repelled, damage 0, end health 20, no combat line. The cloud session left that case alone.
