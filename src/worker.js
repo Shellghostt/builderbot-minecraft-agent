@@ -40,6 +40,10 @@ const UNDERGROUND=/(_ore$|^deepslate|^stone$|^cobblestone$|^tuff$)/;
 // the reach fallbacks (reachUp, descendToReach, canopyDrop) already ran before the throw.
 const UNREACHABLE_BLOCK=/Cannot reach or harvest|Walked onto the target|Fluid (beside|under) target/;
 export const GATHER_BLACKLIST_SECONDS=600;
+// Stops that are not the user's: they pause the queue but leave the autopilot running. A
+// 'user' stop sets userStopped, and the autopilot reads that as Stop all and switches off -
+// which is how its own food-explore cancel and the job watchdog idled normal3 twice.
+const LADDER_SAFE_STOPS=new Set(['reflex','autopilot','timeout']);
 // Neutral mobs trail the bot without attacking; searches and explores ignore them unless
 // they crowd the bot (the reflexes answer real aggression).
 const NEUTRAL=new Set(['enderman','zombified_piglin','piglin','spider']);
@@ -228,7 +232,7 @@ export class Worker extends EventEmitter {
  disconnect(){this.stop('Disconnected by user');this.bot?.quit();this.bot=null;this.ready=false;}
  submit(input){const spec=jobSchema.parse(input);const job={id:crypto.randomUUID(),spec,status:'queued',created:new Date().toISOString(),progress:0,message:'Waiting'};this.jobs.push(job);this.userStopped=false;this.deathResume=false;this.save();this.pump();return job;}
  stop(message='Stopped by user',source='user'){
-  if(source!=='reflex')this.userStopped=true;
+  if(!LADDER_SAFE_STOPS.has(source))this.userStopped=true;
   this.epoch++;
   // pathfinder.stop() leaves a sticky flag that rejects the next goto; setGoal(null) clears it.
   // The control taker cleans up: whoever stops the job owns the pathfinder reset, so the
@@ -251,7 +255,7 @@ export class Worker extends EventEmitter {
    if(!fresh||!near){job.status='cancelled';job.message='Drop site far or stale; the ladder restarts near spawn';this.save();this.pump();return job;}
   }
   job.status='queued';job.message='Resuming';this.userStopped=false;this.deathResume=false;this.save();this.pump();return job;}
- cancel(id){const job=this.jobs.find(j=>j.id===id);if(!job)throw Error('Unknown job');if(job.status==='running')this.stop('Current job cancelled');job.status='cancelled';this.save();}
+ cancel(id,source='user'){const job=this.jobs.find(j=>j.id===id);if(!job)throw Error('Unknown job');if(job.status==='running')this.stop('Current job cancelled',source);job.status='cancelled';this.save();}
  check(token){if(token!==this.epoch){this.log('Check: token '+token+' epoch '+this.epoch+' busy '+this.busy);throw Error('Job interrupted');}if(!this.ready)throw Error('Job interrupted');if(Date.now()>this.deadline)throw Error('Time limit reached; resume after inspecting progress');if(!this.survivalJob&&(this.bot.health<this.config.limits.minHealth||this.bot.food<this.config.limits.minFood))throw Error('Health or food is low');}
  async pump(){
   if(this.busy||this.reflexBusy||!this.ready)return;
@@ -264,7 +268,7 @@ export class Worker extends EventEmitter {
   this.busy=true;job.status='running';job.message='Working';this.save();const token=this.epoch;
   const minutes=['sleep','shelter'].includes(job.spec.type)?this.config.limits.nightMinutes??13:this.config.limits.jobMinutes;
   this.deadline=Date.now()+minutes*60000;this.survivalJob=['eat','equip','smelt','sleep','shelter','fight'].includes(job.spec.type);
-  const watchdog=setInterval(()=>{if(Date.now()>this.deadline)this.stop('Job time limit reached');},1000);
+  const watchdog=setInterval(()=>{if(Date.now()>this.deadline)this.stop('Job time limit reached','timeout');},1000);
   // runSettled resolves only once run(job) has FULLY unwound (every inner finally). A stop
   // resolves the race below while run is still unwinding; reflexes await runSettled before
   // moving, and every job-side cleanup checks the epoch so a late unwind cannot cancel them.
@@ -1664,8 +1668,16 @@ export class Worker extends EventEmitter {
    // keepTable (wood-step ladder jobs): leave the placed table standing for the next craft;
    // collectTable (the step's last craft): pick the used table back up even if this job only
    // reused it. Plain crafts keep the old contract: what they placed, they take back.
+   // collectTable wins over keepTable: the ladder's last crafts (wooden axe, furnace) carry
+   // both, and `!keepTable` alone left every step's table in the world (soak hard2 ended
+   // its stone step with no table held).
    const collectAt=placedAt||(s.collectTable&&usedTable?usedTable.position:null);
-   if(collectAt&&!s.keepTable){try{await this.pickUp(collectAt,'crafting_table',token);}catch(e){this.log('Left the crafting table at '+collectAt);}}
+   const standing=(s.keepTable&&!s.collectTable)?(placedAt||(usedTable&&usedTable.position)):null;
+   if(standing)this.leftTable={x:standing.x,y:standing.y,z:standing.z};
+   if(collectAt&&(s.collectTable||!s.keepTable)){
+    try{await this.pickUp(collectAt,'crafting_table',token);if(this.leftTable&&pos(this.leftTable).equals(collectAt))this.leftTable=null;}
+    catch(e){this.log('Left the crafting table at '+collectAt);this.leftTable={x:collectAt.x,y:collectAt.y,z:collectAt.z};}
+   }
   }
  }
  async placeBlocks(support,face,target,name,token){

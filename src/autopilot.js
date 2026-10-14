@@ -331,7 +331,9 @@ export class Autopilot{
    // explore is cancelled the moment animals come into hunt range, and the next decide()
    // submits the fight. Job-after-job ordering would wait out the whole 64-block leg.
    if(active.status==='running'&&active.spec.type==='explore'&&this.currentStep==='food'&&this.animalsNearby(b)){
-    try{this.worker.cancel(active.id);this.log('Autopilot: food explore cancelled - animals in range');}
+    // 'autopilot' source: a user-sourced cancel set userStopped and the next tick switched
+    // the ladder off as if Stop all was pressed (soak normal3 idled twice this way).
+    try{this.worker.cancel(active.id,'autopilot');this.log('Autopilot: food explore cancelled - animals in range');}
     catch(e){this.state='cancel failed: '+e.message;}
    }
    // Night prep OUTRANKS the ladder's day jobs (first-night milestone): the night branch
@@ -343,7 +345,7 @@ export class Autopilot{
    if(isNight(b)&&!busy&&this.lastNightKey!==String(b.time?.day)){
     this.lastNightKey=String(b.time?.day); // once per day even if the submit loses the race
     const bedNear=b.inventory.items().some(i=>/_bed$/.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>/_bed$/.test(bl.name)).map(bl=>bl.id),maxDistance:16});
-    if(active.status==='running'){try{this.worker.cancel(active.id);}catch(e){this.state='cancel failed: '+e.message;return;}}
+    if(active.status==='running'){try{this.worker.cancel(active.id,'autopilot');}catch(e){this.state='cancel failed: '+e.message;return;}}
     this.submit('night',bedNear?{type:'sleep'}:{type:'shelter'});
     return;
    }
@@ -446,11 +448,23 @@ export class Autopilot{
   }
   return null;
  }
+ // The table a keepTable craft left standing (worker.leftTable). It counts as the wood step's
+ // table while it stands within 32, so a reflex flee or a night shelter mid-kit no longer
+ // regresses the ladder into crafting (and abandoning) a second table.
+ leftTable(b){
+  const t=this.worker.leftTable;
+  if(!t||!b.entity||!b.entity.position)return null;
+  const block=b.blockAt(new Vec3(t.x,t.y,t.z));
+  if(!block)return null; // unloaded: keep the memory, but it is not usable from here
+  if(block.name!=='crafting_table'){this.worker.leftTable=null;return null;} // picked up or broken
+  return {position:{x:t.x,y:t.y,z:t.z},distance:b.entity.position.distanceTo(new Vec3(t.x+0.5,t.y,t.z+0.5))};
+ }
  decide(b){
   const counts=this.counts();
   const animals=this.animalsNearby(b);
   const items=b.inventory.items().length;
-  const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:8});
+  const left=this.leftTable(b);
+  const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:8})||!!(left&&left.distance<=32);
   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY};
@@ -477,6 +491,16 @@ export class Autopilot{
   if(choice.step==='food'||choice.step==='bed')this.huntPhase=!this.huntPhase;
   this.currentStep=choice.step;
   if(!choice.job){this.state=choice.step+': satisfied';return;}
+  // A step-kit craft with its table standing out of the craft's 6-block reach: walk back to
+  // it rather than craft and place a second one (4 planks, and the first is abandoned).
+  // Two trips that do not get the bot near it forget the table.
+  const tableCraft=choice.job.type==='craft'&&(choice.job.keepTable||choice.job.collectTable);
+  if(tableCraft&&left&&left.distance>5&&left.distance<=32&&!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:6})){
+   const key=left.position.x+','+left.position.y+','+left.position.z;
+   this.tableTrips=this.tableTrips&&this.tableTrips.key===key?this.tableTrips:{key,n:0};
+   if(++this.tableTrips.n<=2){this.submit(choice.step,{type:'goto',position:left.position});return;}
+   this.worker.leftTable=null;
+  }else if(left&&left.distance<=5)this.tableTrips=null; // reached: the trips worked
   this.submit(choice.step,choice.job);
  }
  submit(step,spec){
