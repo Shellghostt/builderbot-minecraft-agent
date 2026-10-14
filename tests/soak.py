@@ -1,8 +1,10 @@
-"""3x 10-minute autopilot soak on a normal-terrain world (agent-soak-world, seed 12345).
+"""Autopilot soak on a normal-terrain world (agent-soak-world, seed 12345): 3 normal runs of
+20 minutes (NORMAL_SECONDS, frozen daylight) and 3 hard runs of ~21 minutes (HARD_SECONDS,
+natural time from dawn).
 Every run is made fair and reproducible by resetting the same five things at its start:
 dawn (time set 0), clear weather, an empty inventory, the bot teleported to the world's
 join point (the fixed canopy spawn for this seed), and full vitals - instant health plus
-saturation, then confirmed 20/20 via /api/observe before the 600s clock starts. Milestones
+saturation, then confirmed 20/20 via /api/observe before the run clock starts. Milestones
 are also tracked as per-run peaks (best counts seen in any sample), so a late death that
 empties the inventory cannot erase the evidence. The operator roles (death resume, unstick,
 return-to-join-point) stay active and every intervention is recorded. The three runs share
@@ -133,6 +135,23 @@ def meals_delta(state,run):
     items={k:v-(mark.get('items') or {}).get(k,0) for k,v in (now.get('items') or {}).items()}
     return {'eaten':now.get('eaten',0)-mark.get('eaten',0),'points':now.get('points',0)-mark.get('points',0),
             'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0}}
+# Normal runs ended at 600 s still on the food step (soak 2026-10-14 18:44), so the iron step
+# was never measured: 1200 s from the frozen-day start leaves it room. Hard runs stay 1250 s
+# (dawn to past the first night).
+NORMAL_SECONDS=1200
+HARD_SECONDS=1250
+IRON_KEYS=('iron_ore','ingots','iron_pick')
+def iron_sample(inv):
+    # Raw iron is what an iron_ore / deepslate_iron_ore dig drops; the ore item itself only
+    # with silk touch (unsupported), counted anyway so nothing is missed.
+    return {'iron_ore':inv.get('raw_iron',0)+inv.get('iron_ore',0)+inv.get('deepslate_iron_ore',0),
+            'ingots':inv.get('iron_ingot',0),'iron_pick':inv.get('iron_pickaxe',0)}
+def iron_metrics(samples):
+    # Peaks, not end counts: smelting eats the ore and the pickaxe craft eats 3 ingots.
+    return {'iron_ore_peak':max([s.get('iron_ore',0) for s in samples]+[0]),
+            'ingots_peak':max([s.get('ingots',0) for s in samples]+[0]),
+            'iron_pick_at':first_sample_at(samples,'iron_pick'),
+            'iron':any(s.get('iron_pick',0)>=1 for s in samples)}
 def first_sample_at(samples,key,n=1):
     for s in samples:
         if s.get(key,0)>=n:return s['t']
@@ -186,7 +205,7 @@ def inventory_clean():
     except Exception:
         return False
 
-def run_one(index,spawn,seconds=600):
+def run_one(index,spawn,seconds=NORMAL_SECONDS):
     run={'index':index,'errors':[],'samples':[],'interventions':[],'resumes':0,'deaths':0}
     reset_ladder(run)
     # Fair, reproducible start: the fixed spawn point, dawn, clear sky, empty inventory.
@@ -269,6 +288,7 @@ def run_one(index,spawn,seconds=600):
                     'wood_pick':inv.get('wooden_pickaxe',0),'table':inv.get('crafting_table',0),
                     'stone_pick':inv.get('stone_pickaxe',0),
                     'stone_sword':inv.get('stone_sword',0),'furnace':inv.get('furnace',0),
+                    **iron_sample(inv),
                     'food_items':o.get('edible',0),'eaten':meals_delta(state,run)['eaten'],'deaths':deaths}
             run['samples'].append(sample)
             # Operator role: a death pauses everything and needs an explicit resume before the
@@ -321,7 +341,9 @@ def run_one(index,spawn,seconds=600):
                 print('operator: returned the bot to the forest after wood blocked',flush=True)
             # Operator role: a gather that holds the bot motionless for three straight samples
             # is wedged (leaf pockets on the canopy spawn); lift it out and let it re-plan.
-            if ap.get('state')=='working: gather':
+            # Surface only: the iron step's staircase gathers run far below the anchor, and a
+            # +4 teleport there lands inside rock (suffocation), not out of a leaf pocket.
+            if ap.get('state')=='working: gather' and sample['pos'][1]>=spawn[1]-8:
                 key=tuple(sample['pos'])
                 stuck_count=stuck_count+1 if stuck_key==key else 1
                 stuck_key=key
@@ -340,15 +362,16 @@ def run_one(index,spawn,seconds=600):
             run['errors'].append('sample error: '+str(e))
     # Peaks: a late death empties the inventory, so milestones are judged by the best
     # counts seen in any sample, not the final one. 'at' keeps the first t of the maximum.
-    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')
+    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS
     run['peaks']={k:{'max':0,'at':None} for k in peak_keys}
     for s in run['samples']:
         for k in peak_keys:
             if s.get(k,0)>run['peaks'][k]['max']:run['peaks'][k]={'max':s[k],'at':s['t']}
-    run['first']={k:first_sample_at(run['samples'],k) for k in ('wood_pick','table','cobble','stone_pick','furnace')}
+    run['first']={k:first_sample_at(run['samples'],k) for k in ('wood_pick','table','cobble','stone_pick','furnace')+IRON_KEYS}
+    run.update(iron_metrics(run['samples']))
     try:
         state,inv=inventory_counts();o=api('observe')
-        run['achieved']={k:inv.get(k,0) for k in ('stick','crafting_table','wooden_pickaxe','wooden_axe','wooden_sword','wooden_shovel','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace','torch')}
+        run['achieved']={k:inv.get(k,0) for k in ('stick','crafting_table','wooden_pickaxe','wooden_axe','wooden_sword','wooden_shovel','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace','torch','raw_iron','iron_ingot','iron_pickaxe','iron_sword')}
         run['achieved']['logs_total']=sum(v for k,v in inv.items() if k.endswith('_log'))
         run['achieved']['planks_total']=sum(v for k,v in inv.items() if k.endswith('_planks'))
         # observe's `edible` (registry foods minus the never-eat list): the old
@@ -394,6 +417,7 @@ def run_one(index,spawn,seconds=600):
     except Exception as e:run['errors'].append('end cancel: '+str(e)[:120])
     print(f"--- run {index}: wood={'YES' if run.get('wood') else 'no'} stone={'YES' if run.get('stone') else 'no'} "
           f"food={'YES' if run.get('food') else 'no'} (peak {run.get('edible_peak',0)}, eaten {(run.get('meals') or {}).get('eaten',0)}, cooked {(run.get('meals') or {}).get('cooked',0)}) "
+          f"iron={'YES' if run.get('iron') else 'no'} (ore {run.get('iron_ore_peak',0)}, ingots {run.get('ingots_peak',0)}, pick at {run.get('iron_pick_at')}) "
           f"deaths={run['deaths']} resumes={run['resumes']} interventions={len(run['interventions'])} errors={len(run['errors'])}",flush=True)
     return run
 def _median(vals):
@@ -403,9 +427,12 @@ def _median(vals):
     return s[mid] if n%2 else (s[mid-1]+s[mid])/2
 def summarise(runs):
     keys=('logs_total','planks_total','stick','crafting_table','wooden_pickaxe','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace')
-    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')
+    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS
     return {'wood_runs':sum(1 for r in runs if r.get('wood')),'stone_runs':sum(1 for r in runs if r.get('stone')),
             'food_runs':sum(1 for r in runs if r.get('food')),
+            'iron_runs':sum(1 for r in runs if r.get('iron')),
+            'iron_ore_peak':[r.get('iron_ore_peak',0) for r in runs],'ingots_peak':[r.get('ingots_peak',0) for r in runs],
+            'iron_pick_at':[r.get('iron_pick_at') for r in runs],
             'edible_peak':[r.get('edible_peak',0) for r in runs],'edible_end':[(r.get('achieved') or {}).get('edible_food',0) for r in runs],
             'eaten':[(r.get('meals') or {}).get('eaten',0) for r in runs],'food_points':[(r.get('meals') or {}).get('points',0) for r in runs],
             'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],
@@ -680,9 +707,9 @@ def main():
             while done[label]<3 and attempts[label]<5:
                 attempts[label]+=1
                 # GLM_CONTINUE item 3: hard runs span 20+ minutes so dusk/night happen and
-                # the bed/shelter first night is measured with natural spawning. A 600 s
-                # run from dawn never leaves daytime (dusk is at t=600).
-                r=run_one(label+str(done[label]+1)+'a'+str(attempts[label]),anchor,seconds=1250 if label=='hard' else 600)
+                # the bed/shelter first night is measured with natural spawning. Normal runs
+                # keep the frozen day and run 1200 s so the iron step is reached.
+                r=run_one(label+str(done[label]+1)+'a'+str(attempts[label]),anchor,seconds=HARD_SECONDS if label=='hard' else NORMAL_SECONDS)
                 runs.append(r)
                 if r.get('invalid'):
                     print('--- '+label+' attempt '+str(attempts[label])+' was INVALID (setup unconfirmed); not counted',flush=True)
@@ -712,5 +739,5 @@ def main():
         print('SOAK DONE','(clean)' if clean else '(with errors)')
         print('SUMMARY '+json.dumps(payload['summary'],indent=1),flush=True)
         for r in runs:
-            print(f"run {r['index']}: wood={r.get('wood')} stone={r.get('stone')} achieved={json.dumps(r.get('achieved',{}))}",flush=True)
+            print(f"run {r['index']}: wood={r.get('wood')} stone={r.get('stone')} iron={r.get('iron')} achieved={json.dumps(r.get('achieved',{}))}",flush=True)
 if __name__=='__main__':main()
