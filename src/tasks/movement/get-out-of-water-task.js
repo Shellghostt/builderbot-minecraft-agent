@@ -30,7 +30,7 @@ export function findNearestLand(bot,from,radius=24){
 }
 
 export class GetOutOfWaterTask extends Task {
- constructor({maxSeconds=30,radius=24,ctx=null}={}){
+ constructor({maxSeconds=30,radius=16,ctx=null}={}){
   super('GetOutOfWaterTask');
   this.ctx=ctx;
   this.maxSeconds=maxSeconds*1000;
@@ -45,7 +45,11 @@ export class GetOutOfWaterTask extends Task {
   // Swim up while our air runs low (the ported drowning reflex).
   if((bot.oxygenLevel??20)<(bot.oxygenMaximum??20))move.setControls(ctx,{jump:true});
   else move.releaseControls(ctx,['jump']);
-  if(!this.navPromise&&!this.isFinished(bot,ctx)){
+  // One land search a second at most: with no reachable shore the leg resolves at once and
+  // the old code rescanned (up to ~17k blockAt calls at radius 24) on every 50 ms tick, in
+  // the middle of a drowning (round 5 loop-watch review).
+  if(!this.navPromise&&!this.isFinished(bot,ctx)&&Date.now()-(this.searchedAt||0)>=1000){
+   this.searchedAt=Date.now();
    const land=findNearestLand(bot,bot.entity.position.floored(),this.radius);
    if(land){
     const leg=move.goto(ctx,blockGoal(land.x,land.y,land.z),{seconds:8});

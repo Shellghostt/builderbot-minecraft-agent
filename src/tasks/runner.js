@@ -31,8 +31,12 @@ export class TaskRunner{
  start(){
   if(this.running)return;
   this.running=true;
+  const watch=this.worker&&this.worker.loopWatch;
   this.timer=setInterval(()=>{
-   try{this.tick();}catch(e){try{this.worker.log('TaskRunner error: '+e.message);}catch{}}
+   try{
+    if(watch)watch.timeTick('runner',()=>this.tick(),()=>this.profileText());
+    else this.tick();
+   }catch(e){try{this.worker.log('TaskRunner error: '+e.message);}catch{}}
   },this.intervalMs);
   if(this.timer.unref)this.timer.unref();
  }
@@ -53,8 +57,11 @@ export class TaskRunner{
   }
   // Highest active chain wins; strict > keeps the earlier chain on ties (Java TaskRunner.tick).
   let max=null,maxP=-Infinity;
+  const prof=this.profile={}; // per-chain priority ms, read by the loop watch on a slow tick
   for(const chain of this.chains){
+   const t0=Date.now();
    const p=chain.priority(bot,this.ctx);
+   prof[chain.name]=Date.now()-t0;
    if(typeof p!=='number'||!(p>=0))continue; // -1/NaN: inactive
    if(!max||p>maxP){maxP=p;max=chain;}
   }
@@ -144,6 +151,10 @@ export class TaskRunner{
   // runner.stop() passes bump=true: nothing yielded - everything must stand down.
   if(bump&&w.controlToken===w.epoch)w.epoch++;
   w.controlToken=null;
+ }
+ profileText(){
+  const p=this.profile||{},st=this.status();
+  return Object.entries(p).filter(([,ms])=>ms>=5).map(([n,ms])=>n+' '+ms+'ms').join(', ')+' | chain '+(st.chain||'-')+' task '+(st.task||'-');
  }
  // {running,chain,task} for the API/dashboard; task is the active leaf's name.
  status(){

@@ -24,6 +24,7 @@ import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS}
 import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
+import {createLoopWatch} from './loop-watch.js';
 import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
 import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
@@ -91,6 +92,7 @@ export class Worker extends EventEmitter {
   this.runSettled=null;this.controlToken=null;this.lastDeath=null;this.combat=combat; // reflex-side ownership token (see reflexes.js)
   this.meals={eaten:0,points:0,cooked:0,items:{}}; // food accounting for the soak (trackMeals, smelt)
   this.autopilot=new Autopilot(this,root);
+  this.loopWatch=createLoopWatch({log:m=>this.log(m)}); // LOOP_SLOW / LOOP_STALL lines (round 5)
   // Phase 7A: the AltoClef task runner owns survival behaviour (mob defense, food, world
   // survival, respawn) while the verified job queue keeps executing jobs. reflexes.js is
   // retired - its threat policy lives in the ported chains now (COMBAT_SPEC 7f thresholds).
@@ -220,7 +222,8 @@ export class Worker extends EventEmitter {
   bot.loadPlugin(pathfinder);bot.loadPlugin(toolPackage.plugin);
   bot.once('spawn',()=>{this.ready=true;const movement=this.movements=this.normalMovements(bot);bot.pathfinder.setMovements(movement);bot.pathfinder.searchRadius=128;// in blocks: bounds searches for unreachable goals; legit paths may still cost up to goal distance + 128
   if(!this.trackersTimer){ // tracker refresh + preemption resume + idle armour, port of the reflex cadence
-   this.trackersTimer=setInterval(()=>{
+   this.loopWatch.start();
+   this.trackersTimer=setInterval(()=>this.loopWatch.timeTick('cadence',()=>{
     // Preemption resume first and in its own guard: a chain that yielded must hand control
     // back to the paused job immediately, whatever the trackers are doing.
     try{
@@ -239,11 +242,11 @@ export class Worker extends EventEmitter {
      if(this.reflexEnabled)try{forceFieldTick(b,this);}catch{}
     }catch{}
     try{if(!this.jobs.some(j=>['running','queued'].includes(j.status)))this.autoArmour();}catch{}
-   },250);
+   }),250);
    if(this.trackersTimer.unref)this.trackersTimer.unref();
   }
   this.taskRunner.start();
-  if(!this.autopilotTimer)this.autopilotTimer=setInterval(()=>{try{this.autopilot.tick();}catch{}},1000);this.log('Connected to Minecraft');this.pump();});
+  if(!this.autopilotTimer)this.autopilotTimer=setInterval(()=>{try{this.loopWatch.timeTick('autopilot',()=>this.autopilot.tick(),()=>'state '+this.autopilot.state);}catch{}},1000);this.log('Connected to Minecraft');this.pump();});
   // Servers send air metadata only when it changes; mineflayer never sees the initial value, which is always full at spawn.
   bot.on('spawn',()=>{bot.oxygenLevel=20;});
   // Closing a container copies ITS copy of the player slots back over bot.inventory
