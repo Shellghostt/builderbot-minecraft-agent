@@ -79,6 +79,10 @@ const canSeeTarget=(b,e)=>{
 // at night sat ahead of the night shelter in the array and ran first - round 4).
 export const SURVIVAL_JOBS=new Set(['sleep','eat','shelter']);
 const WORLD_CHAIN='Misc World Survival Chain';
+// Shelter materials (placement order when no kit cobble is reserved) and the stock the job
+// wants before it starts: 25 shell cells and the floor.
+const SHELTER_ITEMS=['cobblestone','dirt','cobbled_deepslate','netherrack'];
+const SHELTER_BLOCKS=26;
 const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message));
 export class Worker extends EventEmitter {
  constructor(root,config){
@@ -879,12 +883,12 @@ export class Worker extends EventEmitter {
    if(job.placed&&job.placed.length)await this.removeShelter(job,token);
    return;
   }
-  const preference=['cobblestone','dirt','cobbled_deepslate','netherrack'];
-  let material=preference.map(n=>b.registry.itemsByName[n]?{name:n,count:this.count(n)}:null).find(m=>m&&m.count>=25);
-  if(!material){
-   // Empty-handed: dig the shelter material out of the ground before nightfall kills the bot.
+  // Every shelter block counts (a mix of cobble and dirt is fine); cobble the autopilot's
+  // unfinished stone kit still needs (cobbleReserve) is left alone.
+  if(this.shelterStock()<SHELTER_BLOCKS){
+   // Short: dig the shelter material out of the ground before nightfall kills the bot.
    this.update(job,0,'Digging dirt for the shelter');
-   while(this.count('dirt')<25){
+   while(this.shelterStock()<SHELTER_BLOCKS){
     this.check(token);
     const spot=b.findBlock({matching:[b.registry.blocksByName.dirt.id,b.registry.blocksByName.grass_block?.id].filter(x=>x!==undefined),maxDistance:24});
     if(!spot)throw Error('Need 25 cobblestone or dirt in the inventory to build a shelter, and none is reachable to dig');
@@ -926,8 +930,14 @@ export class Worker extends EventEmitter {
   this.shelterSpot=null;
   await this.removeShelter(job,token);
  }
+ // Shelter blocks held beyond the stone kit's cobble reserve.
+ shelterStock(){return SHELTER_ITEMS.reduce((a,n)=>a+this.count(n),0)-Math.min(this.count('cobblestone'),this.cobbleReserve||0);}
+ // Dirt first while the kit still needs cobble; reserved cobble only as the last resort (a
+ // sealed box outranks the furnace).
  shelterItem(){
-  for(const n of ['cobblestone','dirt','cobbled_deepslate','netherrack']){const i=this.bot.inventory.items().find(x=>x.name===n);if(i)return i;}
+  const items=this.bot.inventory.items(),spare=this.count('cobblestone')-(this.cobbleReserve||0);
+  const order=spare>0?SHELTER_ITEMS:[...SHELTER_ITEMS.filter(n=>n!=='cobblestone'),'cobblestone'];
+  for(const n of order){const i=items.find(x=>x.name===n&&x.count>0);if(i)return i;}
   return null;
  }
  // Entities whose box overlaps a cell block a placement there (items and arrows do not).
@@ -1008,7 +1018,9 @@ export class Worker extends EventEmitter {
   for(const key of [...cells].reverse()){
    this.check(token);
    const block=b.blockAt(new Vec3(key.x,key.y,key.z));
-   if(block?.boundingBox==='block')await b.dig(block);
+   // The right tool, or cobble drops nothing: round 4's dawn cleanup dug the box by hand and
+   // the 25 cobble the furnace needed never came back (and each block took ~7 s).
+   if(block?.boundingBox==='block'){try{await b.tool.equipForBlock(block);}catch{}this.check(token);await b.dig(block);}
    await sleep(80);
   }
   await this.sweepDrops(token);

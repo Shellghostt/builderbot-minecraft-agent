@@ -176,7 +176,7 @@ test('stone step: the pickaxe is crafted as soon as 3 cobble are held, then the 
  ({job}=step({cobblestone:8,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1}));
  assert.deepEqual([job.item,job.collectTable],['furnace',true],'the furnace last, picking the table up');
  ({job}=step({cobblestone:5,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1}));
- assert.deepEqual([job.type,job.count],['gather',27],'short of the furnace: gather');
+ assert.deepEqual([job.type,job.count],['gather',7],'short of the furnace: gather its 8 plus the 4 spare (round 5: was a flat 32)');
  ({step:s}=step({cobblestone:5,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1},{worldFurnace:true}));
  assert.notEqual(s,'stone','a furnace standing near completes the step');
 });

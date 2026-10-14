@@ -61,6 +61,25 @@ const IRON_CORE=[['iron_pickaxe',3,2],['iron_sword',2,1],['shield',1,0]];
 // The food graze may go this far below its anchor (hills, not caves).
 const GRAZE_DEPTH=6;
 const STONE_KIT=[['stone_pickaxe',3],['stone_sword',2],['stone_axe',3],['stone_shovel',1]];
+const KIT_STICKS={stone_pickaxe:2,stone_sword:1,stone_axe:2,stone_shovel:1};
+// Cobble the unfinished stone kit still costs (tools not held + the furnace when none is held
+// or standing near). The shelter leaves this much cobble alone while the autopilot runs.
+export const KIT_SPARE=4;
+export function kitCobbleNeed(c,ctx={}){
+ if(typeof c!=='function')c=countFactory(c||{});
+ const tools=STONE_KIT.filter(([item])=>c(item)<1).reduce((a,[,n])=>a+n,0);
+ return tools+((c('furnace')>=1||ctx?.worldFurnace)?0:8);
+}
+// The stone-kit craft that is affordable right now (cobble and sticks held), or null. Used
+// in the sunset grace: a craft takes seconds, the night takes the rest of a hard run.
+export function duskKitJob(counts,ctx={}){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ if(!STEPS[0].done(c,ctx)||STEPS[1].done(c,ctx))return null;
+ const piece=STONE_KIT.find(([item])=>c(item)<1);
+ if(piece)return c('cobblestone')>=piece[1]&&c('stick')>=KIT_STICKS[piece[0]]?{type:'craft',item:piece[0],count:1,keepTable:true}:null;
+ return c('cobblestone')>=8?{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true}:null;
+}
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
 // radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
@@ -155,7 +174,10 @@ export const STEPS=[
   const piece=STONE_KIT.find(([item])=>c(item)<1);
   if(piece&&c('cobblestone')>=piece[1])return {type:'craft',item:piece[0],count:1,keepTable:true};
   if(!piece&&!(c('furnace')>=1||ctx?.worldFurnace)&&c('cobblestone')>=8)return {type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true};
-  if(c('cobblestone')<32)return {type:'gather',block:'stone',count:32-c('cobblestone'),radius:32,searchIfMissing:true};
+  // Gather what the rest of the kit costs plus a small spare, not a flat 32: round 4 hard2
+  // was still filling the 32 (24 held, kit needing 14) when sunset cancelled the gather.
+  const want=Math.min(32,kitCobbleNeed(c,ctx)+KIT_SPARE);
+  if(c('cobblestone')<want)return {type:'gather',block:'stone',count:want-c('cobblestone'),radius:32,searchIfMissing:true};
   if(c('stone_pickaxe')<1)return {type:'craft',item:'stone_pickaxe',count:1,keepTable:true};
   // COMBAT_SPEC 7f: the stone sword comes right after the stone pickaxe.
   if(c('stone_sword')<1)return {type:'craft',item:'stone_sword',count:1,keepTable:true};
@@ -304,6 +326,8 @@ export const BED_PREP_FROM=9000,BED_PREP_JOBS=5;
 export const RECOVER_MS=60000;
 // Extra night jobs per night after the first one failed or was cancelled while still dark.
 export const NIGHT_RETRIES=3;
+// Sunset grace for affordable stone-kit crafts (ticks after SUNSET; spawns start ~12970).
+export const KIT_GRACE=600;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
@@ -354,7 +378,7 @@ export class Autopilot{
    this.worker.userStopped=false;this.worker.deathResume=false;
    this.log('Autopilot started'+(this.goal?' (goal: '+this.goal+')':''));this.save();
   }
-  stop(){if(this.enabled||this.state!=='idle'){this.enabled=false;this.state='idle';this.current=null;this.coolUntil=0;this.log('Autopilot stopped');this.save();}}
+  stop(){this.worker.cobbleReserve=0;if(this.enabled||this.state!=='idle'){this.enabled=false;this.state='idle';this.current=null;this.coolUntil=0;this.log('Autopilot stopped');this.save();}}
   log(message){this.worker.log(message);}
   status(){return {enabled:this.enabled,state:this.state,step:this.currentStep,goal:this.goal,home:this.home};}
   tick(){
@@ -371,7 +395,7 @@ export class Autopilot{
    // the death holds the ladder (round 4 hard3 respawned at night and was shot again).
    if(!w.userStopped&&this.respawnNight(b))return;
    if(w.deathResume){this.state='paused: died - resume to continue';return;}
-  if(w.userStopped){this.enabled=false;this.state='idle';this.current=null;this.log('Autopilot stopped (Stop all)');return;}
+  if(w.userStopped){this.enabled=false;this.state='idle';this.current=null;w.cobbleReserve=0;this.log('Autopilot stopped (Stop all)');return;}
   const active=w.jobs.find(j=>['running','queued'].includes(j.status));
   if(active){
    this.state=active.status==='running'?'working: '+active.spec.type:'queued: '+active.spec.type;
@@ -395,7 +419,8 @@ export class Autopilot{
    // A running fight/eat or night job is never cut off: the idle branch below submits the
    // night job the moment it settles (the key is only spent when the job goes out).
    // The shelter goes up at SUNSET (12000), before the first spawns; a bed waits for 12541.
-   const busy=active.status==='running'&&['fight','eat','sleep','shelter'].includes(active.spec?.type);
+   // A running craft takes seconds and is never cut (round 4: the kit stopped at sunset).
+   const busy=active.status==='running'&&['fight','eat','sleep','shelter','craft'].includes(active.spec?.type);
    const nightJob=!busy&&nightJobFor(dayTicks(b),this.bedNear(b));
    const night=nightJob&&this.nightKeyFree(b)&&nightJob;
    if(night){
@@ -407,6 +432,7 @@ export class Autopilot{
    return;
   }
   if(this.current)this.settle(w.jobs.find(j=>j.id===this.current.id)||{status:'complete',id:this.current.id});
+  this.publishReserve(b);
   if(!shelterDue(dayTicks(b))&&this.recovering(b))return; // the night job (shelter or sleep) still goes out
   this.rememberHome(b);
   // Dusk prep: without a bed the night shelter needs 25 dirt/cobble in the inventory, so
@@ -423,7 +449,7 @@ export class Autopilot{
   }
   const dusk=todNow>=DUSK_PREP&&todNow<SUNSET; // the dirt must be in hand when the shelter starts
   if(dusk&&this.lastDuskKey!==String(b.time.day)&&!bedNear&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
-   const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0);
+   const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0)-(this.worker.cobbleReserve||0);
    if(dirt<25){
     this.lastDuskKey=String(b.time.day);
     this.submit('dusk-dirt',{type:'gather',block:'grass_block',count:25,radius:32});
@@ -431,6 +457,13 @@ export class Autopilot{
    }
   }
   const nightJob=nightJobFor(todNow,!!bedNear);
+  // Sunset grace (KIT_GRACE ticks, ~30 s, still before the first spawns): finish any stone-kit
+  // craft that is affordable right now before sealing in for the night.
+  if(nightJob&&nightJob.type==='shelter'&&todNow<SUNSET+KIT_GRACE&&this.hostileDistance(b)>16){
+   const left=this.leftTable(b);
+   const kit=duskKitJob(this.counts(),{worldTable:!!left&&left.distance<=32,worldFurnace:!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16})});
+   if(kit){this.log('Autopilot: sunset - finishing the stone kit first ('+kit.item+')');this.submit('stone',kit);return;}
+  }
   const night=nightJob&&this.nightKeyFree(b)&&nightJob;
   if(night){
    this.lastNightKey=String(b.time.day);
@@ -442,6 +475,15 @@ export class Autopilot{
    this.state='night: no shelter; holding for morning';return;
   }
   this.decide(b);
+ }
+ // The cobble the unfinished stone kit still costs: the shelter builds with dirt first and
+ // leaves this much cobble alone (round 4 hard runs: the box took the furnace's cobble).
+ publishReserve(b){
+  try{
+   const counts=this.counts(),c=countFactory(counts);
+   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
+   this.worker.cobbleReserve=STEPS[1].done(c,{worldFurnace})?0:Math.min(c('cobblestone'),kitCobbleNeed(c,{worldFurnace}));
+  }catch{this.worker.cobbleReserve=0;}
  }
  bedNear(b){return b.inventory.items().some(i=>BED.test(i.name))||!!b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});}
  // One night job per day, plus up to NIGHT_RETRIES more when the night job failed while
