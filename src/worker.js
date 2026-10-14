@@ -9,6 +9,7 @@ import {jobSchema,validateBlueprint} from './schema.js';
 import {installMovementFix,installWeatherFix} from './compat.js';
 import {craftConfirmedRetry as craftConfirmed} from './crafting.js';
 import {survey} from './observe.js';
+import {dayTicks,isNight} from './daytime.js';
 import {Autopilot} from './autopilot.js';
 import {SMELTING} from './smelting.js';
 import {buildChain,BREED_FOOD} from './howto.js';
@@ -482,11 +483,11 @@ export class Worker extends EventEmitter {
   }
   if(targets.length&&b.inventory.items().reduce((a,i)=>a+i.count,0)-before<targets.length)throw Error('Drops were seen but not picked up');
  }
- async sweepDrops(token){
+ async sweepDrops(token,radius=8){
   const b=this.bot,deadline=Date.now()+10000;
   while(Date.now()<deadline){
    this.check(token);
-   const drop=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=8).sort((a,c)=>a.position.distanceTo(b.entity.position)-c.position.distanceTo(b.entity.position))[0];
+   const drop=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=radius).sort((a,c)=>a.position.distanceTo(b.entity.position)-c.position.distanceTo(b.entity.position))[0];
    if(!drop)return;
    try{await this.navigate(new goals.GoalNear(drop.position.x,drop.position.y,drop.position.z,0),token,8);}catch(e){this.check(token);}
    await sleep(400);
@@ -554,11 +555,12 @@ export class Worker extends EventEmitter {
  async sleep(job,token){
   const b=this.bot;
   this.check(token);
-  if(b.time.timeOfDay<12541){
+  const tod=dayTicks(b)??0;
+  if(tod<12541){
    // A survival chain may already have slept this night (dusk preparation): the goal was
    // morning, and early morning (dawn to ~09:00) means the night was handled. Noon-plus
    // submissions are still refused.
-   if(b.time.timeOfDay<=1200)return this.update(job,1,'Night already slept through');
+   if(tod<=1200)return this.update(job,1,'Night already slept through');
    throw Error('It is daytime; sleep is only possible at night');
   }
   let bed=job.spec.position?b.blockAt(pos(job.spec.position)):null;
@@ -577,7 +579,7 @@ export class Worker extends EventEmitter {
   }
   this.update(job,1,'Sleeping until morning');
   while(b.isSleeping){await sleep(1000);this.check(token);}
-  if(b.time.timeOfDay>=12541&&b.time.timeOfDay<=23458)throw Error('Woke up before morning');
+  if(isNight(b))throw Error('Woke up before morning');
  }
  async retreatSprint(token,target,seconds=3){
   // Plain sprint away from the threat; no pathfinder goal means nothing left running can
@@ -684,30 +686,36 @@ export class Worker extends EventEmitter {
    await this.combatTask(job,token,()=>new FightTask({
     move:this.move,
     log:m=>{try{this.log(m);}catch{}},
-    opts:{entityFilter:s.entity||null,range:huntRange,forceStyle:style!=='auto'?style:null,
+    // A hunt kills exactly the nearest animal (lockFirst): "clear every chicken within
+    // 48" timed out on any flock, and a timed-out hunt used to throw before the sweep.
+    opts:{entityFilter:s.entity||null,range:huntRange,lockFirst:!hostileTargets||undefined,forceStyle:style!=='auto'?style:null,
      // A named enderman fight is provoked by definition (7c: never provoked by looking).
      provoked:s.entity==='enderman'||undefined,
      // The ablation harness toggles primitives per fight (tests/combat_ablation.py).
      primitives:s.primitives||undefined}}),
    {timeoutMs:Math.min(s.maxSeconds??30,120)*1000});
   }catch(e){
+   // A passive hunt sweeps its own kills even when the chase timed out (earlier kills of
+   // the same job still lie on the ground); a stop or preemption skips the sweep.
+   if(!hostileTargets&&e.code==='COMBAT_TIMEOUT')await this.huntSweep(token);
    if(e.code==='COMBAT_TIMEOUT'){
     const left=threats();
     throw Error('Fight timed out; '+(left[0]&&(left[0].name||'a hostile')||'a hostile')+' is still standing');
    }
    throw e;
   }
-  const left=threats();
-  if(left.length)throw Error('Fight timed out; '+(left[0].name||'a hostile')+' is still standing');
   // A passive hunt sweeps its own kills: the next collect job queues behind whatever
   // survival tree is still active (soak 7 hard1: the collect sat queued for 150 s while
   // night mobs kept Mob Defense alive and the drops despawned - food stayed 0/6).
-  if(!hostileTargets){try{await this.sweepDrops(token);}catch(e){this.check(token);}}
+  if(!hostileTargets)return this.huntSweep(token);
+  const left=threats();
+  if(left.length)throw Error('Fight timed out; '+(left[0].name||'a hostile')+' is still standing');
  }
+ async huntSweep(token){try{await this.sweepDrops(token,16);}catch(e){this.check(token);}}
  async shelter(job,token){
   const b=this.bot;
   this.check(token);
-  if(b.time.timeOfDay<12000)return;
+  if((dayTicks(b)??0)<12000)return;
   const preference=['cobblestone','dirt','cobbled_deepslate','netherrack'];
   let material=preference.map(n=>b.registry.itemsByName[n]?{name:n,count:this.count(n)}:null).find(m=>m&&m.count>=25);
   if(!material){
@@ -734,7 +742,9 @@ export class Worker extends EventEmitter {
   }
   // The SHELL is recorded, not just this run's placements: a resumed run skips cells that
   // are already filled (by an interrupted earlier attempt), and the cleanup must dig those too.
-  if(!job.shell)job.shell=shell.map(p=>({x:p.x,y:p.y,z:p.z}));
+  // Only cells that were open on the first attempt belong to it: a hillside's natural blocks
+  // are never dug at dawn (the job removes only what it placed).
+  if(!job.shell)job.shell=shell.filter(p=>b.blockAt(p)?.boundingBox!=='block').map(p=>({x:p.x,y:p.y,z:p.z}));
   if(!job.placed)job.placed=[];
   for(const point of shell){
    this.check(token);
@@ -752,7 +762,7 @@ export class Worker extends EventEmitter {
    if(!placed)throw Error('Could not place a shelter block at '+point);
   }
   this.save();this.update(job,shell.length,'Waiting for morning');
-  while(b.time.timeOfDay>=12000){await sleep(1000);this.check(token);}
+  while((dayTicks(b)??0)>=12000){await sleep(1000);this.check(token);}
   this.update(job,0,'Removing the shelter');
   const cells=Array.isArray(job.shell)&&job.shell.length?job.shell:job.placed;
   for(const key of [...cells].reverse()){

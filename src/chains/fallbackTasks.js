@@ -11,6 +11,7 @@
 // commit af22e3bc2f03dde45da703f5f7535baae18ea486), MIT License,
 // Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
 import {Task} from '../tasks/task.js';
+import {dayTicks} from '../daytime.js';
 import {dist,onFire,inGame} from './settings.js';
 import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
 
@@ -443,8 +444,8 @@ export class CraftWeaponTask extends Task{
 export class SleepTask extends Task{
  constructor(){super('SleepTask');this._tried=false;}
  isFinished(bot,ctx){
-  const t=bot.time&&bot.time.timeOfDay;
-  return bot.isSleeping===true||(typeof t==='number'&&(t<12000&&t>=0));
+  const t=dayTicks(bot);
+  return bot.isSleeping===true||(t!=null&&t<12000);
  }
  onTick(bot,ctx){
   if(this._tried)return null;
@@ -464,8 +465,8 @@ export class SleepTask extends Task{
 export class ShelterTask extends Task{
  constructor(){super('ShelterTask');}
  isFinished(bot,ctx){
-  const t=bot.time&&bot.time.timeOfDay;
-  return typeof t==='number'?t<12000&&t>=0:false; // hold until morning
+  const t=dayTicks(bot);
+  return t!=null?t<12000:false; // hold until morning
  }
  onTick(bot,ctx){
   // A shelter/sleep JOB owns night-shelter building: hold position only, never place -

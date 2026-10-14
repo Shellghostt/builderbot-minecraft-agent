@@ -123,6 +123,34 @@ test('the food step hunts, collects and prefers cooking raw meat',()=>{
  r=plan(counts({...STONE,_edible:0}),{grazeDirection:'east',standY:139,lastSurfaceY:131});
  assert.equal(r.job.surfaceCeiling,139,'the cap anchors to the lower wood-stand Y');
  assert.equal(jobSchema.safeParse(r.job).success,true);
+ // Cloud review: min(current,anchor) ratcheted DOWN - a bot in a valley got a valley+8 cap
+ // and could never climb out to graze; the run's anchor holds instead.
+ r=plan(counts({...STONE,_edible:0}),{grazeDirection:'east',standY:100,lastSurfaceY:131});
+ assert.equal(r.job.surfaceCeiling,139,'a valley does not lower the anchor');
+ // A bot already above the cap may not climb further, but its leg must start: navigation
+ // rejects every position above the cap, so a cap below the bot failed each leg at once.
+ r=plan(counts({...STONE,_edible:0}),{grazeDirection:'east',standY:150,lastSurfaceY:131});
+ assert.equal(r.job.surfaceCeiling,150);
+});
+test('without a surface gather the food anchor is latched once per run (no +8 per leg)',()=>{
+ const root=fs.mkdtempSync(path.join(process.env.TEMP||os.tmpdir(),'autopilot-test-'));
+ try{
+  const submitted=[];
+  const items=Object.entries(STONE).map(([name,count])=>({name,count}));
+  const position={y:139,floored(){return {x:0,y:Math.floor(this.y),z:0,offset(){return this;}};}};
+  const worker={
+   ready:true,userStopped:false,deathResume:false,jobs:[],log(){},
+   submit(spec){submitted.push(spec);return {id:'j'+submitted.length};},
+   bot:{time:{timeOfDay:1000,day:1},inventory:{items(){return items;}},entities:{},registry:{blocksByName:{},foodsByName:{},itemsByName:{}},findBlock(){return null;},blockAt(){return null;},entity:{position}}
+  };
+  const ap=new Autopilot(worker,root);
+  ap.start();
+  ap.tick();
+  assert.equal(submitted[0].type,'explore');assert.equal(submitted[0].surfaceCeiling,147);
+  ap.settle({status:'complete'});position.y=146; // the leg ended 7 higher
+  ap.tick();
+  assert.equal(submitted.length,2);assert.equal(submitted[1].surfaceCeiling,147,'the cap did not ratchet to 154');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('grazeDirection prefers a loaded plains column over peaks',()=>{
  const columns={

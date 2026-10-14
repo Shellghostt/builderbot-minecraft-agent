@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {Vec3} from 'vec3';
+import {dayTicks,isNight} from './daytime.js';
 
 const EDIBLE_SKIP=new Set(['rotten_flesh','spider_eye','poisonous_potato','pufferfish']);
 const BED=/(_bed)$/;
@@ -151,8 +152,13 @@ export const STEPS=[
   // into hunt range. The ceiling is anchored to the WOOD STEP's stand (lastSurfaceY),
   // not the current Y: a standY+8 ceiling per leg ratcheted the bot up a peak +8 per leg
   // (soak 7 normal1: y=156 on frozen_peaks, animal-less terrain).
-  const anchorY=Math.min(...[ctx.standY,ctx.lastSurfaceY].filter(v=>Number.isFinite(v)));
-  const cap=Number.isFinite(anchorY)?anchorY+8:undefined;
+  // The anchor is fixed for the run (the Autopilot latches the first food stand when no
+  // surface gather set one): min(current,anchor) ratcheted DOWN into valleys, and a bare
+  // current-Y anchor ratchets up again. A bot already above the cap may not climb further,
+  // but its legs must still start (navigation rejects any position above the cap).
+  const anchorY=Number.isFinite(ctx.lastSurfaceY)?ctx.lastSurfaceY:ctx.standY;
+  let cap=Number.isFinite(anchorY)?anchorY+8:undefined;
+  if(cap!=null&&Number.isFinite(ctx.standY)&&ctx.standY>cap)cap=ctx.standY;
   return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{})};
  }},
  {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=8,next(c,ctx){
@@ -253,6 +259,7 @@ export class Autopilot{
   this.enabled=false;this.goal=null;this.state='idle';this.current=null;this.currentStep=null;
   this.failures={};this.lastNightKey=null;this.lastDuskKey=null;this.lastHomeScan=0;this.huntPhase=false;
   this.lastSurfaceY=null; // the stand-Y of the last surface gather (unblock-explore cap)
+  this.foodAnchorY=null;  // the food-graze anchor when no surface gather set lastSurfaceY
   this.file=path.join(root,'data/autopilot.json');
   this.home=null;this.homeChest=false;
   try{const saved=JSON.parse(fs.readFileSync(this.file,'utf8'));if(saved&&saved.home){this.home=saved.home;this.homeChest=!!saved.homeChest;}}catch{}
@@ -261,7 +268,7 @@ export class Autopilot{
  }
   start(goal){
    this.enabled=true;this.goal=goal||null;this.state='starting';this.current=null;this.currentStep=null;
-   this.failures={};this.coolUntil=0;this.lastSurfaceY=null;this.huntPhase=false;
+   this.failures={};this.coolUntil=0;this.lastSurfaceY=null;this.foodAnchorY=null;this.huntPhase=false;
    this.lastNightKey=null;this.lastDuskKey=null;
    this.worker.userStopped=false;this.worker.deathResume=false;
    this.log('Autopilot started'+(this.goal?' (goal: '+this.goal+')':''));this.save();
@@ -299,9 +306,10 @@ export class Autopilot{
    // Night prep OUTRANKS the ladder's day jobs (first-night milestone): the night branch
    // used to sit behind this active-job return, and a continuously busy ladder never
    // reached it - soak 6's hard runs tanked the whole night with no shelter attempt.
-   const todActive=((b.time?.timeOfDay??0)%24000+24000)%24000;
-   const nightNow=todActive>=12541&&todActive<=23458;
-   if(nightNow&&this.lastNightKey!==String(b.time?.day)){
+   // A running fight/eat or night job is never cut off: the idle branch below submits the
+   // night job the moment it settles (the key is only spent when the job goes out).
+   const busy=active.status==='running'&&['fight','eat','sleep','shelter'].includes(active.spec?.type);
+   if(isNight(b)&&!busy&&this.lastNightKey!==String(b.time?.day)){
     this.lastNightKey=String(b.time?.day); // once per day even if the submit loses the race
     const bedNear=b.inventory.items().some(i=>/_bed$/.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>/_bed$/.test(bl.name)).map(bl=>bl.id),maxDistance:16});
     if(active.status==='running'){try{this.worker.cancel(active.id);}catch(e){this.state='cancel failed: '+e.message;return;}}
@@ -315,7 +323,7 @@ export class Autopilot{
   // Dusk prep: without a bed the night shelter needs 25 dirt/cobble in the inventory, so
   // gather the dirt while there is still daylight (once per day). Grass blocks drop dirt.
   const bedNear=b.inventory.items().some(i=>BED.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});
-  const todNow=((b.time?.timeOfDay??0)%24000+24000)%24000;
+  const todNow=dayTicks(b)??0;
   const dusk=todNow>=10500&&todNow<12541;
   if(dusk&&this.lastDuskKey!==String(b.time.day)&&!bedNear&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
    const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0);
@@ -325,8 +333,7 @@ export class Autopilot{
     return;
    }
   }
-  const night=todNow>=12541&&todNow<=23458;
-  if(night&&this.lastNightKey!==String(b.time.day)){
+  if(isNight(b)&&this.lastNightKey!==String(b.time.day)){
    this.lastNightKey=String(b.time.day);
    const bedNear=b.inventory.items().some(i=>/_bed$/.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});
    this.submit('night',bedNear?{type:'sleep'}:{type:'shelter'});return;
@@ -415,7 +422,7 @@ export class Autopilot{
   const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:8});
   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
-  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY};
+  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
   // While ANY step is blocked the ladder must not run later steps' jobs on top of the gap
@@ -435,6 +442,7 @@ export class Autopilot{
    this.state='retry: '+step; // unblocked: the explore was the cooldown
    return;
   }
+  if(choice.step==='food'&&choice.job?.type==='explore'&&this.lastSurfaceY==null&&this.foodAnchorY==null)this.foodAnchorY=standY;
   if(choice.step==='food'||choice.step==='bed')this.huntPhase=!this.huntPhase;
   this.currentStep=choice.step;
   if(!choice.job){this.state=choice.step+': satisfied';return;}

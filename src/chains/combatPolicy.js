@@ -7,6 +7,7 @@
 // commit af22e3bc2f03dde45da703f5f7535baae18ea486), MIT License,
 // Copyright (c) 2020 Adris Jautakas. See third_party/ALTOCLEF_LICENSE.
 import {dist} from './settings.js';
+import {dayTicks} from '../daytime.js';
 const WEAPON_RE=/^(wooden|golden|stone|iron|diamond|netherite)_(sword|axe|pickaxe)$/;
 export const TIER_RANK={wooden:0,golden:0,stone:1,iron:2,diamond:3,netherite:4};
 // Total attack damage of the weapon (AltoClef: 1 + material attack damage).
@@ -64,13 +65,13 @@ export function armorValue(bot){
 }
 // Daylight per 7f (dusk prep at ~12000; the tail of the night just before sunrise counts as light).
 export const isDaylight=bot=>{
- const t=bot&&bot.time&&bot.time.timeOfDay;
- if(typeof t!=='number')return true; // unknown clock: do not block a fight on it
+ const t=dayTicks(bot);
+ if(t==null)return true; // unknown clock: do not block a fight on it
  return t<12000||t>23950;
 };
 export const nightish=bot=>{
- const t=bot&&bot.time&&bot.time.timeOfDay;
- return typeof t==='number'&&t>=11500&&t<23400;
+ const t=dayTicks(bot);
+ return t!=null&&t>=11500&&t<23400;
 };
 // 7f gate, in the order the spec lists the conditions. Armoured means real armour pieces
 // (>= 8 points, a full leather set); 7f allows health >= 10 when armoured.
