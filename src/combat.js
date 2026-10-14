@@ -24,6 +24,10 @@ const dist=(a,b)=>{
  return Math.sqrt(dx*dx+dy*dy+dz*dz);
 };
 
+// Pillar blocks by blast resistance: cobble/deepslate first, dirt last (a blast at the
+// base tears dirt out from under the bot).
+const PILLAR_BLOCKS=[/^cobblestone$/,/^cobbled_deepslate$/,/_planks$/,/^netherrack$/,/^dirt$/];
+
 // ---- 7b.1 attack cooldown ---------------------------------------------------------------
 const WEAPON_RE=/^(wooden|golden|stone|iron|diamond|netherite)_(sword|axe|pickaxe|shovel|hoe)$/;
 export const TIER_RANK={wooden:0,golden:0,stone:1,iron:2,diamond:3,netherite:4};
@@ -429,7 +433,8 @@ export class CombatController{
   this.opts={range:2.9,backOff:4,approachSprint:6,critHeadroom:2,critJumps:false,
    drawSeconds:FULL_DRAW_SECONDS,shotGap:0.3,bowMin:6,bowMax:24,
    healthDisengage:12,healthRetreat:8,recoverHealth:14,sprintFood:6,
-   projectileMiss:1.6,projectileHorizon:3,creeperFuse:3.0,...opts};
+   projectileMiss:1.6,projectileHorizon:3,creeperFuse:3.0,
+   pillarTrigger:8,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
   // Wall clock. 73186 released a bow at 0.27 s because bot.time.age/20 jumped
   // (Via/26.x tick skip). Tests inject opts.now; never read age for draw/cooldown.
   this.now=opts.now||(()=>Date.now()/1000);
@@ -445,6 +450,7 @@ export class CombatController{
   this._creeperLastD=null;  // bow: refuse a stand-still draw while it is closing
   this._leadPos=null;this._leadT=null; // ViaVersion zeros entity.velocity; reconstruct from samples
   this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;
+  this._pillar=null;this._pillarFailUntil=0; // creeper pillar-up state (_pillarTick)
  }
  setTarget(e){
   if(e!==this.target){this._drawing=false;this._lastStrike=-1e9;this._setState(null);this._creeperLastD=null;this._leadPos=null;this._leadT=null;this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;}
@@ -626,6 +632,9 @@ export class CombatController{
   if(!bot||!bot.blockAt)return false;
   const item=this._losItem();
   if(!item)return false;
+  // The pillar replaces the wall wherever it can go up: no blocks or time spent on a wall
+  // the creeper flanks anyway (a wall already started is finished).
+  if(!this._losCells&&this._pillarSpot())return false;
   const up=c=>this._losSolid(c.x,c.y,c.z)&&this._losSolid(c.x,c.y+1,c.z);
   if(this._losCells){
    const open=this._losCells.find(c=>!up(c));
@@ -681,6 +690,206 @@ export class CombatController{
   this._placeColumn(bot,cells[0],item);
   return true;
  }
+ // ---- creeper pillar-up (cloud session 2026-10-14) ----------------------------------------
+ // The human answer to a creeper: creepers cannot climb, and the fuse only STARTS inside 3
+ // blocks (wiki), so 3 blocks up on a 1x1 column a creeper at the base stays outside the
+ // ring (feet-to-feet sqrt(0.5^2+3^2) > 3), and the column under the bot absorbs a blast
+ // that was already running. Walls were flanked in ~2 s for ~16 damage on both arena
+ // variants (GLM 2026-10-14) and arrows miss on this ViaVersion path. Climb = hold jump,
+ // look down, place on the block under the feet at the jump apex; perch = wait out the
+ // fuse, attack from above only while it stays; descend = step off (a 3-block drop is 0
+ // damage) or dig our own column when every side is a longer drop. The wall stays the
+ // fallback (fewer than 2 blocks, no headroom, not on the ground, or a climb that failed).
+ _pillarBlocks(){
+  const items=(this.bot.inventory&&this.bot.inventory.items())||[];
+  for(const re of PILLAR_BLOCKS){
+   const list=items.filter(i=>re.test(i.name));
+   const count=list.reduce((s,i)=>s+(i.count||1),0);
+   if(count>=2)return {item:list[0],count};
+  }
+  return null;
+ }
+ // Where a column could go up right now (null: no blocks, no headroom, not standing).
+ _pillarSpot(){
+  const bot=this.bot,e=bot.entity;
+  if(this.now()<(this._pillarFailUntil||0))return null;
+  if(!e.onGround||e.isInWater||e.isInLava)return null;
+  const blocks=this._pillarBlocks();
+  if(!blocks)return null;
+  const x=Math.floor(e.position.x),y=Math.floor(e.position.y),z=Math.floor(e.position.z);
+  const sup=blockAt(bot,{x,y:y-1,z});
+  if(!sup||sup.boundingBox!=='block')return null;
+  // Headroom: standing h up needs the cells up to y+h+1 free (head at the jump apex).
+  let height=0;
+  for(let h=1;h<=Math.min(this.opts.pillarHeight,blocks.count);h++){
+   if(!passable(bot,{x,y:y+h+1,z}))break;
+   height=h;
+  }
+  return height>=2?{x,y,z,height,item:blocks.item.name}:null;
+ }
+ _pillarStart(t,d,now){
+  if(!(d<=this.opts.pillarTrigger||creeperSwell(t).fusing))return false;
+  const spot=this._pillarSpot();
+  if(!spot)return false;
+  const {x,y,z,height}=spot;
+  this._pillar={phase:'climb',x,z,base:y,height,item:spot.item,started:now,clickAt:-1e9,clickY:null,farSince:null,landing:null};
+  this._lowerShield();this._cancelDraw();
+  this.log('Combat: pillar-up '+height+' at '+x+','+y+','+z+' (creeper at '+d.toFixed(1)+')');
+  return true;
+ }
+ _pillarTop(p){ // solid cells stacked on the base: 0..height
+  let n=0;
+  while(n<p.height&&this._losSolid(p.x,p.base+n,p.z))n++;
+  return n;
+ }
+ _pillarTick(t,gear,now){
+  const bot=this.bot,e=bot.entity,o=this.opts;
+  const d=dist(t.position,e.position);
+  if(!this._pillar&&!this._pillarStart(t,d,now))return false;
+  const p=this._pillar;
+  const off=Math.floor(e.position.x)!==p.x||Math.floor(e.position.z)!==p.z;
+  if(p.phase==='climb'){
+   const top=this._pillarTop(p);
+   if(top>=p.height&&e.position.y>=p.base+p.height-0.01){
+    p.phase='perch';p.perchAt=now;
+    this._controls({jump:false});
+    this.log('Combat: pillar perched '+p.height+' up');
+   }else if(off||now-p.started>o.pillarSeconds){
+    // Knocked off the column or the clicks never landed: the wall/flee logic takes over.
+    this.log('Combat: pillar-up failed ('+(off?'left the column':'timed out')+') at '+top+'/'+p.height);
+    this._pillar=null;this._pillarFailUntil=now+10;
+    this._controls({jump:false});
+    return false;
+   }else{
+    this._setState('pillar-climb');
+    this._controls({forward:false,back:false,left:false,right:false,sprint:false,jump:true});
+    this._look(e.yaw||0,-Math.PI/2,true);
+    if(!bot.heldItem||bot.heldItem.name!==p.item){
+     if(now-this._lastEquip>=0.5){this._lastEquip=now;
+      const item=this._findItem(bot,p.item);
+      if(item)try{const q=bot.equip(item,'hand');q&&q.catch&&q.catch(()=>{});}catch{}}
+     return true;
+    }
+    // Place into the next cell once the feet clear it (apex ~1.25 above the stand).
+    const next=p.base+top;
+    const again=p.clickY!==next||now-p.clickAt>=0.5;
+    if(e.position.y>=next+1+o.pillarClear&&again){
+     const ref=blockAt(bot,{x:p.x,y:next-1,z:p.z});
+     if(ref&&ref.boundingBox==='block'){
+      p.clickAt=now;p.clickY=next;
+      try{const q=bot.placeBlock(ref,new Vec3(0,1,0));q&&q.catch&&q.catch(()=>{});}catch{}
+     }
+    }
+    return true;
+   }
+  }
+  if(p.phase==='perch'){
+   if(off||e.position.y<p.base+p.height-0.5){this._pillar=null;return false;} // knocked off: fall back
+   this._controls({forward:false,back:false,left:false,right:false,sprint:false,jump:false});
+   const fusing=creeperSwell(t).fusing;
+   const flat=Math.hypot(t.position.x-e.position.x,t.position.z-e.position.z);
+   if(fusing){this._setState('pillar-hold');this._cancelDraw();this._raiseShieldNow();return true;}
+   this._lowerShield();
+   if(flat>o.pillarDescend){
+    // Wandered off: come down once it has stayed past the line for a moment.
+    if(p.farSince==null)p.farSince=now;
+    if(now-p.farSince>=o.pillarDescendSeconds){p.phase='descend';p.descendAt=now;p.landing=this._pillarLanding(p,t);}
+    this._setState('pillar-perch');this._cancelDraw();
+    return true;
+   }
+   p.farSince=null;
+   // It stays: attack from above (bow first - a sitting target under the column).
+   if(gear.bow&&gear.arrows>0)this._perchShoot(t,now);
+   else this._perchStrike(t,gear,now);
+   return true;
+  }
+  // descend
+  if(now-p.descendAt>o.pillarSeconds*2){this._pillar=null;this._controls({forward:false,jump:false});return false;}
+  if(e.position.y<=(p.landing?p.landing.y:p.base)+0.01&&e.onGround){
+   this._pillar=null;this._controls({forward:false,sprint:false,jump:false});
+   this.log('Combat: pillar descended');
+   return false;
+  }
+  this._setState('pillar-descend');
+  this._cancelDraw();
+  if(p.landing){ // keep walking: the box still rests on the column 0.3 past its edge
+   const yaw=Math.atan2(-(p.landing.x+0.5-e.position.x),-(p.landing.z+0.5-e.position.z)); // mineflayer: yaw 0 faces -z
+   this._snapYaw(yaw);
+   this._controls({forward:true,back:false,left:false,right:false,sprint:false,jump:false});
+  }else{
+   // Every side is a longer drop: dig our own column one block at a time.
+   this._controls({forward:false,back:false,left:false,right:false,sprint:false,jump:false});
+   const under=blockAt(bot,{x:p.x,y:Math.floor(e.position.y)-1,z:p.z});
+   if(under&&under.boundingBox==='block'&&Math.floor(e.position.y)-1>=p.base&&now-p.clickAt>=1&&bot.dig){
+    p.clickAt=now;
+    try{const q=bot.dig(under,true);q&&q.catch&&q.catch(()=>{});}catch{}
+   }
+  }
+  return true;
+ }
+ // Step-off cell: a cardinal neighbour of the column whose floor is at most 3 below the
+ // perch (0 fall damage), open for the body, never into fluid; away from the creeper first.
+ _pillarLanding(p,t){
+  const bot=this.bot,top=p.base+p.height;
+  const away=t&&t.position?{x:p.x+0.5-t.position.x,z:p.z+0.5-t.position.z}:{x:0,z:0};
+  const cells=[[1,0],[-1,0],[0,1],[0,-1]].sort((a,b)=>(b[0]*away.x+b[1]*away.z)-(a[0]*away.x+a[1]*away.z));
+  for(const [dx,dz] of cells){
+   const x=p.x+dx,z=p.z+dz;
+   if(!passable(bot,{x,y:top,z})||!passable(bot,{x,y:top+1,z}))continue;
+   for(let y=top-1;y>=top-4;y--){ // floor at top-4 = a 3-block drop
+    const b=blockAt(bot,{x,y,z});
+    if(!b)break; // unloaded: unknown drop
+    if(b.name==='lava'||b.name==='water'||b.name==='fire'||b.name==='powder_snow')break;
+    if(b.boundingBox==='block')return {x,y:y+1,z};
+   }
+  }
+  return null;
+ }
+ _perchShoot(t,now){
+  const bot=this.bot;
+  if(!bot.heldItem||bot.heldItem.name!=='bow'){
+   this._setState('pillar-equip-bow');this._cancelDraw();
+   if(now-this._lastEquip>=0.5){this._lastEquip=now;
+    const item=this._findItem(bot,'bow');
+    if(item)try{const q=bot.equip(item,'hand');q&&q.catch&&q.catch(()=>{});}catch{}}
+   return;
+  }
+  const sol=bowAimSolution(bot,{...t,velocity:this._viaVelocity(t,now)},this.opts.aim);
+  if(sol)this._look(sol.yaw,sol.pitch,true);
+  if(now<this._nextShot){this._setState('pillar-perch');return;}
+  if(!this._drawing){
+   this._drawing=true;this._drawStart=now;
+   try{const q=bot.activateItem(false);q&&q.catch&&q.catch(()=>{});}catch{}
+   this._setState('pillar-draw');
+  }else if(now-this._drawStart>=this.opts.drawSeconds){
+   this._drawing=false;
+   try{const q=bot.deactivateItem();q&&q.catch&&q.catch(()=>{});}catch{}
+   this.stats.shots++;this._nextShot=now+this.opts.shotGap;
+   this._setState('pillar-shoot');
+   this._probeArrowSpeed();
+  }
+ }
+ _perchStrike(t,gear,now){
+  const bot=this.bot,e=bot.entity;
+  if(!gear.weaponName){this._setState('pillar-perch');return;}
+  if(!bot.heldItem||bot.heldItem.name!==gear.weaponName){
+   this._setState('pillar-equip');
+   if(now-this._lastEquip>=0.5){this._lastEquip=now;
+    try{const q=bot.equip(gear.weaponItem||{name:gear.weaponName},'hand');q&&q.catch&&q.catch(()=>{});}catch{}}
+   return;
+  }
+  // Reach is eye to the nearest point of the creeper's box (0.6 x 1.7), not feet to feet.
+  const eye={x:e.position.x,y:e.position.y+1.62,z:e.position.z},tp=t.position;
+  const near={x:Math.max(tp.x-0.3,Math.min(eye.x,tp.x+0.3)),y:Math.max(tp.y,Math.min(eye.y,tp.y+(t.height||1.7))),z:Math.max(tp.z-0.3,Math.min(eye.z,tp.z+0.3))};
+  const reach=dist(eye,near);
+  const ready=now-this._lastStrike>=cooldownSeconds(gear.weaponName,bot.registry);
+  if(reach>this.opts.perchReach||!ready){this._setState('pillar-perch');return;}
+  const dx=near.x-eye.x,dz=near.z-eye.z;
+  this._look(Math.atan2(-dx,-dz),Math.atan2(near.y-eye.y,Math.hypot(dx,dz)),true); // mineflayer lookAt convention
+  try{const q=bot.attack(t);q&&q.catch&&q.catch(()=>{});}catch{}
+  this._lastStrike=now;this.stats.hits++;
+  this._setState('pillar-strike');
+ }
  tick(){
   const bot=this.bot;
   if(!bot||!bot.entity||typeof bot.health!=='number')return this;
@@ -729,6 +938,10 @@ export class CombatController{
   // In bow mode (the mob's tactic OR the creeper hybrid) the hand belongs to the bow
   // (_bowTick equips it): re-equipping the sword here ping-pongs the slots forever and no
   // arrow ever flies (measured: an eternal equip-bow loop while the creeper walked in).
+  // Creeper pillar-up outranks the weapon check (it holds the blocks), the health gates
+  // (the column is the safest place to be) and the wall below (its fallback).
+  if(t.name!=='creeper'&&this._pillar){this._pillar=null;this._controls({jump:false});}
+  if(t.name==='creeper'&&this._pillarTick(t,gear,now))return this;
   const bowMode=tactic.style==='bow'||(t.name==='creeper'&&gear.bow&&gear.arrows>0);
   if(gear.weaponName&&!bowMode&&(bot.heldItem&&bot.heldItem.name)!==gear.weaponName&&!this._disengaged&&bot.health>this.opts.healthRetreat){
    this._setState('equip');

@@ -717,3 +717,204 @@ test('readGear: best weapon by tier (sword > axe > pickaxe), off-hand shield, ar
  const g2=readGear(makeBot({inventory:['diamond_pickaxe','wooden_sword']}).bot);
  assert.deepEqual([g2.weapon,g2.tier],['sword','wooden'],'wooden sword outranks a diamond pickaxe');
 });
+
+// ---- creeper pillar-up (cloud session 2026-10-14) -------------------------------------------
+const cell=(blocks,x,y,z,name)=>{blocks[x+','+y+','+z]={name,boundingBox:name==='air'?'empty':'block',position:at(x,y,z)};};
+// Loaded flat ground at y=-61 (stand -60) with real air above it, like mineflayer's block cache.
+function flatWorld(r=3){
+ const blocks={};
+ for(let x=-r;x<=r;x++)for(let z=-r;z<=r;z++){cell(blocks,x,-61,z,'dirt');for(let y=-60;y<=-54;y++)cell(blocks,x,y,z,'air');}
+ return blocks;
+}
+const lastControl=(calls,name)=>{for(let i=calls.length-1;i>=0;i--)if(calls[i][0]==='control'&&calls[i][1]===name)return calls[i][2];return undefined;};
+// Drive a pillar climb in the fake world: each jump apex fires one place, the block lands,
+// the bot stands on it. Returns the reference positions clicked.
+function climb(c,bot,calls,blocks,clock){
+ const refs=[];
+ for(let level=0;level<3;level++){
+  bot.entity.position.y=-60+level;clock.T+=0.05;c.tick(); // standing: too low to place
+  assert.equal(calls.filter(x=>x[0]==='place').length,refs.length,'no click before the feet clear the cell');
+  bot.entity.position.y=-60+level+1.2;clock.T+=0.05;c.tick(); // apex
+  const place=calls.filter(x=>x[0]==='place')[refs.length];
+  assert.ok(place,'a place at the apex of jump '+(level+1));
+  assert.deepEqual([place[2].x,place[2].y,place[2].z],[0,1,0],'placed on the top face');
+  refs.push(place[1].y);
+  cell(blocks,0,-60+level,0,'cobblestone'); // the server confirms the block
+ }
+ bot.entity.position.y=-57;clock.T+=0.05;c.tick();
+ return refs;
+}
+test('controller: a closing creeper makes the bot pillar 3 up (jump-place under itself)',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(600,'creeper',at(6.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);
+ c.tick();
+ assert.equal(c.state,'pillar-climb');
+ assert.ok(calls.some(x=>x[0]==='equip'&&x[1]==='cobblestone'),'hold the pillar block');
+ assert.equal(lastControl(calls,'jump'),true,'hold jump: each landing jumps again');
+ assert.ok(calls.some(x=>x[0]==='look'&&x[2]===-1.571),'look straight down');
+ const refs=climb(c,bot,calls,blocks,clock);
+ assert.deepEqual(refs,[-61,-60,-59],'each block goes on the one under the feet');
+ assert.equal(c.state!=='pillar-climb',true);
+ assert.equal(c._pillar.phase,'perch');
+ assert.equal(lastControl(calls,'jump'),false,'stop jumping on the perch');
+ assert.ok(!calls.some(x=>x[0]==='control'&&['forward','back','left','right','sprint'].includes(x[1])&&x[2]===true),'no walking while the column goes up');
+ assert.equal(c._losCells,null,'no wall while pillaring');
+});
+test('controller: on the perch it waits out a fuse, then strikes down while the creeper stays',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(601,'creeper',at(5.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ climb(c,bot,calls,blocks,clock);
+ // The creeper reached the base and its fuse is running (it started before the climb).
+ creeper.position=at(1.4,-60,0.5);creeper.metadata=[,,,,,,,,,,,,,,,,1];
+ clock.T+=0.05;c.tick();
+ assert.equal(c.state,'pillar-hold');
+ assert.ok(!calls.some(x=>x[0]==='attack'),'never swing into a running fuse');
+ // Fuse cancelled (it cannot reach 3 blocks of the perch); it stays at the base: strike down.
+ creeper.metadata=[,,,,,,,,,,,,,,,,-1];
+ clock.T+=0.5;c.tick(); // re-equip the sword (the hand held cobble; equips are 0.5 s apart)
+ assert.ok(calls.some(x=>x[0]==='equip'&&x[1]==='iron_sword'));
+ clock.T+=0.05;c.tick();
+ assert.ok(calls.some(x=>x[0]==='attack'&&x[1]===601),'attack from above while it stays');
+ const look=calls.filter(x=>x[0]==='look').pop();
+ assert.ok(look[2]<0,'looking down at it');
+ clock.T+=0.2;c.tick();
+ assert.equal(calls.filter(x=>x[0]==='attack').length,1,'cooldown holds between swings');
+ assert.equal(c._pillar.phase,'perch');
+});
+test('controller: the perch comes down once the creeper wanders past 8, stepping away from it',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(602,'creeper',at(6.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ climb(c,bot,calls,blocks,clock);
+ creeper.position=at(12.5,-60,0.5);
+ clock.T+=0.05;c.tick();
+ assert.equal(c._pillar.phase,'perch','a moment past the line first');
+ clock.T+=1.1;c.tick();
+ assert.equal(c._pillar.phase,'descend');
+ assert.deepEqual(c._pillar.landing,{x:-1,y:-60,z:0},'a 3-block drop on the side away from the creeper');
+ clock.T+=0.05;c.tick();
+ assert.equal(lastControl(calls,'forward'),true,'step off the column');
+ assert.ok(Math.abs(bot.entity.yaw-Math.PI/2)<0.01,'facing -x');
+ bot.entity.position=at(-0.5,-60,0.5);
+ clock.T+=0.05;c.tick();
+ assert.equal(c._pillar,null,'back on the ground: the pillar is done');
+});
+test('controller: with no safe step-off the perch digs its own column down',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(603,'creeper',at(6.5,-60,0.5));
+ const digs=[];
+ const {bot,calls}=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ bot.dig=b=>{digs.push(b.position.y);return Promise.resolve();};
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ climb(c,bot,calls,blocks,clock);
+ // Every side of the column turns into lava: no step-off cell.
+ for(const [x,z] of [[1,0],[-1,0],[0,1],[0,-1]])cell(blocks,x,-60,z,'lava'),blocks[x+',-60,'+z].boundingBox='empty';
+ creeper.position=at(14.5,-60,0.5);
+ clock.T+=0.05;c.tick();clock.T+=1.1;c.tick();
+ assert.equal(c._pillar.landing,null);
+ for(let y=-57;y>-60;y--){
+  clock.T+=1.05;c.tick();
+  assert.equal(digs[digs.length-1],y-1,'dig the column block under the feet');
+  cell(blocks,0,y-1,0,'air');bot.entity.position.y=y-1;
+ }
+ assert.deepEqual(digs,[-58,-59,-60],'only the bot\'s own three blocks');
+ clock.T+=1.05;c.tick();
+ assert.equal(c._pillar,null);
+ assert.ok(!calls.some(x=>x[0]==='control'&&x[1]==='forward'&&x[2]===true),'never walks into the lava');
+});
+test('controller: pillar height follows the headroom and the blocks held; else the wall stays',()=>{
+ const clock={T:0};
+ let blocks=flatWorld();
+ cell(blocks,0,-56,0,'stone'); // ceiling: room for 2 up only
+ const creeper=mob(604,'creeper',at(5.5,-60,0.5));
+ let t=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[creeper],blocks});
+ let c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ assert.equal(c._pillar.height,2);
+ // A 1-block ceiling gap: no pillar - the existing wall/flee logic runs instead.
+ blocks=flatWorld();cell(blocks,0,-57,0,'stone');
+ creeper.metadata=[,,,,,,,,,,,,,,,,1];
+ t=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[creeper],blocks});
+ c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ assert.equal(c._pillar,null);
+ assert.ok(!/^pillar/.test(c.state),'fallback, not a pillar: '+c.state);
+ assert.ok(c._losCells&&c._losCells.length,'the wall is the fallback');
+ // One block is not a pillar either.
+ t=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:1},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[creeper],blocks:flatWorld()});
+ c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ assert.equal(c._pillar,null);
+ // Dirt only when nothing sturdier is held: cobble beats it.
+ t=makeBot({inventory:['dirt','cobblestone','iron_sword'],counts:{dirt:30,cobblestone:3},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[creeper],blocks:flatWorld()});
+ c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ assert.equal(c._pillar.item,'cobblestone');
+ // A far creeper (past the trigger, not fusing) does not start a pillar.
+ const far=mob(605,'creeper',at(11.5,-60,0.5));
+ t=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',position:[0.5,-60,0.5],entities:[far],blocks:flatWorld()});
+ c=new CombatController(t.bot,makeMove(t.bot,null),{now:()=>clock.T});
+ c.setTarget(far);c.tick();
+ assert.equal(c._pillar,null);
+});
+test('controller: a climb whose blocks never land gives up and falls back to the wall',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(606,'creeper',at(4.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','iron_sword'],counts:{cobblestone:16},heldItem:'iron_sword',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);c.tick();
+ for(let i=0;i<10;i++){bot.entity.position.y=-58.8;clock.T+=0.25;c.tick();bot.entity.position.y=-60;}
+ assert.ok(calls.filter(x=>x[0]==='place').length>=2,'the click is retried on later jumps');
+ assert.ok(calls.filter(x=>x[0]==='place').length<=6,'at most one click per 0.5 s');
+ clock.T=4.2;c.tick();
+ assert.equal(c._pillar,null);
+ assert.equal(lastControl(calls,'jump'),false);
+ assert.ok(!/^pillar/.test(c.state),'the wall/flee logic owns the next tick: '+c.state);
+ clock.T+=0.05;c.tick();
+ assert.equal(c._pillar,null,'no immediate retry after a failed climb');
+});
+test('controller: with a bow, a pillar-capable bot skips the 12-block wall and pillars at 8',()=>{
+ const clock={T:0};
+ const blocks=flatWorld(12);
+ const creeper=mob(607,'creeper',at(10.5,-60,0.5));
+ const {bot,calls}=makeBot({inventory:['cobblestone','bow','arrow','iron_sword'],counts:{cobblestone:16,arrow:32},heldItem:'bow',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T});
+ c.setTarget(creeper);
+ c.tick();
+ assert.equal(c._losCells,null,'no wall at 10');
+ assert.ok(!calls.some(x=>x[0]==='place'));
+ assert.equal(c.state,'draw','keep shooting while it is still out at 10');
+ creeper.position=at(7.5,-60,0.5);
+ clock.T+=0.1;c.tick();
+ assert.equal(c.state,'pillar-climb');
+ assert.ok(calls.some(x=>x[0]==='deactivate'),'the draw is dropped for the climb');
+ climb(c,bot,calls,blocks,clock);
+ // Perched with a bow: the creeper at the base is shot from above.
+ creeper.position=at(2.5,-60,0.5);
+ clock.T+=0.6;c.tick();c.tick();
+ assert.ok(calls.some(x=>x[0]==='equip'&&x[1]==='bow'));
+ clock.T+=0.05;c.tick();
+ assert.equal(c.state,'pillar-draw');
+ clock.T+=1.05;c.tick();
+ assert.equal(c.stats.shots,1);
+});
