@@ -518,7 +518,7 @@ export class Worker extends EventEmitter {
   if(!output)throw Error('Unknown output item '+outputName);
   const fuel=await this.fuelPlan(s.count,s.fuel);
   const before=this.count(outputName);
-  let block=null,placedAt=null;
+  let block=null,placedAt=null,placedFurnace=null;
   try{
    block=b.findBlock({matching:b.registry.blocksByName.furnace.id,maxDistance:16});
    if(!block){
@@ -531,7 +531,7 @@ export class Worker extends EventEmitter {
      await craftConfirmed(b,recipe,provisioned.block,()=>this.check(token));
      if(this.count('furnace')<=furnaces)throw Error('Crafting a furnace produced no confirmed item');
     }
-    block=b.blockAt(await this.placeBlockNear(token,'furnace'));
+    block=b.blockAt(placedFurnace=await this.placeBlockNear(token,'furnace'));
    }
    await this.walk(block.position,token,2);
    this.check(token);
@@ -549,6 +549,10 @@ export class Worker extends EventEmitter {
    }finally{try{await b.closeWindow(furnace);}catch{}}
   }finally{
    if(placedAt){try{await this.pickUp(placedAt,'crafting_table',token);}catch(e){this.log('Left the crafting table at '+placedAt);}}
+   // A furnace this job placed goes back into the inventory like the table: left standing,
+   // the ladder's stone step (furnace held or within 16) regressed as soon as the bot
+   // walked on, and re-mined 8 cobblestone for a new one.
+   if(placedFurnace){try{await this.pickUp(placedFurnace,'furnace',token);}catch(e){this.log('Left the furnace at '+placedFurnace);}}
   }
   if(this.count(outputName)<before+s.count)throw Error(`Smelting did not produce ${s.count} ${outputName}`);
  }
@@ -1168,7 +1172,10 @@ export class Worker extends EventEmitter {
   // Natural targets may sit behind dirt or inside a cliff: path with the explore rules.
   b.pathfinder.setMovements(this.exploreMovements());
   try{
-   const match=anyLog?Object.values(b.registry.blocksByName).filter(bl=>/_log$/.test(bl.name)).map(bl=>bl.id):id;
+   // An ore job takes both strata: iron_ore also matches deepslate_iron_ore (same drop), so
+   // the scan from the iron step's staircase does not skip the ore below y=0.
+   const deep=!anyLog&&/_ore$/.test(s.block)&&!s.block.startsWith('deepslate_')?b.registry.blocksByName['deepslate_'+s.block]?.id:undefined;
+   const match=anyLog?Object.values(b.registry.blocksByName).filter(bl=>/_log$/.test(bl.name)).map(bl=>bl.id):deep!==undefined?[id,deep]:id;
    while(count_()-job.startDrop<s.count){
     this.check(token);if(b.inventory.emptySlotCount()<2)throw Error('Inventory nearly full; deposit items first');
     // Wood step: do not follow a trunk down into a ravine. The floor is the Y where the
@@ -1204,7 +1211,10 @@ export class Worker extends EventEmitter {
     }
     if(s.surface&&job.surfaceY!==undefined)targets=targets.filter(t=>t.position.y>=job.surfaceY-4);
     if(!targets.length){
-     if(s.searchIfMissing&&job.searches<3){
+     // An ore job that names its depth (the ladder's iron/coal/diamond jobs) goes down first:
+     // three 48-block surface legs could never see ore that sits at y=32.
+     const deepFirst=s.targetY!=null&&UNDERGROUND.test(s.block)&&b.entity.position.y>s.targetY&&job.descents<3;
+     if(s.searchIfMissing&&job.searches<3&&!deepFirst){
       job.searches++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Searching further afield (${job.searches}/3)`);
       // belowFoots (soak ladder jobs): short search hops - a 48+ block wander is how the
       // bot lost the clearing and ended up lost at the world spawn in the baseline soaks.
@@ -1742,6 +1752,8 @@ export class Worker extends EventEmitter {
   const b=this.bot,before=this.count(name);
   await this.walk(point,token,1);
   const block=b.blockAt(point);if(block?.name!==name)return;
+  // A furnace drops nothing to a bare hand: take the right tool first (an axe for a table).
+  try{await b.tool.equipForBlock(block,{});}catch{}this.check(token);
   await b.dig(block);this.check(token);await sleep(600);await this.walk(point,token,0.8);await sleep(400);await this.sweepDrops(token);
   if(b.blockAt(point)?.name===name)throw Error('Could not pick up the '+name);
   if(this.count(name)<=before)throw Error('The '+name+' drop was not collected');

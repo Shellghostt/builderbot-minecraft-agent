@@ -55,6 +55,22 @@ export function grazeDirection(bot){
  }
  return bestScore>0?best:'random';
 }
+// M5 (iron): [item, ingots, sticks] crafted first, in this order; then the rest of the kit.
+const IRON_CORE=[['iron_pickaxe',3,2],['iron_sword',2,1],['shield',1,0]];
+const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
+// Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
+// radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
+// covers 0..64, so most digs stop well above the deepslate layer.
+const IRON_Y=32;
+// Smelt raw iron with coal: a coal item smelts 8, so a short coal dig (coal ore is the most
+// common ore around the iron band) beats burning the planks the sticks and shield need.
+// Wood still counts (worker.fuelPlan burns planks/logs at 1.5 items each) beyond 8 planks.
+function smeltIron(c,ctx){
+ const count=Math.min(48,c('raw_iron'));
+ const fuel=8*(c('coal')+c('charcoal'))+1.5*(Math.max(0,ctx.planksTotal-8)+ctx.logsTotal);
+ if(fuel<count)return {type:'gather',block:'coal_ore',count:Math.ceil((count-fuel)/8),radius:32,searchIfMissing:true,targetY:IRON_Y};
+ return {type:'smelt',item:'raw_iron',count};
+}
 const DIAMOND_GEAR=[['diamond_sword',2],['diamond_axe',3],['diamond_helmet',5],['diamond_chestplate',8],['diamond_leggings',7],['diamond_boots',4]];
 // Ensure planks for a craft: gather a few logs when none are held, else craft from the held species.
 const planksJob=(c,ctx,need)=>{
@@ -162,16 +178,31 @@ export const STEPS=[
   return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{})};
  }},
  {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=8,next(c,ctx){
-  if(c('coal')<16)return {type:'gather',block:'coal_ore',count:16-c('coal'),radius:32,searchIfMissing:true,targetY:48};
-  // 36 ingots: pickaxe 3, sword 2, axe 3, shield 1, bucket 3 and the armour set 24.
-  if(c('raw_iron')+c('iron_ingot')<36)return {type:'gather',block:'iron_ore',count:36-c('raw_iron')-c('iron_ingot'),radius:32,searchIfMissing:true,targetY:48};
-  if(c('raw_iron')>=1)return {type:'smelt',item:'raw_iron',count:Math.min(48,c('raw_iron'))};
-  if(c('iron_ore')>=1)return {type:'smelt',item:'iron_ore',count:Math.min(48,c('iron_ore'))};
-  // COMBAT_SPEC 7a: the shield comes right after the first iron ingot (1 ingot + 6 planks).
-  if(c('shield')<1){
-   const planks=planksJob(c,ctx,6);if(planks)return planks;
-   return {type:'craft',item:'shield',count:1};
+  // M5 core FIRST: iron pickaxe, then iron sword, then the shield (COMBAT_SPEC 7a: right after
+  // the first ingots) - 6 ingots from one short dig, before the 16-coal / 36-ore expedition
+  // that used to stand between the stone kit and any iron tool at all.
+  const core=IRON_CORE.filter(([item])=>c(item)<1);
+  if(core.length){
+   const ingots=core.reduce((a,[,n])=>a+n,0),sticks=core.reduce((a,[,,n])=>a+n,0);
+   const short=ingots-c('iron_ingot');
+   if(short>0){
+    if(c('raw_iron')<short)return {type:'gather',block:'iron_ore',count:short-c('raw_iron'),radius:32,searchIfMissing:true,targetY:IRON_Y};
+    return smeltIron(c,ctx);
+   }
+   if(c('stick')<sticks){
+    const planks=planksJob(c,ctx,2);if(planks)return planks;
+    return {type:'craft',item:'stick',count:sticks-c('stick')};
+   }
+   const [item]=core[0];
+   if(item==='shield'){const planks=planksJob(c,ctx,6);if(planks)return planks;}
+   return {type:'craft',item,count:1};
   }
+  if(c('coal')<16)return {type:'gather',block:'coal_ore',count:16-c('coal'),radius:32,searchIfMissing:true,targetY:IRON_Y};
+  // The rest of the kit after the core: axe 3, bucket 3 and the armour set 24 = 30 ingots.
+  const rest=IRON_REST.filter(([item])=>c(item)<1).reduce((a,[,n])=>a+n,0);
+  if(c('raw_iron')+c('iron_ingot')<rest)return {type:'gather',block:'iron_ore',count:rest-c('raw_iron')-c('iron_ingot'),radius:32,searchIfMissing:true,targetY:IRON_Y};
+  if(c('raw_iron')>=1&&c('iron_ingot')<rest)return smeltIron(c,ctx);
+  if(c('iron_ore')>=1)return {type:'smelt',item:'iron_ore',count:Math.min(48,c('iron_ore'))};
   // COMBAT_SPEC 7a: replace a nearly-broken weapon before the spider and chicken hunts.
   const fix=replacementJob(c,ctx);if(fix)return fix;
   // Bow: sticks + string from spiders.

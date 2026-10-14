@@ -164,57 +164,81 @@ test('grazeDirection prefers a loaded plains column over peaks',()=>{
  };
  assert.equal(grazeDirection(bot),'south');
 });
-test('the iron step gathers ores below y=48, smelts, then shield, bow, arrows and armour in order',()=>{
- let r=plan(counts({...STONE,_edible:8}));
- assert.equal(r.step,'iron');assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.targetY,48);
- r=plan(counts({...STONE,_edible:8,coal:16}));
- assert.equal(r.job.block,'iron_ore');assert.equal(r.job.targetY,48);assert.equal(r.job.count,36);
- r=plan(counts({...STONE,_edible:8,coal:16,raw_iron:36}));
- assert.equal(r.job.type,'smelt');assert.equal(r.job.item,'raw_iron');
- // COMBAT_SPEC 7a: the shield comes right after the first iron ingot (1 ingot + 6 planks).
- let have={...STONE,_edible:8,coal:16,iron_ingot:36};
- r=plan(counts(have));
- assert.equal(r.step,'iron');assert.equal(r.job.item,'shield');
- // Short on planks: they are crafted from the held logs before the shield.
- r=plan(counts({...have,oak_planks:0}));
+test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield before the rest',()=>{
+ const valid=r=>{assert.equal(jobSchema.safeParse(r.job).success,true,JSON.stringify(r.job));return r;};
+ // Stone kit done, fed: a short ore dig (pickaxe 3 + sword 2 + shield 1), staircase to y=32.
+ let r=valid(plan(counts({...STONE,_edible:8})));
+ assert.equal(r.step,'iron');assert.equal(r.job.type,'gather');assert.equal(r.job.block,'iron_ore');
+ assert.equal(r.job.count,6);assert.equal(r.job.targetY,32);assert.equal(r.job.searchIfMissing,true);
+ r=valid(plan(counts({...STONE,_edible:8,raw_iron:4})));
+ assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,2,'only the missing ore');
+ // Ore in hand: smelt it (logs are fuel at 1.5 items each beyond the planks reserve).
+ r=valid(plan(counts({...STONE,_edible:8,raw_iron:6})));
+ assert.equal(r.job.type,'smelt');assert.equal(r.job.item,'raw_iron');assert.equal(r.job.count,6);
+ // No wood to spare and no coal: one coal ore smelts 8.
+ r=valid(plan(counts({...STONE,oak_log:0,oak_planks:8,_edible:8,raw_iron:6})));
+ assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,1);assert.equal(r.job.targetY,32);
+ r=valid(plan(counts({...STONE,oak_log:0,oak_planks:8,_edible:8,raw_iron:6,coal:1})));
+ assert.equal(r.job.type,'smelt');
+ // Ingots: iron pickaxe first, then the sword, then the shield.
+ let have={...STONE,_edible:8,iron_ingot:6};
+ for(const item of ['iron_pickaxe','iron_sword','shield']){
+  r=valid(plan(counts(have)));
+  assert.equal(r.step,'iron');assert.equal(r.job.type,'craft');assert.equal(r.job.item,item,item);
+  have={...have,[item]:1,iron_ingot:have.iron_ingot-{iron_pickaxe:3,iron_sword:2,shield:1}[item]};
+ }
+ // Sticks short (pickaxe 2 + sword 1): crafted from planks first.
+ r=valid(plan(counts({...STONE,_edible:8,iron_ingot:6,stick:1})));
+ assert.equal(r.job.item,'stick');assert.equal(r.job.count,2);
+ // Shield short on planks: crafted from the held logs; no logs: a short log gather.
+ const shieldNext={...STONE,_edible:8,iron_ingot:1,iron_pickaxe:1,iron_sword:1};
+ r=valid(plan(counts({...shieldNext,oak_planks:0})));
  assert.equal(r.job.type,'craft');assert.equal(r.job.item,'oak_planks');
- // No logs either: a short log gather comes first.
- r=plan(counts({...have,oak_planks:0,oak_log:0}));
+ r=valid(plan(counts({...shieldNext,oak_planks:0,oak_log:0})));
  assert.equal(r.job.type,'gather');assert.equal(r.job.block,'log');
- have={...have,shield:1};
+ // Core done: coal for torches and smelting, then the remaining 30 ore, smelted with it.
+ assert.equal(have.iron_ingot,0);
+ r=valid(plan(counts(have)));
+ assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,16);
+ have={...have,coal:16};
+ r=valid(plan(counts(have)));
+ assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,30);assert.equal(r.job.targetY,32);
+ r=valid(plan(counts({...have,raw_iron:30})));
+ assert.equal(r.job.type,'smelt');assert.equal(r.job.count,30);
+ have={...have,iron_ingot:30};
  // Bow: string from spiders is hunted first.
- r=plan(counts(have));
+ r=valid(plan(counts(have)));
  assert.equal(r.job.type,'hunt');assert.equal(r.job.entity,'spider');
  have={...have,string:6};
- r=plan(counts(have));
+ r=valid(plan(counts(have)));
  assert.equal(r.job.item,'bow');
  have={...have,bow:1};
  // Arrows: flint from gravel, then feathers from chickens, then the craft.
- r=plan(counts(have));
+ r=valid(plan(counts(have)));
  assert.equal(r.job.type,'gather');assert.equal(r.job.block,'gravel');
  have={...have,flint:8};
- r=plan(counts(have));
+ r=valid(plan(counts(have)));
  assert.equal(r.job.type,'hunt');assert.equal(r.job.entity,'chicken');
  have={...have,feather:8};
- r=plan(counts(have));
+ r=valid(plan(counts(have)));
  assert.equal(r.job.item,'arrow');assert.equal(r.job.count,32);
  have={...have,arrow:32};
- // COMBAT_SPEC 7a: pickaxe, sword, axe, then the full armour set right after the gear.
- for(const item of ['iron_pickaxe','iron_sword','iron_axe','iron_helmet','iron_chestplate','iron_leggings','iron_boots','bucket']){
-  r=plan(counts(have));
+ // COMBAT_SPEC 7a: axe, then the full armour set, then the bucket and torches.
+ for(const item of ['iron_axe','iron_helmet','iron_chestplate','iron_leggings','iron_boots','bucket']){
+  r=valid(plan(counts(have)));
   assert.equal(r.step,'iron');assert.equal(r.job.item,item,item);
   have[item]=1;
  }
- r=plan(counts(have));assert.equal(r.job.item,'torch');
+ r=valid(plan(counts(have)));assert.equal(r.job.item,'torch');
  r=plan(counts({...have,torch:8}));assert.equal(r.step,'bed');
 });
 test('a worn weapon is replaced before the iron step hunts spiders (COMBAT_SPEC 7a)',()=>{
- const have={...STONE,_edible:8,coal:16,iron_ingot:36,shield:1};
- // Nearly-broken stone sword, no fresh spare: replaced in the best payable tier - iron here.
- let r=plan(counts({...have,stone_sword:1,_worn_stone_sword:1}));
+ const have={...STONE,_edible:8,coal:16,iron_ingot:36,iron_pickaxe:1,shield:1};
+ // Nearly-broken iron sword, no fresh spare: replaced in the best payable tier - iron here.
+ let r=plan(counts({...have,iron_sword:1,_worn_iron_sword:1}));
  assert.equal(r.step,'iron');assert.equal(r.job.type,'craft');assert.equal(r.job.item,'iron_sword');
  // With a fresh spare the spider hunt for bow string proceeds.
- r=plan(counts({...have,stone_sword:2,_worn_stone_sword:1}));
+ r=plan(counts({...have,iron_sword:2,_worn_iron_sword:1}));
  assert.equal(r.job.type,'hunt');assert.equal(r.job.entity,'spider');
 });
 test('worn combat gear is replaced before the food and bed hunts (COMBAT_SPEC 7a)',()=>{
