@@ -123,6 +123,16 @@ def job_evidence(jobs):
         out.append({'type':spec.get('type'),'of':spec.get('block') or spec.get('item') or spec.get('entity'),
                     'status':j['status'],'progress':j.get('progress'),'message':(j.get('message') or '')[:140]})
     return out
+def meals_delta(state,run):
+    # worker.meals is session-wide (eaten = food-bar rises right after a consume, i.e. the
+    # eat job, auto-eat, FoodChain and the fight's disengage-eat; cooked = food smelted).
+    # The run's share is the difference from its start; a dashboard restart resets the
+    # counters, so a negative difference counts from zero.
+    now=state.get('meals') or {};mark=run.get('meals_mark') or {}
+    if now.get('eaten',0)<mark.get('eaten',0):mark={}
+    items={k:v-(mark.get('items') or {}).get(k,0) for k,v in (now.get('items') or {}).items()}
+    return {'eaten':now.get('eaten',0)-mark.get('eaten',0),'points':now.get('points',0)-mark.get('points',0),
+            'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0}}
 def first_sample_at(samples,key,n=1):
     for s in samples:
         if s.get(key,0)>=n:return s['t']
@@ -233,6 +243,8 @@ def run_one(index,spawn,seconds=600):
         run['deaths_mark']=_ev.count('Bot died at')
     except Exception:
         run['deaths_mark']=0
+    try:run['meals_mark']=dict(api('state').get('meals') or {})
+    except Exception as e:run['meals_mark']={};run['errors'].append('meals mark: '+str(e)[:80])
     start=time.time();deaths=0;deaths_prev=0;stuck_count=0;stuck_key=None
     while time.time()-start<seconds:
         time.sleep(30)
@@ -257,7 +269,7 @@ def run_one(index,spawn,seconds=600):
                     'wood_pick':inv.get('wooden_pickaxe',0),'table':inv.get('crafting_table',0),
                     'stone_pick':inv.get('stone_pickaxe',0),
                     'stone_sword':inv.get('stone_sword',0),'furnace':inv.get('furnace',0),
-                    'food_items':o['inventory'].get('_edible',0),'deaths':deaths}
+                    'food_items':o.get('edible',0),'eaten':meals_delta(state,run)['eaten'],'deaths':deaths}
             run['samples'].append(sample)
             # Operator role: a death pauses everything and needs an explicit resume before the
             # ladder will move again. The death also disables the autopilot within a second
@@ -339,7 +351,9 @@ def run_one(index,spawn,seconds=600):
         run['achieved']={k:inv.get(k,0) for k in ('stick','crafting_table','wooden_pickaxe','wooden_axe','wooden_sword','wooden_shovel','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace','torch')}
         run['achieved']['logs_total']=sum(v for k,v in inv.items() if k.endswith('_log'))
         run['achieved']['planks_total']=sum(v for k,v in inv.items() if k.endswith('_planks'))
-        run['achieved']['edible_food']=o['inventory'].get('_edible',0)
+        # observe's `edible` (registry foods minus the never-eat list): the old
+        # o['inventory']['_edible'] key never existed, so every food count read 0.
+        run['achieved']['edible_food']=o.get('edible',0)
         # Step completion matches the ladder's own done() predicates.
         run['wood']=run['achieved']['wooden_pickaxe']>=1 and run['achieved']['crafting_table']>=1
         run['stone']=all(run['achieved'].get(k,0)>=1 for k in ('stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace'))
@@ -349,7 +363,8 @@ def run_one(index,spawn,seconds=600):
         # food = the run obtained edible food at any sample; tod_end shows whether the hard
         # runs actually crossed dusk/night (first-night milestone).
         peak_food=max([s.get('food_items',0) for s in run['samples']]+[0])
-        run['food']=peak_food>=1 or run['achieved']['edible_food']>=1
+        meals=run['meals']=meals_delta(state,run)
+        run['food']=peak_food>=1 or run['achieved']['edible_food']>=1 or meals['eaten']>=1 or meals['cooked']>=1
         run['edible_peak']=peak_food
         run['tod_end']=o.get('timeOfDay')
         run['final_state']=o['autopilot']
@@ -378,6 +393,7 @@ def run_one(index,spawn,seconds=600):
         time.sleep(2)
     except Exception as e:run['errors'].append('end cancel: '+str(e)[:120])
     print(f"--- run {index}: wood={'YES' if run.get('wood') else 'no'} stone={'YES' if run.get('stone') else 'no'} "
+          f"food={'YES' if run.get('food') else 'no'} (peak {run.get('edible_peak',0)}, eaten {(run.get('meals') or {}).get('eaten',0)}, cooked {(run.get('meals') or {}).get('cooked',0)}) "
           f"deaths={run['deaths']} resumes={run['resumes']} interventions={len(run['interventions'])} errors={len(run['errors'])}",flush=True)
     return run
 def _median(vals):
@@ -391,6 +407,8 @@ def summarise(runs):
     return {'wood_runs':sum(1 for r in runs if r.get('wood')),'stone_runs':sum(1 for r in runs if r.get('stone')),
             'food_runs':sum(1 for r in runs if r.get('food')),
             'edible_peak':[r.get('edible_peak',0) for r in runs],'edible_end':[(r.get('achieved') or {}).get('edible_food',0) for r in runs],
+            'eaten':[(r.get('meals') or {}).get('eaten',0) for r in runs],'food_points':[(r.get('meals') or {}).get('points',0) for r in runs],
+            'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],
             'tod_end':[r.get('tod_end') for r in runs],
             'wood_at':[r.get('wood_at') for r in runs],'stone_at':[r.get('stone_at') for r in runs],
             'deaths':sum((r.get('deaths') or 0) for r in runs),'resumes':sum((r.get('resumes') or 0) for r in runs),

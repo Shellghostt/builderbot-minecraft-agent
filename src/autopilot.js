@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {Vec3} from 'vec3';
 import {dayTicks,isNight} from './daytime.js';
+import {EDIBLE_SKIP} from './observe.js';
 
-const EDIBLE_SKIP=new Set(['rotten_flesh','spider_eye','poisonous_potato','pufferfish']);
 const BED=/(_bed)$/;
 const WOOLS=['white_wool','light_gray_wool','gray_wool','black_wool','brown_wool','red_wool','orange_wool','yellow_wool','lime_wool','green_wool','cyan_wool','light_blue_wool','blue_wool','purple_wool','magenta_wool','pink_wool'];
 const countFactory=count=>name=>count[name]||0;

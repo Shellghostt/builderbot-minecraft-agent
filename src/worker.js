@@ -47,6 +47,7 @@ export class Worker extends EventEmitter {
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
   this.reflexEnabled=config.reflexes!==false;this.reflexBusy=false;this.reflexStopping=false;this.userStopped=false;this.deathResume=false;this.eating=false;
   this.runSettled=null;this.controlToken=null;this.lastDeath=null;this.combat=combat; // reflex-side ownership token (see reflexes.js)
+  this.meals={eaten:0,points:0,cooked:0,items:{}}; // food accounting for the soak (trackMeals, smelt)
   this.autopilot=new Autopilot(this,root);
   // Phase 7A: the AltoClef task runner owns survival behaviour (mob defense, food, world
   // survival, respawn) while the verified job queue keeps executing jobs. reflexes.js is
@@ -127,7 +128,7 @@ export class Worker extends EventEmitter {
   if(!replaced){try{fs.writeFileSync(this.file,JSON.stringify(this.jobs));replaced=true;}catch{}}
  }
  log(message){this.events.unshift({time:new Date().toISOString(),message});this.events=this.events.slice(0,100);this.emit('event',message);}
- state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null};}
+ state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null,meals:this.meals};}
  setReflexes(enabled){this.reflexEnabled=!!enabled;this.log(enabled?'Reflexes enabled':'Reflexes disabled');}
  // Idle-time armour upkeep, kept from the retired reflex loop (COMBAT_SPEC 7f armour gates).
  autoArmour(){
@@ -160,7 +161,7 @@ export class Worker extends EventEmitter {
  connect(){
   if(this.bot)return;
   const bot=this.bot=mineflayer.createBot({...this.config.server,hideErrors:true});
-  installMovementFix(bot);installWeatherFix(bot);
+  installMovementFix(bot);installWeatherFix(bot);this.trackMeals(bot);
   bot.loadPlugin(pathfinder);bot.loadPlugin(toolPackage.plugin);
   bot.once('spawn',()=>{this.ready=true;const movement=this.movements=this.normalMovements(bot);bot.pathfinder.setMovements(movement);bot.pathfinder.searchRadius=128;// in blocks: bounds searches for unreachable goals; legit paths may still cost up to goal distance + 128
   if(!this.trackersTimer){ // tracker refresh + preemption resume + idle armour, port of the reflex cadence
@@ -555,6 +556,7 @@ export class Worker extends EventEmitter {
    if(placedFurnace){try{await this.pickUp(placedFurnace,'furnace',token);}catch(e){this.log('Left the furnace at '+placedFurnace);}}
   }
   if(this.count(outputName)<before+s.count)throw Error(`Smelting did not produce ${s.count} ${outputName}`);
+  if(b.registry.foodsByName&&b.registry.foodsByName[outputName])this.meals.cooked+=s.count;
  }
  async sleep(job,token){
   const b=this.bot;
@@ -584,6 +586,25 @@ export class Worker extends EventEmitter {
   this.update(job,1,'Sleeping until morning');
   while(b.isSleeping){await sleep(1000);this.check(token);}
   if(isNight(b))throw Error('Woke up before morning');
+ }
+ // A meal is a food-bar rise within 5 s of a consume. Every eat path (eat job, reflex,
+ // FoodChain, the fight's disengage-eat) goes through bot.consume; a respawn's full bar or
+ // an effect is not a meal. The soak diffs these counters per run (M4 food, measured).
+ trackMeals(bot){
+  const consume=bot.consume&&bot.consume.bind(bot);
+  if(consume)bot.consume=(...args)=>{this._consumeAt=Date.now();this._consumeItem=bot.heldItem&&bot.heldItem.name||null;return consume(...args);};
+  let last=null;
+  bot.on('health',()=>{
+   const food=bot.food;
+   if(typeof food!=='number')return;
+   if(last!=null&&food>last&&Date.now()-(this._consumeAt||0)<5000){
+    this.meals.eaten++;this.meals.points+=food-last;
+    const item=this._consumeItem||'unknown';this.meals.items[item]=(this.meals.items[item]||0)+1;
+    this._consumeAt=0;
+   }
+   last=bot.health>0?food:null;
+  });
+  bot.on('death',()=>{last=null;});
  }
  async retreatSprint(token,target,seconds=3){
   // Plain sprint away from the threat; no pathfinder goal means nothing left running can

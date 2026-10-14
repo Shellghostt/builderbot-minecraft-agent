@@ -32,6 +32,13 @@ function biomeAt(bot,origin){
  const id=column?.getBiome?.({x:origin.x&15,y:origin.y,z:origin.z&15});
  return id==null?null:cleanName(bot.registry?.biomes?.[id]?.name);
 }
+// Food the bot would actually eat (registry foods minus the autopilot's never-eat list).
+// The soak's food metric reads this: its old `_edible` key never existed in observe.
+export const EDIBLE_SKIP=new Set(['rotten_flesh','spider_eye','poisonous_potato','pufferfish']);
+export function edibleCount(bot){
+ const foods=bot.registry&&bot.registry.foodsByName||{};
+ return bot.inventory.items().filter(i=>foods[i.name]&&!EDIBLE_SKIP.has(i.name)).reduce((a,i)=>a+i.count,0);
+}
 function timeOfDay(value){const tick=((value||0)%24000+24000)%24000;return tick<12000?'day':tick<13800?'dusk':tick<22200?'night':'dawn';}
 export function survey(bot){
  const origin=bot.entity.position.floored(),feet=bot.blockAt(origin),blocks={};
@@ -61,5 +68,6 @@ export function survey(bot){
   held:bot.heldItem?{name:bot.heldItem.name,count:bot.heldItem.count}:null,
   armor:{head:slot(5),chest:slot(6),legs:slot(7),feet:slot(8)},
   inventory:bot.inventory.items().reduce((map,item)=>{map[item.name]=(map[item.name]||0)+item.count;return map;},{}),
+  edible:edibleCount(bot),
   blocks:Object.fromEntries(Object.entries(blocks).map(([key,entry])=>[key,{count:entry.count,at:entry.at}])),entities,drops,...(creeper?{creeper}:{})};
 }
