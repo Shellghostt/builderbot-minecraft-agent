@@ -684,3 +684,153 @@ because the step verifies it.
 - **Iron:** with a long smelt at the bell, ingots should already be held. `Smelt ended early:
   took N iron_ingot ...` appears when the job is cut off.
 - **Not changed:** the combat pillar and bow, the shelter, the bed prep, the soak harness.
+
+## Cloud session round 5 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_5.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **343 passed, 0 failed** (304 at the start
+of the round, plus 39 new). `tests/soak_metrics_check.py` (now with deaths) and
+`tests/combat_damage_check.py` pass. One commit per task on `main` (`d96b59f`..`b4b71d2`).
+All six tasks were done.
+
+1. **Night survival in the dark forest** (`d96b59f`, new `src/night.js`).
+   - Cause of `Pause trace: shelter -> Reflex: preempted by Mob Defense`: the survival gate
+     took the *first* running/queued job in the array. A gather that Mob Defense had paused
+     was resumed by the cadence bridge (queued, earlier in the array than the night
+     shelter), so the pump ran it first and the gate let Mob Defense preempt both.
+     - The gate now asks `worker.survivalHold()`: the running job when it is one, else (nothing
+       running) a queued or reflex-paused sleep/eat/shelter anywhere in the queue.
+     - The pump runs a queued survival job before any other queued job.
+     - World threats (lava, fire, a wall, powder snow, drowning) still pass the gate.
+   - **Sunset start.** The night job goes out at `SUNSET` 12000, about 50 s before the first
+     spawns (a bed still waits for 12541). Dusk dirt runs 10000..12000 and bed prep stops at
+     sunset. The shelter job itself starts at 12000.
+   - **Sealed box.** `shelterShell` is the feet ring, the head ring, the full 3x3 roof and the
+     floor under the feet when it is open (26 cells).
+     - Placement runs in passes, so a cell anchors on one placed earlier.
+     - On a pillar top or a ledge, a support ring goes under the feet ring first.
+     - A mob standing in a cell is hit, never built into. A cell that still cannot close fails
+       the job with its position (`Could not seal the shelter: N open cells, first at x,y,z`).
+     - The night job is retried up to 3 times while it is dark. After that there is no day work
+       until morning (`night: no shelter; holding for morning`), and a failing night job never
+       turns into a ladder "blocked" explore.
+   - **Staying in.** Once sealed (`worker.shelterSealed`), Mob Defense is off. The job's guard
+     loop (every 250 ms) only hits a mob inside the box or standing at an open cell within
+     reach, then re-seals the gap. The Food chain may eat inside a sealed box (side effect
+     only; its collect band stays off). A shelter resumed somewhere else (after a water or fire
+     escape) builds a new box there.
+   - **FoodChain never ate.** It passed `{name,fills}` to `bot.equip`, which moves `item.slot`.
+     It now equips the real stack. This is likely why eaten/food points read 0 on every soak
+     run, and why hard3 sat in its shelter at 8.3 hp.
+   - **Caught outside after dark** (no shelter job), with a crowd (3+ hostiles within 16, or one
+     within 8 that the fight policy refuses), 3+ blocks held and room for a 3-high column:
+     `NightPillarTask` (Mob Defense, 72).
+     - Climb as in the combat pillar, then hold until morning or 15 s with nothing within 16.
+     - Shield toward archers. Hit only what reaches the top.
+     - A perched bot stays up even when a creeper fuses at the base. A failed climb waits 10 s.
+   - **Flee heading.** RunAway tasks steer away from the whole crowd, weighted by closeness,
+     not just the nearest mob. They never head into water, lava, a drop deeper than 3 or
+     through another mob within 8; with every heading wet they stand. When tonight's shelter
+     spot is within 24, headings toward it get a small bonus.
+   - **Respawn at night** (death within the last minute, alive again, autopilot on, no user
+     Stop): shelter (or sleep, at a bed spawn) at the spawn point first.
+     `submit(spec,{keepHolds:true})` keeps the death hold, so the ladder still reads
+     `paused: died` afterwards.
+   - `tests/night.test.js` (22).
+2. **Drowned** (`2fd5e2b`).
+   - The drowning jump was only a side effect inside the world chain's priority, and Mob
+     Defense's blind forward sprint kept steering the submerged bot.
+     - Drowning is now a band at 97 (the creeper fuse is 96, lava/fire 100), latched from air
+       6 or less until air 18 or the head is out. It runs `ctx.move` GetOutOfWaterTask (path to
+       land plus jump), or `SwimUpTask` without it.
+   - A swimming bot's flee heading goes to the shore (water costs per cell instead of ruling a
+     heading out). `KeepDistanceTask` and the fight job's `retreatSprint` use the same heading.
+   - The pathfinder gets a deep-water step hook (water with water above or below): banned after
+     dark, cost 12 by day, off while the bot itself is in the water.
+   - `tests/drowning.test.js` (5) and the updated chains drowning test.
+3. **Soak death counter** (`389c496`).
+   - Causes of 1 counted where the log had 4:
+     - the `Bot died at` count read a 100-event window that the flee storm scrolls in one sample;
+     - the log regex `was|blew up|fell|died` missed `drowned`;
+     - the per-death parse moved `logmark`, so the final parse saw only the tail;
+     - the final log parse shared a `try` with the dashboard read, which timed out on hard3.
+   - The worker keeps `deaths` (monotonic) and `deathLog` (position, nearby killer, running job)
+     in `/api/state`.
+   - `soak.py` takes the max of three sources: that counter's rise, the run's whole log slice
+     (fixed start, every vanilla death message, chat/leave/kick lines excluded) and the window.
+     It does this at every sample and once more, dashboard-free, at the end. The run record
+     adds `death_sources` and `death_log`.
+4. **Hard runs never craft a furnace** (`2d8d031`).
+   - Cause: on a dawn start the hard stone pickaxe lands at sunset (541 s / 631 s; sunset is
+     600 s). The night branch cancelled the stone gather and the shelter held the rest of the
+     run, so hard2 slept on 24 cobble with 14 needed.
+     - The shelter also preferred cobble, and its dawn cleanup dug bare-handed, so cobble
+       dropped nothing (and took about 7 s a block).
+   - Fixes:
+     - The stone gather asks for the remaining kit cost + 4 (21 from zero), not 32.
+     - In a 600-tick sunset grace with no hostile within 16, any stone-kit craft affordable
+       right now (`duskKitJob`) runs before the shelter. A running craft is never cut by the
+       night branch.
+     - `worker.cobbleReserve` (published by the autopilot) keeps the kit's cobble out of the
+       shelter: dirt first, reserved cobble only as a last resort. The shelter counts every
+       block kind together (26), and dusk dirt counts only spare cobble.
+     - The cleanup equips the right tool per block.
+   - `tests/hard-kit.test.js` (7). Two gather-count expectations changed (32 to 21, 27 to 7).
+5. **Connection timeout** (`a2bd234`, new `src/loop-watch.js`).
+   - Nothing in the repo blocks for the ~30 s a keep-alive timeout needs (keep-alives are exempt
+     from the packet budget).
+   - The new drowning path would have added a real hot loop: `GetOutOfWaterTask` rescanned for
+     land (~17k `blockAt` at radius 24) on every 50 ms tick when no shore was reachable. It now
+     searches at most once a second, radius 16.
+   - Watchdog:
+     - `LOOP_SLOW <runner|cadence|autopilot> tick N ms (...)` over 500 ms. The runner line adds
+       each chain's priority time and the active chain/task.
+     - `LOOP_STALL event loop N ms late` from a 250 ms lag timer.
+     - Both go to the console and the event log, one line per 5 s per source.
+   - `tests/loop-watch.test.js` (4).
+6. **Lane creeper** (`b4b71d2`, `tests/combat_integration.py`).
+   - Cause: the bot (1496,1518) and the creeper (1504,1504) were 16.1 apart, past the fight's
+     16-block range, and the line crossed the wall beside the gate. The job completed at ttk 0
+     and the creeper never saw the bot.
+   - Now both are on the lane's centre line, 10 apart (bot 1499,-60,1518, creeper
+     1499,-60,1508), and the open lane between them is asserted. Crater checks are on the
+     lane's glowstone floor. `4b_creeper_roofed` is unchanged.
+
+### Files
+
+`src/night.js` (new), `src/loop-watch.js` (new), `src/worker.js`, `src/autopilot.js`,
+`src/chains/{mobDefenseChain,worldSurvivalChain,fallbackTasks,foodChain}.js`,
+`src/tasks/runner.js`, `src/tasks/movement/get-out-of-water-task.js`; `tests/soak.py`,
+`tests/soak_metrics_check.py`, `tests/combat_integration.py`. New tests: `night`, `drowning`,
+`deaths`, `hard-kit`, `loop-watch` (`.test.js`); updated cases in `chains`, `autopilot`,
+`stone-step`.
+
+### Needs live verification
+
+- **Soak, hard nights (dark forest):**
+  - The night job at about 600 s: `Autopilot [night] {"type":"shelter"}` at tod 12000, then
+    `Shelter: sealed at x,y,z (N blocks placed)` before the first spawns.
+  - There should be no `Pause trace: shelter -> Reflex: preempted by Mob Defense` and no
+    `Reflex: fleeing` while sealed. `Shelter: hitting <mob> at a gap` and `re-sealing` only
+    after a blast.
+  - No `shot by Skeleton` during `shelter`.
+- **Food inside the shelter:** the meals counter should rise (`eaten` > 0 in the soak record)
+  now that FoodChain's equip works. Watch that chain eating does not disturb fights or crafts.
+- **Hard kit:** `Autopilot: sunset - finishing the stone kit first (stone_sword)` and the
+  rest, then the furnace before the shelter. At dawn the cleanup should return the cobble (a
+  pickaxe equip per block).
+- **Respawn at night:** `Autopilot: respawned at night; shelter at the spawn point first`,
+  while the state still reads `paused: died` until the operator resumes.
+- **Caught outside:** `Reflex: night crowd (N hostiles); pillaring up instead of fleeing`,
+  `Night: perched 3 up; holding until morning`. On a failed climb: `Night: pillar-up failed`.
+- **Water:** `WorldSurvival: drowning (air N), swimming up`. No `drowned` in the server log.
+  Flee lines should not end in a lake.
+- **Deaths:** the soak run line should match the server log. Check `death_sources`
+  (counter/log/window) in the results JSON.
+- **Loop:** grep the bot console for `LOOP_SLOW` / `LOOP_STALL` and report any line. Normal play
+  should print none.
+- **Combat `4_creeper`:** expect real engagement now (`arrow creeper`, pillar 2 under the lane
+  roof, or the wall) and non-zero ttk. The numbers are new and not comparable with earlier
+  lane runs.
+- **Not changed:** the combat pillar and bow, the bed prep (it now ends at sunset), the iron
+  step.
