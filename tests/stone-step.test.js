@@ -109,7 +109,7 @@ function hillGather(w,{reach=4.5,count=3}={}){
     if(opts.stopWhen())break;
    }
   },
-  gatherFailed:Worker.prototype.gatherFailed,gatherBlacklisted:Worker.prototype.gatherBlacklisted};
+  gatherFailed:Worker.prototype.gatherFailed,gatherBlacklisted:Worker.prototype.gatherBlacklisted,takeStrandedTunnel:Worker.prototype.takeStrandedTunnel};
  return {worker,calls,cobble:()=>cobble,job:{spec:{type:'gather',block:'stone',count,radius:32,searchIfMissing:true}}};
 }
 test('a stone gather on a dirt hill digs down where it stands and mines the tunnel walls',async()=>{
@@ -146,7 +146,7 @@ test('a gather that collects nothing rescans at most once per second',async()=>{
 });
 test('a natural-only tunnel step refuses a built block and a missing floor',async()=>{
  const w=hill();w.set(1,129,0,'oak_planks');
- const fake={bot:{blockAt:p=>w.blockAt(p.x,p.y,p.z),inventory:{items:()=>[]},tool:{async equipForBlock(){}},async dig(){}},check(){}};
+ const fake={bot:{blockAt:p=>w.blockAt(p.x,p.y,p.z),inventory:{items:()=>[]},tool:{async equipForBlock(){}},async dig(bl){w.set(bl.position.x,bl.position.y,bl.position.z,'air');}},check(){},clearCells:Worker.prototype.clearCells};
  await assert.rejects(Worker.prototype.digTunnelStep.call(fake,{},0,new Vec3(1,129,0),true,natural),/not natural terrain/);
  w.set(1,129,0,'dirt');w.set(1,128,0,'air');
  await assert.rejects(Worker.prototype.digTunnelStep.call(fake,{},0,new Vec3(1,129,0),true,natural),/no floor/);

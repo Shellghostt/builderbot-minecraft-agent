@@ -15,7 +15,7 @@ function gatherFake(block){
  const w={
   bot:{registry,entity:{position:new Vec3(0.5,20,0.5)},inventory:{items(){return [];},emptySlotCount(){return 30;}},
    pathfinder:{movements:null,setMovements(){}},findBlocks(o){seen.push(o.matching);throw STOP;},blockAt(){return null;}},
-  config:{limits:{radius:32}},count(){return 0;},save(){},check(){},update(){},exploreMovements(){return {};}
+  config:{limits:{radius:32}},count(){return 0;},save(){},check(){},update(){},exploreMovements(){return {};},takeStrandedTunnel:Worker.prototype.takeStrandedTunnel
  };
  return {w,seen,job:{spec:{type:'gather',block,count:2,radius:32}}};
 }

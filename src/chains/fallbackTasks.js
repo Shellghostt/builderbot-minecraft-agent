@@ -15,6 +15,7 @@ import {dayTicks} from '../daytime.js';
 import {yawToward} from '../heading.js';
 import {dist,onFire,inGame} from './settings.js';
 import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
+import {NATURAL_DIG,isGravity} from '../digDown.js';
 
 const setControl=(bot,name,value)=>{try{bot.setControlState(name,value);}catch{}};
 const look=async(bot,yaw,pitch)=>{try{await bot.look(yaw,pitch,false);}catch{}};
@@ -186,6 +187,42 @@ export class EscapeFreezingTask extends Task{
   return null;
  }
  onStop(bot){forget(bot,'jump','sprint','forward');}
+ isEqual(o){return o&&o.constructor===this.constructor;}
+}
+// Head inside a solid block: sand or gravel that fell on the bot in a tunnel, or a stop that
+// left it wedged (soak hard1/hard2 2026-10-14, 'suffocated in a wall' twice; nothing moved
+// the bot once the low-health stop froze the job). Dig the block out (one dig at a time: a
+// re-dig every tick restarts it and floods the server with dig packets). Only natural
+// terrain and falling blocks are dug; inside anything else the bot pushes toward the side
+// whose feet and head cells are open.
+const suffocates=bl=>!!bl&&bl.boundingBox==='block'&&!/_leaves$|glass|_slab$|_stairs$|fence|_wall$|door|pane|_bars$|chest|scaffolding|^snow$|farmland|dirt_path|_carpet$|ladder|vine/.test(bl.name);
+export class EscapeSuffocationTask extends Task{
+ constructor(){super('EscapeSuffocationTask');this.digging=null;}
+ static cells(bot){const p=bot.entity.position;return [bot.blockAt&&bot.blockAt(p.offset(0,1.62,0)),bot.blockAt&&bot.blockAt(p.offset(0,0.2,0))];}
+ static inWall(bot){return !!(bot&&bot.entity&&bot.entity.position&&suffocates(EscapeSuffocationTask.cells(bot)[0]));}
+ static diggable(bl){return NATURAL_DIG.has(bl.name)||isGravity(bl)||/_ore$/.test(bl.name);}
+ isFinished(bot,ctx){return !EscapeSuffocationTask.inWall(bot);}
+ onTick(bot,ctx){
+  if(this.digging)return null;
+  const [head,feet]=EscapeSuffocationTask.cells(bot);
+  const target=[head,feet].find(bl=>suffocates(bl)&&EscapeSuffocationTask.diggable(bl));
+  if(target){
+   forget(bot,'forward','jump');
+   const w=ctx&&ctx.worker;if(w&&w.log)try{w.log('WorldSurvival: head in '+target.name+' at '+target.position+', digging out');}catch{}
+   this.digging=(async()=>{
+    try{if(bot.tool&&bot.tool.equipForBlock)await bot.tool.equipForBlock(target);}catch{}
+    try{await bot.dig(target);}catch{}
+   })().finally(()=>{this.digging=null;});
+   return null;
+  }
+  const me=bot.entity.position;
+  for(const[dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){
+   const open=[0.2,1.62].every(dy=>!suffocates(bot.blockAt&&bot.blockAt(me.offset(dx,dy,dz))));
+   if(open){look(bot,yawToward(dx,dz),0);setControl(bot,'forward',true);setControl(bot,'jump',true);return null;}
+  }
+  return null;
+ }
+ onStop(bot){forget(bot,'forward','jump');if(this.digging)try{bot.stopDigging();}catch{}}
  isEqual(o){return o&&o.constructor===this.constructor;}
 }
 export class GetToBlockTask extends Task{

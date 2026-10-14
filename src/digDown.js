@@ -8,6 +8,12 @@ const SIDES=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
 export const STONE_NEAR=16,STONE_DIG_DOWNS=3,STONE_DIG_DEPTH=6,STONE_DIG_MIN=3;
 export const isFluid=bl=>!!bl&&(bl.name==='water'||bl.name==='lava'||bl.name==='bubble_column');
+// Terrain the bot may dig through on its own (tunnels, explore, a suffocation escape).
+export const NATURAL_DIG=new Set(['dirt','grass_block','coarse_dirt','rooted_dirt','podzol','mycelium','mud','moss_block','sand','red_sand','gravel','clay','stone','cobblestone','deepslate','cobbled_deepslate','andesite','granite','diorite','tuff','calcite','dripstone_block','sandstone','netherrack','soul_sand','soul_soil','end_stone','snow','snow_block','packed_mud','terracotta']);
+// Blocks that fall when the block under them is dug out. A sand or gravel stack over a
+// tunnel step falls into the step, and onto the bot if it has already walked in (soak hard1
+// and hard2, 2026-10-14: 'suffocated in a wall' twice during the stone dig-down).
+export const isGravity=bl=>!!bl&&/^(sand|red_sand|gravel|suspicious_sand|suspicious_gravel|.*_concrete_powder|anvil|chipped_anvil|damaged_anvil)$/.test(bl.name);
 const solid=bl=>!!bl&&bl.boundingBox==='block';
 // A face touches open, non-fluid space (air, a cave, a dug tunnel): the bot can stand there
 // and swing at it. Unloaded neighbours (null) do not count as open.
@@ -25,7 +31,7 @@ export function stoneBeside(blockAt,feet,isTarget){
 // step) in each of the four directions from `start`, and returns the direction that goes
 // deepest, then the one through the most target blocks. A step is refused when a cell is
 // bedrock or not natural terrain (never a player-made block), when a fluid touches a cell,
-// or when its floor is not solid (no drop into a cave or out from under a canopy). Null when
+// when sand or gravel sits on top of the step (it would fall into the tunnel), or when its floor is not solid (no drop into a cave or out from under a canopy). Null when
 // no direction clears `min` steps. It never digs straight down: every step moves sideways.
 export function pickStairDir(blockAt,start,{isNatural,isTarget=()=>false,steps=STONE_DIG_DEPTH,min=STONE_DIG_MIN}={}){
  let best=null;
@@ -42,7 +48,7 @@ export function pickStairDir(blockAt,start,{isNatural,isTarget=()=>false,steps=S
     if(isTarget(bl))hits++;
    }
    const floor=blockAt(x,y-1,z);
-   if(!ok||!solid(floor)||isFluid(floor))break;
+   if(!ok||!solid(floor)||isFluid(floor)||isGravity(blockAt(x,y+3,z)))break;
    clear=k;
   }
   if(clear>=min&&(!best||clear>best.steps||(clear===best.steps&&hits>best.stone)))best={dir:new Vec3(dx,0,dz),steps:clear,stone:hits};

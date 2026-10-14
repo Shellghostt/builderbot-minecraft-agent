@@ -21,7 +21,7 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress} from './move-safety.js';
-import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN} from './digDown.js';
+import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
@@ -34,7 +34,6 @@ function guardDiagonals(movement){
  movement.getMoveDiagonal=(node,dir,neighbors)=>{for(const [x,z]of [[dir.x,0],[0,dir.z]])for(let dy=0;dy<=2;dy++)if(movement.getBlock(node,x,dy,z).physical)return;diagonal(node,dir,neighbors);};
  return movement;
 }
-const NATURAL_DIG=new Set(['dirt','grass_block','coarse_dirt','rooted_dirt','podzol','mycelium','mud','moss_block','sand','red_sand','gravel','clay','stone','cobblestone','deepslate','cobbled_deepslate','andesite','granite','diorite','tuff','calcite','dripstone_block','sandstone','netherrack','soul_sand','soul_soil','end_stone','snow','snow_block','packed_mud','terracotta']);
 // Blocks a gather job may descend for: they live underground when no exposure is in range.
 const UNDERGROUND=/(_ore$|^deepslate|^stone$|^cobblestone$|^tuff$)/;
 // Stone-family gathers without a depth: exposed blocks near the bot first, else dig down.
@@ -48,6 +47,11 @@ export const GATHER_RESCAN_MS=1000;
 // the reach fallbacks (reachUp, descendToReach, canopyDrop) already ran before the throw.
 const UNREACHABLE_BLOCK=/Cannot reach or harvest|Walked onto the target|Fluid (beside|under) target/;
 export const GATHER_BLACKLIST_SECONDS=600;
+// Tunnel settle: rounds of re-digging a step while sand/gravel keeps falling into it, and the
+// wait for a falling block to land before the cells are read again.
+export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
+// Jobs that climb out of a stranded tunnel before they start (surface work).
+const STRANDED_CLIMB=new Set(['goto','explore','hunt','collect','shear','breed','deposit','build','place']);
 // Stops that are not the user's: they pause the queue but leave the autopilot running. A
 // 'user' stop sets userStopped, and the autopilot reads that as Stop all and switches off -
 // which is how its own food-explore cancel and the job watchdog idled normal3 twice.
@@ -1161,7 +1165,21 @@ export class Worker extends EventEmitter {
   }
   if(gained()-before<s.count)throw Error(`Hunting collected only ${gained()-before}/${s.count} drops from ${s.entity}`);
  }
+ // The tunnel an interrupted gather left the bot in, if the bot is still at its bottom. Set
+ // on every staircase step (so no unwind race can lose it), cleared once a climb succeeds; the
+ // job that dug it keeps it (its own job.tunnel climbs).
+ takeStrandedTunnel(jobId){
+  const t=this.strandedTunnel;if(t&&t.job===jobId)return null;this.strandedTunnel=null;
+  const p=this.bot?.entity?.position,last=t?.points?.[t.points.length-1];
+  if(!p||!last||p.distanceTo(new Vec3(last.x+0.5,last.y,last.z+0.5))>2.5)return null;
+  return t.points;
+ }
  async run(job,token){const spec=job.spec;
+  // Surface work never starts down a tunnel another job was stopped in: climb it first.
+  if(STRANDED_CLIMB.has(spec.type)){
+   const points=this.takeStrandedTunnel();
+   if(points){this.log('Climbing out of the tunnel an interrupted gather left ('+points.length+' steps)');try{await this.climbTunnel({tunnel:points},token);}catch(e){this.check(token);this.log('Could not climb back up the tunnel: '+e.message);}}
+  }
   if(spec.type==='goto'){await this.walk(pos(spec.position),token,1);return;}
   if(spec.type==='gather')return this.gather(job,token);
   if(spec.type==='craft')return this.craft(job,token);
@@ -1201,6 +1219,9 @@ export class Worker extends EventEmitter {
   const id=anyLog?undefined:b.registry.blocksByName[s.block]?.id;if(!anyLog&&id===undefined)throw Error('Unknown block '+s.block);
   const denied=/^(bedrock|.*chest|.*shulker_box|.*door|.*bed|.*furnace|.*barrel|.*torch|.*sign|.*portal|.*spawner|.*command_block|water|lava|.*planks|glass.*|.*bricks)$/;
   if(denied.test(s.block))throw Error('Gathering this block is disabled to protect structures');
+  // A gather stopped down its tunnel (a stop, timeout or ladder cancel) left the bot there:
+  // this one climbs that tunnel when it ends, like its own.
+  const stranded=this.takeStrandedTunnel(job.id);if(stranded&&!job.tunnel?.length)job.tunnel=stranded;
   if(!job.anchor)job.anchor=b.entity.position.floored();if(job.startCount===undefined)job.startCount=this.count(s.block);
   const logSum=()=>b.inventory.items().filter(i=>i.name.endsWith('_log')).reduce((a,i)=>a+i.count,0);
   if(anyLog)job.dropName='log';
@@ -1426,7 +1447,7 @@ export class Worker extends EventEmitter {
    // A reflex or user stop owns the pathfinder now: skip the tunnel climb and the restore,
    // so they cannot fight the new owner's navigation. The resumed job climbs after gathering.
    if(token===this.epoch){
-    if(job.tunnel?.length){try{await this.climbTunnel(job,token);}catch(e){this.log('Could not climb back up the tunnel: '+e.message);}}
+    if(job.tunnel?.length){try{await this.climbTunnel(job,token);if(this.strandedTunnel?.job===job.id)this.strandedTunnel=null;}catch(e){this.log('Could not climb back up the tunnel: '+e.message);}}
     b.pathfinder.setMovements(previous);
    }
    this.surfaceFloor=null;
@@ -1481,7 +1502,10 @@ export class Worker extends EventEmitter {
    // the ceiling when it walks over the edge to drop one level.
    await this.digTunnelStep(job,token,next,true,opts.natural);
   await this.stepInto(next,dir,token);
-  job.tunnel.push({x:next.x,y:next.y,z:next.z});
+  // A late fall can still land on the bot: free its own head and feet before the next step.
+  const here=b.entity.position.floored();
+  await this.clearCells(token,[here.offset(0,1,0),here],opts.natural,false);
+  job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
   if(steps%6===5)await this.placeTorch(token);
   const nowY=b.entity.position.floored().y;
   if(nowY>=lastY){if(++stalls>=2)throw Error('Staircase stalled at '+b.entity.position.floored());}
@@ -1518,7 +1542,9 @@ export class Worker extends EventEmitter {
    if(before&&before.x===next.x&&before.y===next.y&&before.z===next.z)throw Error('Strip mine stalled at '+next);
    await this.digTunnelStep(job,token,next);
    await this.stepInto(next,dir,token);
-   job.tunnel.push({x:next.x,y:next.y,z:next.z});
+   const here=b.entity.position.floored();
+   await this.clearCells(token,[here.offset(0,1,0),here],undefined,false);
+   job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
    if(steps%8===7)await this.placeTorch(token);
    const now=b.entity.position.floored();
    if(now.x===last.x&&now.z===last.z){if(++stalls>=2)throw Error('Strip mine stalled at '+now);}
@@ -1617,13 +1643,37 @@ export class Worker extends EventEmitter {
   }
   if(floor&&fluidAt(floor.position))throw Error('Tunnel stopped: '+floor.name+' at '+floor.position.floored());
   if(feetBlock?.name==='bedrock'||head?.name==='bedrock')throw Error('Tunnel stopped: bedrock at '+next);
-  for(const block of targets){
+  // Top-down (corner, head, feet): sand in the head cell must never drop into an open feet
+  // cell. The bot stands in the previous column meanwhile, so whatever falls lands in the
+  // step, never on the bot.
+  await this.clearCells(token,[...(corner?[next.offset(0,2,0)]:[]),next.offset(0,1,0),next],natural);
+ }
+ // Dig `cells` (top first) until every one is air and nothing that falls sits on the top one:
+ // a gravel stack above is dug block by block as it comes down. Throws after
+ // TUNNEL_SETTLE_ROUNDS rather than step into a cell that is still filling.
+ // watchAbove=false (the bot stands in these cells): only free them, never pull more down.
+ async clearCells(token,cells,natural,watchAbove=true){
+  const b=this.bot,top=cells[0];
+  for(let round=0;;round++){
    this.check(token);
-   // Digging without the required tool destroys the block for nothing; refuse instead.
-   if(block.harvestTools&&!Object.keys(block.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id)))throw Error('Tunnel needs a suitable tool in the inventory for '+block.name);
-   await b.tool.equipForBlock(block);
-   if(block.material==='incorrect_for_wooden_tool')block.material='mineable/pickaxe';
-   await b.dig(block);await sleep(80);
+   const solidNow=cells.map(p=>b.blockAt(p)).filter(bl=>bl&&bl.boundingBox==='block');
+   const above=b.blockAt(top.offset(0,1,0)),loose=watchAbove&&isGravity(above);
+   // A falling block is an entity until it lands: the cells read air while it drops.
+   const falling=Object.values(b.entities||{}).some(e=>e&&e.name==='falling_block'&&e.position&&Math.abs(e.position.x-top.x-0.5)<1&&Math.abs(e.position.z-top.z-0.5)<1&&e.position.y>=cells[cells.length-1].y-0.5);
+   if(!solidNow.length&&!loose&&!falling)return round;
+   if(round>=TUNNEL_SETTLE_ROUNDS)throw Error('Tunnel stopped: '+(loose?above.name:solidNow[0].name)+' keeps falling into '+cells[cells.length-1]);
+   if(!solidNow.length&&!loose){await sleep(TUNNEL_FALL_MS);continue;}
+   for(const block of solidNow.length?solidNow:[above]){
+    this.check(token);
+    if(natural&&!natural(block))throw Error('Tunnel stopped: '+block.name+' at '+block.position+' is not natural terrain');
+    // Digging without the required tool destroys the block for nothing; refuse instead.
+    if(block.harvestTools&&!Object.keys(block.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id)))throw Error('Tunnel needs a suitable tool in the inventory for '+block.name);
+    await b.tool.equipForBlock(block);
+    if(block.material==='incorrect_for_wooden_tool')block.material='mineable/pickaxe';
+    await b.dig(block);await sleep(80);
+   }
+   // Something above can fall: wait for it to land before the cells are read again.
+   if(loose||(watchAbove&&isGravity(b.blockAt(top.offset(0,1,0))))||solidNow.some(isGravity))await sleep(TUNNEL_FALL_MS);
   }
  }
  async placeTorch(token){

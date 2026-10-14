@@ -21,7 +21,7 @@ function canopyFake({blacklist=new Blacklist(),logs,reachable=()=>false}={}){
  const w={bot,blacklist,config:{limits:{radius:32}},count(){return cobble;},save(){},check(){},update(){},
   log(m){logLines.push(m);},exploreMovements(){return {};},
   async walk(){},async reachUp(){},async descendToReach(){},async canopyDrop(){},async sweepDrops(){},async mineColumnUnder(){},
-  gatherFailed:Worker.prototype.gatherFailed,gatherBlacklisted:Worker.prototype.gatherBlacklisted};
+  gatherFailed:Worker.prototype.gatherFailed,gatherBlacklisted:Worker.prototype.gatherBlacklisted,takeStrandedTunnel:Worker.prototype.takeStrandedTunnel};
  return {w,tries,logLines,job:()=>({spec:{type:'gather',block:'oak_log',count:2,radius:32}})};
 }
 test('an unreachable block is tried once, skipped, and the job moves on to the next block',async()=>{

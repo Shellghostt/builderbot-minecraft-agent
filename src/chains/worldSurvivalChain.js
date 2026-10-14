@@ -10,7 +10,7 @@ import {SingleTaskChain} from './singleTaskChain.js';
 import {chainConfig,inGame,hasEffect,onFire,TimerGame} from './settings.js';
 // (TimerGame is still used for the lava tail timer below.)
 import {hasItemName} from './combatPolicy.js';
-import {movementTask,EscapeFromLavaTask,EscapeFreezingTask,GetToBlockTask,PutOutFireTask,SafeRandomShimmyTask,ExtinguishWithWaterTask,InteractWithBlockTask} from './fallbackTasks.js';
+import {movementTask,EscapeFromLavaTask,EscapeFreezingTask,EscapeSuffocationTask,GetToBlockTask,PutOutFireTask,SafeRandomShimmyTask,ExtinguishWithWaterTask,InteractWithBlockTask} from './fallbackTasks.js';
 import {inLava as blockInLava} from '../tasks/movement/escape-from-lava-task.js';
 export class WorldSurvivalChain extends SingleTaskChain{
  constructor(){
@@ -20,6 +20,7 @@ export class WorldSurvivalChain extends SingleTaskChain{
   this._wasAvoidingDrowning=false;
   this._extinguishWaterPosition=null;
   this._portalSince=null;
+  this._wallSince=null; // first tick the head was inside a solid block
   this._lavaUntil=0; // recent-lava window: douse on exit even if the fire metadata bit never arrives
   this.now=()=>Date.now()/1000;
  }
@@ -43,6 +44,15 @@ export class WorldSurvivalChain extends SingleTaskChain{
    this.root=movementTask(ctx,'PutOutFireTask',()=>new PutOutFireTask());
    return 100;
   }
+  // Head in a wall: dig out once it holds for 0.3 s (a physics frame clipping a corner is not
+  // a wall). Runs after a Stop too, like the lava escape: a frozen bot suffocates.
+  if(EscapeSuffocationTask.inWall(bot)){
+   if(this._wallSince==null)this._wallSince=this.now();
+   if(this.now()-this._wallSince>=0.3||this.root?.name==='EscapeSuffocationTask'){
+    this.root=movementTask(ctx,'EscapeSuffocationTask',()=>new EscapeSuffocationTask());
+    return 100;
+   }
+  }else this._wallSince=null;
   // Powder snow: get out before the freeze damage starts (normal2 froze to death 2026-10-14).
   if(EscapeFreezingTask.inPowderSnow(bot)){
    if(!this._freezeLogged){this._freezeLogged=true;const w=ctx&&ctx.worker;if(w&&w.log)try{w.log('WorldSurvival: in powder snow (frozen '+EscapeFreezingTask.ticksFrozen(bot)+' ticks), escaping');}catch{}}
