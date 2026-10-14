@@ -26,3 +26,33 @@ assert sm['iron_runs']==1 and sm['iron_ore_peak']==[6,0] and sm['ingots_peak']==
 assert sm['peak_median']['iron_pick']==0,sm['peak_median']
 print('soak food metric ok')
 print('soak iron metric ok')
+# Deaths (round 5): the server log, the bot counter and the event window; max of the three.
+LOG='''[02:06:11] [Server thread/INFO]: BuilderBot was shot by Skeleton
+[02:20:00] [Server thread/INFO]: <BuilderBot> I was shot earlier
+[02:41:02] [Server thread/INFO]: BuilderBot was shot by Skeleton
+[02:44:40] [Server thread/INFO]: BuilderBot was shot by Skeleton
+[02:46:13] [Server thread/INFO]: BuilderBot drowned
+[02:46:50] [Server thread/INFO]: BuilderBot lost connection: Timed out
+[02:47:00] [Server thread/INFO]: BuilderBot left the game
+[02:48:00] [Server thread/INFO]: BuilderBot joined the game
+[02:49:00] [Server thread/INFO]: BuilderBot froze to death
+[02:50:00] [Server thread/INFO]: BuilderBot suffocated in a wall
+[02:51:00] [Server thread/INFO]: BuilderBot hit the ground too hard
+[02:52:00] [Server thread/INFO]: BuilderBot tried to swim in lava to escape Zombie
+'''
+causes=m.log_deaths(LOG)
+assert causes==['BuilderBot was shot by Skeleton']*3+['BuilderBot drowned','BuilderBot froze to death','BuilderBot suffocated in a wall','BuilderBot hit the ground too hard','BuilderBot tried to swim in lava to escape Zombie'],causes
+# Round 4 hard3: the dashboard read failed; the log alone still counts both shots.
+run={'deaths_mark':0,'bot_deaths_mark':5}
+t=m.death_tally(run,None,'',LOG.splitlines()[0]+'\n'+LOG.splitlines()[2]+'\n')
+assert t['deaths']==2 and t['log']==2,t
+# The bot counter rises past a scrolled-out event window (window 1, counter 4, log 3).
+run={'deaths_mark':1,'bot_deaths_mark':5,'deaths':0}
+t=m.death_tally(run,{'deaths':9},'Bot died at 1, 2, 3 | Bot died at 4, 5, 6','\n'.join(LOG.splitlines()[:4]))
+assert t['deaths']==4 and t['counter']==4 and t['window']==1 and t['log']==3,t
+# A dashboard restart resets the counter: count from zero, never negative.
+assert m.bot_deaths({'deaths':2},{'bot_deaths_mark':7})==2
+assert m.bot_deaths({},{'bot_deaths_mark':7})==0
+# Monotonic: an earlier higher count is never lowered by a later read.
+assert m.death_tally({'deaths':3},None,'','')['deaths']==3
+print('soak death metric ok')

@@ -179,7 +179,7 @@ export class Worker extends EventEmitter {
   if(!replaced){try{fs.writeFileSync(this.file,JSON.stringify(this.jobs));replaced=true;}catch{}}
  }
  log(message){this.events.unshift({time:new Date().toISOString(),message});this.events=this.events.slice(0,100);this.emit('event',message);}
- state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null,meals:this.meals};}
+ state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null,meals:this.meals,deaths:this.deaths||0,deathLog:this.deathLog||[]};}
  setReflexes(enabled){this.reflexEnabled=!!enabled;this.log(enabled?'Reflexes enabled':'Reflexes disabled');}
  // Idle-time armour upkeep, kept from the retired reflex loop (COMBAT_SPEC 7f armour gates).
  autoArmour(){
@@ -271,6 +271,11 @@ export class Worker extends EventEmitter {
   const killer=at?Object.values(bot.entities).filter(e=>e!==bot.entity&&e.type==='hostile'&&e.position&&e.position.distanceTo(at)<=8).sort((x,y)=>x.position.distanceTo(at)-y.position.distanceTo(at))[0]:null;
   this.log('Bot died at '+(at?Math.floor(at.x)+', '+Math.floor(at.y)+', '+Math.floor(at.z):'an unknown position')+(killer?' (killed by '+killer.name+')':''));
   this.lastDeath={pos:at?{x:at.x,y:at.y,z:at.z}:null,t:Date.now()};
+  // Monotonic, session-wide: the soak counts a run's deaths as this counter's rise (the
+  // 100-entry event window scrolls a 'Bot died at' line out within one 30 s sample under a
+  // flee storm - round 4 recorded 1 death of 4).
+  this.deaths=(this.deaths||0)+1;
+  this.deathLog=[...(this.deathLog||[]).slice(-19),{t:new Date().toISOString(),pos:this.lastDeath.pos,killer:killer?killer.name:null,job:(this.jobs.find(j=>j.status==='running')||{}).spec?.type||null}];
   this.deathResume=true;
   this.stop('Bot died; inspect the world before resuming','death');
   setTimeout(()=>{try{bot.respawn();}catch{}},500);

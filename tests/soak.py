@@ -135,6 +135,38 @@ def meals_delta(state,run):
     items={k:v-(mark.get('items') or {}).get(k,0) for k,v in (now.get('items') or {}).items()}
     return {'eaten':now.get('eaten',0)-mark.get('eaten',0),'points':now.get('points',0)-mark.get('points',0),
             'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0}}
+# Deaths (round 5): the run count is the max of three independent sources, so no single
+# blind spot can hide one - round 4 recorded 1 death where the server log has 4:
+# - the bot's own counter (state['deaths'], +1 per mineflayer 'death' event, session-wide);
+# - the server log from the run's start, matched against every vanilla death message (the
+#   old 'was|blew up|fell|died' missed 'drowned', and the per-death parse moved the log mark
+#   so the final parse only saw the tail);
+# - 'Bot died at' in the dashboard's 100-event window (a flee storm scrolls it out fast).
+# The log parse never depends on the dashboard: round 4 hard3's final read timed out and the
+# run line said deaths=0 with two skeleton deaths in the log.
+DEATH_RE=re.compile(r"\bBuilderBot (was |were |drowned|blew up|burned to death|went up in flames|went off with a bang|walked into|fell |hit the ground too hard|"
+                    r"tried to swim in lava|suffocated|starved|froze to death|withered away|died|experienced kinetic energy|discovered the floor was lava|"
+                    r"didn't want to live|left the confines|was killed)")
+DEATH_NOT=re.compile(r"<BuilderBot>|BuilderBot (was kicked|lost connection|joined|left the game)")
+def log_deaths(text):
+    out=[]
+    for line in (text or '').splitlines():
+        if DEATH_RE.search(line) and not DEATH_NOT.search(line):out.append(re.sub(r'^.*?INFO..?:\s*','',line).strip()[:120])
+    return out
+def bot_deaths(state,run):
+    # The run's share of the bot's session counter; a dashboard restart resets it (count from 0).
+    now=(state or {}).get('deaths');mark=run.get('bot_deaths_mark') or 0
+    if not isinstance(now,int):return 0
+    return now-mark if now>=mark else now
+def death_tally(run,state=None,events='',log_text=None):
+    """Deaths so far: the max of the bot counter, the server log and the event window; causes from the log."""
+    causes=log_deaths(log_text) if log_text is not None else list(run.get('death_causes') or [])
+    window=max(0,(events or '').count('Bot died at')-run.get('deaths_mark',0))
+    counter=bot_deaths(state,run) if state is not None else 0
+    return {'deaths':max(run.get('deaths',0),counter,len(causes),window),'causes':causes,'counter':counter,'log':len(causes),'window':window}
+def run_log(run):
+    text=(ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace')
+    return text[run.get('logstart',0):]
 # Normal runs ended at 600 s still on the food step (soak 2026-10-14 18:44), so the iron step
 # was never measured: 1200 s from the frozen-day start leaves it room. Hard runs stay 1250 s
 # (dawn to past the first night).
@@ -253,7 +285,9 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
     reset_vitals(run)
     print(f'--- soak run {index}/3: dawn, clear weather, empty inventory, full vitals, spawn {spawn}',flush=True)
     api('autopilot',{'enabled':True})
-    run['logmark']=len((ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace'));run['deaths_before']=0
+    run['logstart']=len((ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace'))
+    try:run['bot_deaths_mark']=int(api('state').get('deaths') or 0)
+    except Exception as e:run['bot_deaths_mark']=0;run['errors'].append('deaths mark: '+str(e)[:80])
     # The dashboard event window is session-wide. A death in run N still matches
     # 'Bot died at' in run N+1 and used to start that run at deaths=1 with a false resume
     # (soak 5 normal2 t=30 after normal1's fall). Snapshot the count at the start.
@@ -270,14 +304,18 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
         try:
             state,inv=inventory_counts();o=api('observe')
             events=' | '.join(e['message'] for e in state['events'][:100])
-            # The full event window: gather retries push a death out of the visible tail fast,
-            # and an undercounted death stops the operator from resuming the run.
-            new_deaths=max(0,events.count('Bot died at')-run.get('deaths_mark',0))
+            # Every source at every sample (death_tally): an undercounted death stops the
+            # operator from resuming the run.
+            try:log_text=run_log(run)
+            except Exception as e:log_text=None;run['errors'].append('death log: '+str(e)[:80])
+            tally=death_tally(run,state,events,log_text)
+            if log_text is not None:run['death_causes']=tally['causes']
+            new_deaths=tally['deaths']
             if new_deaths>deaths: # record the sky state at every death (review directive)
                 tod_now=o.get('timeOfDay');light_now=o.get('light')
                 run.setdefault('death_tods',[]).append({'at':round(time.time()-start),'tod':tod_now,'light':light_now,
                     'pos':[round(o['position'][k],1) for k in ('x','y','z')]})
-            deaths=max(deaths,new_deaths)
+            deaths=max(deaths,new_deaths);run['deaths']=deaths
             ap=o['autopilot']
             sample={'t':round(time.time()-start),'pos':[round(o['position'][k],1) for k in ('x','y','z')],'hp':round(o['health'],1),'food':o['food'],
                     'step':ap.get('step'),'apstate':ap.get('state'),
@@ -306,16 +344,9 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
                 api('autopilot',{'enabled':True})
                 deaths_prev=deaths
                 if died:
-                    # Record each death's cause from the server log. The bot is NOT returned to the
-                    # anchor after a death: respawning into the same mob cluster every 30 s turned
-                    # one death into a death spiral in the baseline soak.
-                    try:
-                        text=(ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace')
-                        fresh=text[run['logmark']:];run['logmark']=len(text)
-                        causes=[re.sub(r'^.*?INFO..?:\s*','',l)[:120] for l in fresh.splitlines() if re.search(r'BuilderBot (was|blew up|fell|died)',l)]
-                        if causes:run.setdefault('death_causes',[]).extend(causes[-(deaths-run.get('deaths_before',deaths)):] if deaths>run.get('deaths_before',deaths) else causes)
-                        run['deaths_before']=deaths
-                    except Exception as e:run['errors'].append('death causes: '+str(e)[:100])
+                    # The causes come from the run's whole log slice (death_tally above). The bot
+                    # is NOT returned to the anchor after a death: respawning into the same mob
+                    # cluster every 30 s turned one death into a death spiral in the baseline soak.
                     run['resumes']+=1
                     run['interventions'].append('operator: resumed the ladder after death at t='+str(sample['t']))
                     print('operator: resumed the ladder after death '+str(deaths),flush=True)
@@ -392,19 +423,17 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
         run['tod_end']=o.get('timeOfDay')
         run['final_state']=o['autopilot']
         events=' | '.join(e['message'] for e in state['events'][:100])
-        run['deaths']=max(run['deaths'],events.count('Bot died at'))
-        # Authoritative death count: parse the whole run's log slice (the event-window count
-        # undercounts when gather chatter floods the visible tail). The recorded causes are
-        # the source of truth for both deaths and death_causes.
-        try:
-            text=(ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace')
-            fresh=text[run['logmark']:]
-            causes=[re.sub(r'^.*?INFO..?:\s*','',l)[:120] for l in fresh.splitlines() if re.search(r'BuilderBot (was|blew up|fell|died)',l)]
-            if causes:run['death_causes']=causes
-            run['deaths']=max(run['deaths'],len(run.get('death_causes',[])))
-        except Exception as e:run['errors'].append('death causes final: '+str(e)[:100])
+        tally=death_tally(run,state,events,None)
+        run['deaths']=tally['deaths'];run['death_sources']={'counter':tally['counter'],'window':tally['window']}
+        run['death_log']=[d for d in (state.get('deathLog') or [])][-max(1,tally['counter']):] if tally['counter'] else []
         run['jobs']=job_evidence(state.get('jobs',[]))
     except Exception as e:run['errors'].append('final read: '+str(e))
+    # Authoritative and dashboard-free: the run's whole server-log slice.
+    try:
+        tally=death_tally(run,None,'',run_log(run))
+        run['death_causes']=tally['causes'];run['deaths']=tally['deaths']
+        run.setdefault('death_sources',{})['log']=tally['log']
+    except Exception as e:run['errors'].append('death causes final: '+str(e)[:100])
     try:api('autopilot',{'enabled':False})
     except Exception:pass
     # Stop the run's last job too, so no container window is open when the next run's
