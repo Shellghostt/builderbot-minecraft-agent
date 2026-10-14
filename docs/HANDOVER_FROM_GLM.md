@@ -227,3 +227,100 @@ Model never started this session (`config.model.enabled=false`, guarded by Start
 No name-kills. No test made easier: the roofed creeper variant was ADDED alongside the
 lane variant, and the "repelled" outcome records a real event rather than relaxing the
 damage metric.
+
+## Cloud session (Claude, 2026-10-14, code only - `docs/CLOUD_TASK.md`)
+
+No game access: nothing below is live-measured. Unit tests only (every `tests/*.test.js`
+except `resources.test.js`, `--max-old-space-size=2048 --test-timeout=60000`):
+**189 -> 222 passed, 0 failed**. Each new test was checked to fail on the code before its
+fix. Model never started, no server, no processes touched. Five commits on `main`:
+`c3c0ce6`, `9b3b897`, `8833466`, `ea86ca2`, `10112de`.
+
+### What changed
+
+1. **GLM's last changes reviewed** (`c3c0ce6`). mineflayer 4.39 already reduces
+   `time.timeOfDay` modulo 24000, so the raw-age theory is unconfirmed; the modulo is now one
+   shared helper (`src/daytime.js`) used everywhere, because `worker.sleep`/`shelter`,
+   `SleepTask`/`ShelterTask` and `combatPolicy` still read the raw clock: if raw ages do
+   arrive, the night job GLM's fix submits would refuse to sleep or wait for morning
+   forever. Also fixed:
+   - Night prep no longer cancels a running fight, eat, sleep or shelter job.
+   - Hunts lock one animal (`lockFirst`): "clear every chicken in 48" timed out on any
+     flock, and a timeout threw before the drop sweep. They now sweep radius 16 on success
+     and on timeout.
+   - The shelter digs out only cells that were empty when it started (it used to dig a
+     hillside's natural blocks at dawn).
+   - Food-graze ceiling: the anchor is fixed for the run. `min(current, anchor)` ratcheted
+     down into valleys. With no surface gather, the anchor is latched once. A bot already
+     above the cap gets `cap=current`, because navigation rejects any position above the
+     cap, so every leg used to fail at once.
+   - Tests: `tests/daytime.test.js`, `tests/hunt.test.js`, plus the anchor tests.
+2. **Creeper pillar-up** (`9b3b897`, `CombatController._pillarTick`).
+   - **Trigger:** a creeper within 8, or fusing; the bot on solid ground, not in fluid,
+     holding 2+ blocks (cobble > deepslate > planks > netherrack > dirt) with headroom.
+   - **Climb:** 3 up (2 under a low ceiling). Hold jump, look down, place on the block under
+     the feet at the apex.
+   - **Perch:** hold while it fuses. If it stays, shoot it (bow) or strike down when its box
+     is within 3 of the eyes.
+   - **Descend:** after it stays past 8 for 1 s, step off a side with a drop of 3 or less
+     (no fall damage, never into fluid). With no such side, dig only its own column.
+   - **Fallbacks:** a climb that fails or takes longer than 4 s falls back to the wall. A bot
+     that can pillar no longer builds the 12-block wall in bow mode. The wall stays the
+     fallback with no blocks or no headroom.
+3. **Bow aim / look convention** (`8833466`), probably the main finding of this session.
+   `combat.js` and `fallbackTasks.js` used the Notchian yaw and pitch (z=+cos(yaw),
+   positive pitch looks down) with `bot.look`. mineflayer's convention is yaw 0 -> -z and
+   positive pitch up (`ray_trace.js` getViewDirection, `physics.js` lookAt; `compat.js`
+   already sends yRot=180-yaw). The effects:
+   - Every heading with a z component was mirrored, and every bow pitch was inverted. That
+     matches "arrows 0 hits" and the kite/away legs that "walked into the fuse" in
+     73176-81. `RunAwayTask` (the MobDefense creeper flee) ran toward z-axis creepers, which
+     is a plausible factor in soak 6's wild-creeper death.
+   - Fixed through `src/heading.js`, with a test that reads the installed mineflayer source.
+   - Ballistics follow vanilla `AbstractArrow.tick` order: move, then drag 0.99, then
+     gravity 0.05. Arrows launch from eye height minus 0.1. The shooter's own motion is aimed
+     out exactly, since the flight is linear in the launch velocity.
+   - `_openAlong` probes the 0.6-wide body, not only its centre line.
+   - Earlier combat-log conclusions about "look-relative walk-ins" should be re-read with
+     this in mind.
+4. **Iron step (M5)** (`ea86ca2`).
+   - The core comes first: 6 ore, smelt, then iron pickaxe, iron sword, shield.
+   - Ore comes from a staircase to y=32 (an explicit `targetY` now goes down before any
+     surface search), and gathers also match `deepslate_*_ore`.
+   - Smelting burns coal first and keeps an 8-plank reserve. After the core: 16 coal and the
+     remaining 30 ingots.
+   - `smelt` picks up a furnace it placed itself; a furnace left behind made the stone step
+     regress. `pickUp` equips the right tool first.
+5. **Soak food metric** (`10112de`). Root cause of `edible_peak 0`: `soak.py` read
+   `observe.inventory['_edible']`, a key observe never had.
+   - observe now reports `edible`.
+   - The worker counts meals (a food-bar rise within 5 s of any `bot.consume`, which covers
+     eat jobs, auto-eat, FoodChain and the fight's disengage-eat; respawns don't count) and
+     food smelted (`cooked`). `/api/state.meals` exposes both.
+   - `soak.py` diffs them per run and the summary gains `eaten`, `food_points` and
+     `cooked`. `tests/soak_metrics_check.py` is an offline check.
+
+### Files
+
+`src/daytime.js` (new), `src/heading.js` (new), `src/autopilot.js`, `src/worker.js`,
+`src/combat.js`, `src/observe.js`, `src/chains/fallbackTasks.js`,
+`src/chains/combatPolicy.js`; tests `daytime`, `hunt`, `iron`, `meals` (new),
+`autopilot`, `combat` (back to LF line endings), `chains`; `tests/soak.py`,
+`tests/soak_metrics_check.py` (new).
+
+### Needs live verification (Cursor / `docs/CURSOR_TESTER.md`)
+
+- **Look convention, first:** in any fight log, confirm the bot faces and walks away from a
+  mob that is off the x axis, and that bow arrows now land (`shots` vs `hits`). Combat units
+  pass, but every yaw-dependent behaviour has changed.
+- **Combat suite `4_creeper` and `4b_creeper_roofed`:** expect "Combat: pillar-up 3",
+  "pillar perched", then strikes or shots from above. Measure damage on both. Unknowns to
+  watch: the apex place timing on ViaVersion (`pillarClear` 0.1); whether 3 up stops the
+  fuse; whether the roofed arena's ceiling leaves room for 2+. The arena's roof height
+  decides that.
+- **Soak:** `[night]` sleep/shelter submissions in the hard runs; the food columns `eaten`
+  and `cooked` versus `edible_peak`; hunts now end after one kill and sweep; the iron step
+  (staircase to y=32, smelt, iron pickaxe and sword) if a run gets that far.
+- **Not done:** MobDefenseChain (reflexes on, autopilot) still only flees a wild creeper;
+  the pillar runs only inside fight jobs. If the corrected flee still loses to creepers in
+  soaks, a `CreeperPillarTask` in the swelling-creeper branch is the next step.
