@@ -15,10 +15,13 @@ GLM has hit its usage limit. A Claude cloud session (code-only, no game access) 
 `git pull --rebase` before every test run. Commit and push only your own fixes and reports, small and with clear messages. Do not rewrite or revert the cloud session's commits; if one of them breaks a test, fix forward in a separate commit and say why. Never force-push.
 
 ## Do, in order
-1. `git pull --rebase`; run the unit tests (all `tests/*.test.js` except `resources.test.js`). Fix anything red.
-2. Restart services. Run `python tests/integration.py` (must be green).
-3. **Dual soak** (`python -u tests/soak.py`): this measures GLM's last unmeasured fixes (night branch using time-of-day instead of raw world age, hunts sweeping their own drops, anchored food-explore ceiling). Check specifically: does a `[night]` sleep or shelter job appear in the hard runs (dashboard log), is food obtained and eaten, any deaths and their causes.
-4. After the cloud session pushes the creeper "pillar up" change and the iron step: pull, restart, run `python tests/combat_integration.py` (report both `4_creeper` and `4b_creeper_roofed` damage) and another dual soak. **At most 3 combat runs per change**; do not tune the creeper yourself beyond small bug fixes.
-5. After every run, append a dated section to `docs/TEST_REPORTS.md`: commit tested (`git rev-parse --short HEAD`), unit/integration/combat results, soak table (wood/stone/furnace/food times, night sleep/shelter yes/no, deaths with causes), and the concrete bugs you saw. Commit and push it.
+The cloud session has FINISHED (commits c3c0ce6..4afa796; read its "Cloud session" section at the end of `docs/HANDOVER_FROM_GLM.md`). Unit tests: 222/222 on this PC. Nothing in it is live-verified yet, so everything below is new evidence.
+
+1. `git pull --rebase`; run the unit tests (all `tests/*.test.js` except `resources.test.js`). Must be 222/222.
+2. Restart services (model off). Run `python tests/integration.py` (must be green).
+3. **Verify the yaw/pitch fix first** (`src/heading.js`, commit 8833466): the cloud session found that combat/flee code used the wrong yaw convention, so headings with a z component were mirrored and bow pitch inverted. In `tests/combat_integration.py`, check in the logs that flee/kite legs move AWAY from the mob and arrows now hit. If movement looks mirrored after the fix, say so immediately in the report - do not "tune" around it.
+4. `python tests/combat_integration.py`: report `4_creeper` and `4b_creeper_roofed` damage and whether the new pillar-up fired ("pillar" lines in the dashboard log), plus arrow hits. At most 3 runs.
+5. **Dual soak** (`python -u tests/soak.py`): wood/stone/furnace times, food (`eaten`, `food_points` now real), night sleep/shelter (look for `[night]` jobs in the hard runs), iron (ore/ingots/iron pickaxe if reached), deaths with causes.
+6. After every run, append a dated section to `docs/TEST_REPORTS.md`: commit tested (`git rev-parse --short HEAD`), results, soak table, concrete bugs seen. Commit and push it. Fix only what tests show broken, in small separate commits.
 
 Keep going until all of the above is done or you hit your usage limit (write the report first).
