@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {Vec3} from 'vec3';
-import {dayTicks,isNight} from './daytime.js';
+import {dayTicks,isNight,NIGHT_START} from './daytime.js';
 import {EDIBLE_SKIP} from './observe.js';
 
 const BED=/(_bed)$/;
@@ -270,12 +270,39 @@ export const STEPS=[
 
 // Pure step selection for tests and the tick: first unmet step and its next job. Logs and
 // planks are counted across all species; planks are crafted from whichever log is held.
-export function plan(counts,ctx={}){
- const c=countFactory(counts);
- ctx={...ctx};
+const woodTotals=(counts,ctx)=>{
  ctx.logsTotal=ctx.logsTotal??Object.keys(counts).filter(n=>/_log$/.test(n)).reduce((a,n)=>a+counts[n],0);
  ctx.planksTotal=ctx.planksTotal??Object.keys(counts).filter(n=>/_planks$/.test(n)).reduce((a,n)=>a+counts[n],0);
  ctx.heldLog=ctx.heldLog??(Object.keys(counts).filter(n=>/_log$/.test(n)).sort((a,b)=>counts[b]-counts[a])[0]||null);
+ return ctx;
+};
+// Bed before dusk (soak 2026-10-14: every night was a shelter, no bed). Only when wool is
+// cheap: a sheep within 32 and shears (shear: 1-3 wool, the sheep lives) or a sword (hunt:
+// one wool each). From BED_PREP_FROM until dusk: wool of one colour, 3 planks from logs
+// held, then the bed. Null otherwise - the dusk dirt and the night shelter stay the plan.
+// ctx: {tod, bedNear, sheepNear, worldTable} plus the counts' wood totals. The bed is a 3x3
+// recipe: without a table held or standing near, the craft makes one first (4 more planks).
+export const BED_PREP_FROM=9000,BED_PREP_JOBS=5;
+export function bedPrepJob(counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ if(ctx.bedNear||ctx.tod==null||ctx.tod<BED_PREP_FROM||ctx.tod>=NIGHT_START)return null;
+ if(WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1))return null;
+ const wool=WOOLS.reduce((a,w)=>c(w)>c(a)?w:a,WOOLS[0]);
+ const planks=3+(c('crafting_table')>=1||ctx.worldTable?0:4);
+ if(c(wool)>=3){
+  if(ctx.planksTotal<planks)return ctx.logsTotal>=1?{type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:planks-ctx.planksTotal}:null;
+  return {type:'craft',item:wool.replace('_wool','_bed'),count:1};
+ }
+ // The bed itself must be payable from what is held: no log hunt at dusk.
+ if(!ctx.sheepNear||ctx.planksTotal+4*ctx.logsTotal<planks)return null;
+ if(c('shears')>=1)return {type:'shear'};
+ if(Object.keys(counts).some(n=>/_sword$/.test(n)&&counts[n]>0))return {type:'hunt',entity:'sheep',count:Math.min(3-c(wool),ctx.sheepNear)};
+ return null;
+}
+export function plan(counts,ctx={}){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
  for(const entry of STEPS){
   if(ctx.blocked===entry.name)continue;
   if(entry.done(c,ctx))continue;
@@ -357,6 +384,14 @@ export class Autopilot{
   // gather the dirt while there is still daylight (once per day). Grass blocks drop dirt.
   const bedNear=b.inventory.items().some(i=>BED.test(i.name))||b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});
   const todNow=dayTicks(b)??0;
+  // Bed before dusk when wool is cheap (bedPrepJob); a failed prep job ends it for the day.
+  const day=String(b.time?.day);
+  if(this.bedPrep?.day!==day)this.bedPrep={day,jobs:0,off:false};
+  if(!this.bedPrep.off&&this.bedPrep.jobs<BED_PREP_JOBS){
+   const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:4});
+   const job=bedPrepJob(this.counts(),{tod:dayTicks(b),bedNear:!!bedNear,sheepNear:this.sheepNear(b),worldTable});
+   if(job){this.bedPrep.jobs++;this.submit('bed-prep',job);return;}
+  }
   const dusk=todNow>=10500&&todNow<12541;
   if(dusk&&this.lastDuskKey!==String(b.time.day)&&!bedNear&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
    const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0);
@@ -379,6 +414,7 @@ export class Autopilot{
    const step=this.current.step;
    this.failures[step]=(this.failures[step]||0)+1;
    this.coolUntil=Date.now()+8000; // give the world (and reflexes) time before retrying
+   if(step==='bed-prep'&&this.bedPrep)this.bedPrep.off=true; // shelter tonight
    if(this.failures[step]>=3){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
    else this.state='retry: '+step+' ('+this.failures[step]+'/3)';
   }else{
@@ -429,6 +465,11 @@ export class Autopilot{
    if(d<best)best=d;
   }
   return best;
+ }
+ sheepNear(b,radius=32){
+  let n=0;
+  for(const e of Object.values(b.entities||{}))if(e&&e!==b.entity&&e.name==='sheep'&&e.position&&b.entity?.position&&e.position.distanceTo(b.entity.position)<=radius)n++;
+  return n;
  }
  animalsNearby(b){
   const counts={};
