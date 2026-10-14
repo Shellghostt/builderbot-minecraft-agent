@@ -251,3 +251,9 @@ Cursor launched this soak and ended its turn before it finished, so Claude read 
 - Hard: stone pickaxe in hard1/hard2 (541 s, 631 s; `achieved` also shows one for hard3), **no furnace in any hard run**.
 - **Deaths at night in the dark forest** (server log): shot by Skeleton 02:06 (145,127,34, during `shelter`), 02:41 (130,125,24, during gather after a flee), 02:44 (104,141,-39, during `shelter`), **drowned** 02:46, then the bot timed out. The soak counter recorded only 1. The dashboard shows `Reflex: fleeing` dozens of hostiles at once and `Pause trace: shelter -> Reflex: preempted by Mob Defense` - Mob Defense pulled the bot out of its shelter job, then it was shot.
 - Lane creeper test still "repelled" with no combat (known gap).
+
+## 2026-10-15 04:58–05:15 IST — integration (`16f3609`)
+
+`git pull --rebase` was already at `16f3609`. Unit tests (`tests/*.test.js` except `resources.test.js`): **352 passed, 0 failed** (the cloud note said 343; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
+
+`python tests/integration.py` exited 1 after 983 s, before phase 7A. Everything up to the drowning surface passed, including `reflex surfaced the drowning bot` (`WorldSurvival: drowning (air 6), swimming up` at 23:44:28Z). The next check never saw a paused gather. The oak log was placed 20 blocks out so the walk would still be going when a NoAI creeper spawned; `Completed gather` landed at 23:44:45Z, about 15 s after the teleport back to the origin, and the job message never started with `Reflex:`. No creeper flee line after that. The 30 s wait raised `TimeoutError: Condition did not become true` at `tests/integration.py:588`. A4 did not run.
