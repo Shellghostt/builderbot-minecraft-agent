@@ -81,3 +81,6 @@ Runs of tests/resources.test.js and the dashboard node process grew to 17-140 GB
 - Every node test or script: `--max-old-space-size=2048`; `node --test` also gets `--test-timeout=60000`. Never run anything without a timeout.
 - Before running tests/resources.test.js again, find and fix its unbounded growth (likely recursion/looping in the resource tasks or howto chain, the runner/ActionTask, or a fake clock that never advances) and the dashboard growth. Add a unit test that runs the runner for 10k ticks and asserts heap stays bounded.
 - Re-read the "Async actions" section at the end of docs/TASK_API.md.
+
+## Git (added 2026-10-14)
+This folder is a git repo with a private GitHub remote (`origin`, branch `main`). After each verified step, commit your own changes with a clear message (`git add -A && git commit`) and `git push`. Never force-push, never rewrite history, never commit tokens, logs, worlds or anything `.gitignore` excludes. Pull (`git pull --rebase`) before starting work, because other agents (including cloud sessions) push to the same repo.
