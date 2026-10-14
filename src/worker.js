@@ -24,7 +24,7 @@ import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS}
 import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
-import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost} from './night.js';
+import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
 import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -731,9 +731,14 @@ export class Worker extends EventEmitter {
   if(token!==this.epoch)return;
   b.pathfinder.stop();b.pathfinder.setGoal(null);b.clearControlStates();
   await sleep(60);
-  const dir=target?b.entity.position.minus(target.position):new Vec3(1,0,0);
-  const away=Math.abs(dir.x)+Math.abs(dir.z)>0?new Vec3(dir.x,0,dir.z).normalize():new Vec3(1,0,0);
-  try{await b.look(Math.atan2(-away.x,-away.z),0,false);}catch{}
+  // Away from the target and every other hostile near, never into water, lava or a deep
+  // drop (night.js fleeHeading; round 4 drowned fleeing). Every heading wet: stand.
+  const me=b.entity.position;
+  const near=Object.values(b.entities||{}).filter(e=>e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.position.distanceTo(me)<=16);
+  if(target&&target.position&&!near.includes(target))near.push(target);
+  const h=near.length?fleeHeading((x,y,z)=>b.blockAt(new Vec3(x,y,z)),me,near,{inWater:!!b.entity.isInWater}):{x:1,z:0,blocked:false};
+  try{await b.look(Math.atan2(-h.x,-h.z),0,false);}catch{}
+  if(h.blocked)return;
   b.setControlState('sprint',true);b.setControlState('forward',true);
   const fleeEnd=Date.now()+seconds*1000;
   try{while(Date.now()<fleeEnd&&b.health>0){await sleep(100);this.check(token);}}finally{b.clearControlStates();}

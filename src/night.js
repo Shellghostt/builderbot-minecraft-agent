@@ -119,7 +119,9 @@ export function deepWaterCost(blockAt,pos,dark){
 // weighted centre, not just the nearest mob, and never into water, lava or a drop deeper
 // than 3 within 4 blocks, nor through a hostile. Unknown (null) blocks are not hazards.
 // Returns a unit heading {x,z,cost,blocked}, or null with no hostiles.
-export function fleeHeading(blockAt,me,hostiles,{shelter=null}={}){
+// inWater: the bot is already swimming - water ahead costs per cell (the heading with the
+// least water leads to the shore) instead of ruling the heading out; lava still does.
+export function fleeHeading(blockAt,me,hostiles,{shelter=null,inWater=false}={}){
  const list=(hostiles||[]).filter(h=>h&&h.position);
  if(!list.length)return null;
  let ax=0,az=0;
@@ -130,12 +132,15 @@ export function fleeHeading(blockAt,me,hostiles,{shelter=null}={}){
  if(Math.hypot(ax,az)<1e-6){ax=1;az=0;}
  const base=Math.atan2(az,ax);
  const fx=Math.floor(me.x),fy=Math.floor(me.y),fz=Math.floor(me.z);
+ const lava=b=>!!b&&b.name==='lava';
  const hazard=(hx,hz)=>{
+  let wet=0;
   for(let s=1;s<=4;s++){
    const x=Math.floor(me.x+hx*s),z=Math.floor(me.z+hz*s);
    if(x===fx&&z===fz)continue;
    // The walk climbs one block or drops up to three: find the footing near the bot's level.
    const feet=blockAt(x,fy,z),head=blockAt(x,fy+1,z);
+   if(inWater&&(fluid(feet)||fluid(head))&&!lava(feet)&&!lava(head)){wet+=10;continue;}
    if(fluid(feet)||fluid(head))return 100;
    if(feet==null)continue; // unloaded / unknown
    if(solid(feet)){const up=blockAt(x,fy+1,z),up2=blockAt(x,fy+2,z);if(solid(up)||solid(up2))return 20;continue;} // a wall: slows, not deadly
@@ -143,7 +148,7 @@ export function fleeHeading(blockAt,me,hostiles,{shelter=null}={}){
    for(let dy=1;dy<=4;dy++){const b=blockAt(x,fy-dy,z);if(b==null){drop=0;break;}if(fluid(b))return 100;if(solid(b))break;drop=dy;}
    if(drop>3)return 60;
   }
-  return 0;
+  return wet;
  };
  const through=(hx,hz)=>{
   let pen=0;
