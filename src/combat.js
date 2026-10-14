@@ -28,6 +28,8 @@ const dist=(a,b)=>{
 
 // Pillar blocks by blast resistance: cobble/deepslate first, dirt last (a blast at the
 // base tears dirt out from under the bot).
+// Group spacing moves relative to the facing yaw (prismarine-physics applyHeading).
+const GROUP_MOVES=[[{back:true},Math.PI],[{back:true,left:true},Math.PI*0.75],[{back:true,right:true},-Math.PI*0.75],[{left:true},Math.PI/2],[{right:true},-Math.PI/2]];
 const PILLAR_BLOCKS=[/^cobblestone$/,/^cobbled_deepslate$/,/_planks$/,/^netherrack$/,/^dirt$/];
 
 // ---- 7b.1 attack cooldown ---------------------------------------------------------------
@@ -449,7 +451,7 @@ export class CombatController{
    drawSeconds:FULL_DRAW_SECONDS,shotGap:0.3,bowMin:6,bowMax:24,
    healthDisengage:12,healthRetreat:8,recoverHealth:14,sprintFood:6,
    projectileMiss:1.6,projectileHorizon:3,creeperFuse:3.0,
-   pillarTrigger:8,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
+   groupReach:3.5,pillarTrigger:8,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
   // Wall clock. 73186 released a bow at 0.27 s because bot.time.age/20 jumped
   // (Via/26.x tick skip). Tests inject opts.now; never read age for draw/cooldown.
   this.now=opts.now||(()=>Date.now()/1000);
@@ -499,7 +501,9 @@ export class CombatController{
   }
  }
  setTarget(e){
-  if(e!==this.target){this._drawing=false;this._lastStrike=-1e9;this._setState(null);this._creeperLastD=null;this._leadPos=null;this._leadT=null;this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;}
+  // The attack charge belongs to the player, not the target: a switch keeps _lastStrike.
+  // Resetting it let a zombie trio (nearest flipping every few ticks) draw uncharged swings.
+  if(e!==this.target){this._drawing=false;this._setState(null);this._creeperLastD=null;this._leadPos=null;this._leadT=null;this._losAt=-1e9;this._losCell=null;this._losCells=null;this._losTried=null;}
   this.target=e;
  }
  // mineflayer velocity is blocks/tick. ViaVersion on 26.3 reports 0, so the bow
@@ -1211,6 +1215,16 @@ export class CombatController{
   const threatened=projectileThreat(bot,Object.values(bot.entities||{}),
    {miss:this.opts.projectileMiss,horizon:this.opts.projectileHorizon}).length>0;
   const ready=now-this._lastStrike>=cooldownSeconds(gear.weaponName,bot.registry);
+  // Groups (test2_zombie_triple: "Health below 8; retreated"): strike the nearest when the
+  // charge is full and it is in reach; between swings, step so that only ONE mob stays in
+  // reach instead of holding the cell while all three hit.
+  const crowd=this._crowd(t);
+  if(!threatened&&crowd.some(c=>c.d<=this.opts.groupReach)&&!(ready&&d<=this.opts.range)){
+   this._raiseShield();
+   this._setState('group-spacing');
+   this._groupStep(t,crowd);
+   return;
+  }
   if(threatened){ // 7b.5: shield up while an arrow is incoming; do not swing through it
    this._setState('guard');this._raiseShield();
    this._controls({forward:false,sprint:false});
@@ -1241,6 +1255,41 @@ export class CombatController{
    return;
   }
   this._strike(plan);
+ }
+ // Other live hostiles (not the target) within 6 of the bot, with their distances.
+ _crowd(t){
+  const me=this.bot.entity.position,out=[];
+  for(const e of Object.values(this.bot.entities||{})){
+   if(!e||e===t||e===this.bot.entity||e.isValid===false||e.type!=='hostile'||!e.position)continue;
+   const d=dist(e.position,me);
+   if(d<=6)out.push({e,d});
+  }
+  return out;
+ }
+ // One spacing step while the charge recharges: keep facing the target (the next swing),
+ // move back/sideways along the open heading that puts the most room between the bot and
+ // the nearest OTHER hostile, without stepping into the target or out of its reach band.
+ // Controls are look-relative: back = heading(yaw+PI), left = +PI/2, right = -PI/2.
+ _groupStep(t,crowd){
+  const me=this.bot.entity.position;
+  const face=yawToward(t.position.x-me.x,t.position.z-me.z);
+  this._faceTarget(t);
+  const sepAt=p=>Math.min(...crowd.map(c=>Math.hypot(c.e.position.x-p.x,c.e.position.z-p.z)));
+  const now=sepAt(me);
+  let best=null;
+  for(const [ctl,rel] of GROUP_MOVES){
+   const h=face+rel,room=this._openAlong(h);
+   if(room<0.8)continue;
+   const {x:dx,z:dz}=headingOf(h),step=Math.min(room,1.6);
+   const p={x:me.x+dx*step,z:me.z+dz*step};
+   const sep=sepAt(p),dt=Math.hypot(t.position.x-p.x,t.position.z-p.z);
+   const score=sep-(dt<1.5?5:0)-Math.max(0,dt-this.opts.groupReach);
+   if(!best||score>best.score)best={ctl,score,sep};
+  }
+  const stop={forward:false,back:false,left:false,right:false,sprint:false};
+  if(!best||best.sep<=now+0.1){this._controls(stop);return null;} // cornered: hold and swing
+  this._controls({...stop,...best.ctl});
+  return best.ctl;
  }
  _meleePlan(t,tactic,gear,now,ready,d){
   const e=this.bot.entity;

@@ -75,7 +75,15 @@ export class FightTask extends ActionTask{
   if(this.isFinished(bot)){this._report(ctl,'finished');return null;}
   const list=this.candidates(bot).sort((a,b)=>a.position.distanceTo(bot.entity.position)-b.position.distanceTo(bot.entity.position));
   if(this.lockFirst&&!this._locked)this._locked=list[0]||null;
-  const target=this.lockFirst?this._locked:list[0]||null;
+  let target=this.lockFirst?this._locked:list[0]||null;
+  // Groups: stay on the current target while it is in reach or the nearest is not clearly
+  // (1+ block) closer. Flipping between three zombies every few ticks reset the controller
+  // state each time and spread the damage over all three. A creeper always takes over.
+  const cur=ctl.target;
+  if(!this.lockFirst&&target&&cur&&cur!==target&&target.name!=='creeper'&&list.includes(cur)){
+   const me=bot.entity.position,dc=cur.position.distanceTo(me);
+   if(dc<=3||target.position.distanceTo(me)>dc-1)target=cur;
+  }
   if(!target){if(this.inFlight())return null;return null;}
   // Beyond straight-line walking range, chase with the pathfinding getToEntity child
   // (the controller only walks straight at a target - a mob that paths around a wall
