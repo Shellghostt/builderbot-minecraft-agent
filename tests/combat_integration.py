@@ -76,6 +76,8 @@ def cancel_leftovers():
 def sweep(skip=()):
     for mob in HOSTILES:
         if mob not in skip:command('kill @e[type=minecraft:'+mob+']')
+# Lane creeper (test 4, round 5): bot and creeper 10 blocks apart on the lane's centre line.
+LANE_BOT=(1499,-60,1518);LANE_CREEPER=(1499,-60,1508)
 def summon(kind,x,z,y=-60):
     command('summon minecraft:'+kind+' '+str(x)+' '+str(y)+' '+str(z)+' {PersistenceRequired:1b}');time.sleep(1)
     server_assert('if entity @e[type=minecraft:'+kind+',x='+str(x)+',y='+str(y)+',z='+str(z)+',distance=..16]','the '+kind+' is summoned',8)
@@ -322,11 +324,16 @@ def test3_skeleton():
 def test4_creeper():
     print('== Test 4: creeper without an explosion ==',flush=True)
     # 7a: a prepared fighter carries food - the disengage-eat-reengage loop needs it
-    # Lane spawn (z=1518): 15 blocks + cobble LOS through the gate. The 12x12 start
-    # at 1496,1497 is only 9.5 live and gives time for one arrow (creeper 20 hp,
-    # 73184 shots=1 then blast 17.5). Wiki fuse starts at 3 / 1.5 s.
-    reset_bot(gear=[('bow',1),('arrow',32),('shield',1),('stone_sword',1),('cooked_beef',3),('cobblestone',16)],armor='leather',pos=(1496,-60,1518))
-    summon('creeper',1504,1504)
+    # Round 5: both in the shooting lane, 10 blocks apart on an open line (lane interior
+    # x 1496..1503, y -60..-57, roof -56). The old spawn (bot 1496,1518, creeper in the
+    # arena corner 1504,1504) was 16.1 blocks apart, past the fight's 16-block range, and the
+    # line crossed the solid wall beside the gate: the job found no target, completed at
+    # ttk 0 and every run read 'repelled' with no combat. Now the creeper sees the bot and
+    # walks at it down the lane: bow shots at 10, then the pillar (2 up under the lane roof)
+    # or the wall. Wiki fuse starts at 3 / 1.5 s. The roofed 12x12 case (4b) is unchanged.
+    reset_bot(gear=[('bow',1),('arrow',32),('shield',1),('stone_sword',1),('cooked_beef',3),('cobblestone',16)],armor='leather',pos=LANE_BOT)
+    summon('creeper',LANE_CREEPER[0],LANE_CREEPER[2])
+    server_assert('if block %d -60 %d minecraft:air'%(LANE_CREEPER[0],(LANE_CREEPER[2]+LANE_BOT[2])//2),'the lane between the bot and the creeper is open')
     m=run_fight({'type':'fight','maxSeconds':90},seconds=150,keep=('creeper',))
     # MEASURED 26.3 LIMIT: without knockback, trackable arrows or a working shield raise,
     # a creeper in a 12-wide arena either dies to the kite arrows or is survived by the
@@ -352,11 +359,11 @@ def test4_creeper():
     assert m['job']['status'] in ('complete','failed'),'creeper fight neither won nor retreated: '+m['job']['message']
     assert_at_arena()
     assert end is not None and end>0,'the bot died to the creeper blast (hp '+str(end)+')'
-    server_assert('if block 1504 -61 1504 minecraft:dirt','no crater at the creeper spawn corner')
-    server_assert('if block 1500 -61 1500 minecraft:dirt','no crater at the arena center')
-    # 1496,1504 is at the gate; an unloaded chunk makes execute-if silent (no say).
-    command('tp BuilderBot 1496 -60 1504');time.sleep(1)
-    server_assert('if block 1496 -61 1504 minecraft:dirt','no crater along the creeper path')
+    # The lane floor is glowstone: a blast anywhere on the creeper's path leaves a hole.
+    for z,label in ((LANE_CREEPER[2],'the creeper spawn'),((LANE_CREEPER[2]+LANE_BOT[2])//2,'the lane midpoint'),(LANE_BOT[2],'the bot start')):
+        server_assert('if block %d -61 %d minecraft:glowstone'%(LANE_CREEPER[0],z),'no crater at '+label)
+    if not m['ttk'] and not killed:
+        print('NOTE: lane creeper - no engagement recorded (ttk '+json.dumps(m['ttk'])+'); the fixture is meant to provoke one',flush=True)
     if m['damage_taken'] is not None and m['damage_taken']>=10:
         print('NOTE: creeper damage '+str(m['damage_taken'])+' >= 10 (milestone 4 not met; blast was off the dirt samples)',flush=True)
     print('PASS: creeper '+('killed' if killed else ('repelled' if repelled else 'survived by retreat'))+' without exploding near the bot (health '+str(end)+')',flush=True)
