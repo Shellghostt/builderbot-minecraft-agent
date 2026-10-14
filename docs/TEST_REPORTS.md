@@ -183,3 +183,9 @@ No `[bed-prep]` line and no `[night] sleep`. Two shelters: 17:30Z (hard1, after 
 - 17:58Z the server kicked the bot: `You are sending too many packets!` After that every sample is `connection refused`, and hard3 could not confirm dawn.
 
 `Stop all` also fired twice on normal2 (16:48Z and 16:53Z). The soak resumed an idle autopilot at t=541 and t=872. No second soak.
+
+## 2026-10-15 00:18–00:36 IST — integration (`b5c7c7b`)
+
+`git pull --rebase` was already at `b5c7c7b`. Unit tests (`tests/*.test.js` except `resources.test.js`): **313 passed, 0 failed** (the cloud note said 304; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
+
+`python tests/integration.py`, exit 0, 1074 s. `All in-game integration tests passed`. A4: escaped the lava trench at 18.8 hp, at [1648, -59, 1648].
