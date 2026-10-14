@@ -41,10 +41,10 @@ const server=http.createServer(async(req,res)=>{
   const data=await body(req);
   if(url.pathname==='/api/connect'){worker.connect();return send(res,200,{ok:true});}
   if(url.pathname==='/api/disconnect'){worker.disconnect();return send(res,200,{ok:true});}
-  if(url.pathname==='/api/stop'){worker.stop();worker.autopilot.stop();return send(res,200,{ok:true});}
+  if(url.pathname==='/api/stop'){worker.stop('Stopped by user','user');worker.autopilot.stop();return send(res,200,{ok:true});}
   if(url.pathname==='/api/jobs')return send(res,201,worker.submit(data));
   if(url.pathname==='/api/resume')return send(res,200,worker.resume(data.id));
-  if(url.pathname==='/api/cancel'){worker.cancel(data.id);return send(res,200,{ok:true});}
+  if(url.pathname==='/api/cancel'){worker.cancel(data.id,'user');return send(res,200,{ok:true});}
   if(url.pathname==='/api/reflexes'){if(typeof data.enabled!=='boolean')throw Error('enabled must be a boolean');worker.setReflexes(data.enabled);return send(res,200,{reflexes:worker.reflexEnabled});}
   if(url.pathname==='/api/autopilot'){if(typeof data.enabled!=='boolean')throw Error('enabled must be a boolean');if(data.enabled)worker.autopilot.start(typeof data.goal==='string'?data.goal:null);else worker.autopilot.stop();return send(res,200,worker.autopilot.status());}
   if(url.pathname==='/api/plan'){

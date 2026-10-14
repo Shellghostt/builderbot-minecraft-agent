@@ -283,6 +283,10 @@ const woodTotals=(counts,ctx)=>{
 // ctx: {tod, bedNear, sheepNear, worldTable} plus the counts' wood totals. The bed is a 3x3
 // recipe: without a table held or standing near, the craft makes one first (4 more planks).
 export const BED_PREP_FROM=9000,BED_PREP_JOBS=5;
+// After a low-health stop the ladder waits (up to RECOVER_MS) for the health to come back
+// instead of submitting jobs the worker's check() refuses at once - three of those would
+// count as three failures and block the step. Natural regen needs a food bar of 18+.
+export const RECOVER_MS=60000;
 export function bedPrepJob(counts,ctx){
  const c=countFactory(counts);
  ctx=woodTotals(counts,{...ctx});
@@ -379,6 +383,7 @@ export class Autopilot{
    return;
   }
   if(this.current)this.settle(w.jobs.find(j=>j.id===this.current.id)||{status:'complete',id:this.current.id});
+  if(!isNight(b)&&this.recovering(b))return; // the night job (shelter or sleep) still goes out
   this.rememberHome(b);
   // Dusk prep: without a bed the night shelter needs 25 dirt/cobble in the inventory, so
   // gather the dirt while there is still daylight (once per day). Grass blocks drop dirt.
@@ -407,6 +412,15 @@ export class Autopilot{
    this.submit('night',bedNear?{type:'sleep'}:{type:'shelter'});return;
   }
   this.decide(b);
+ }
+ recovering(b){
+  const min=this.worker.config?.limits?.minHealth??10;
+  if(!(b.health<min)){this.lowSince=0;this.recoverAte=false;return false;}
+  if(!this.lowSince)this.lowSince=Date.now();
+  if(Date.now()-this.lowSince>=RECOVER_MS)return false;
+  if(b.food<18&&!this.recoverAte&&this.counts()._edible>0){this.recoverAte=true;this.submit('recover',{type:'eat'});return true;}
+  this.state='recovering: health '+Math.round(b.health);
+  return true;
  }
  settle(job){
   if(!this.current)return;

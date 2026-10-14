@@ -54,8 +54,12 @@ export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
 const STRANDED_CLIMB=new Set(['goto','explore','hunt','collect','shear','breed','deposit','build','place']);
 // Stops that are not the user's: they pause the queue but leave the autopilot running. A
 // 'user' stop sets userStopped, and the autopilot reads that as Stop all and switches off -
-// which is how its own food-explore cancel and the job watchdog idled normal3 twice.
-const LADDER_SAFE_STOPS=new Set(['reflex','autopilot','timeout']);
+// which is how its own food-explore cancel and the job watchdog idled normal3 twice. Round 3
+// soak: the low-health stop (and the death and connection-end stops) still used the default
+// 'user' source, so every hard hit mid-job printed 'Autopilot stopped (Stop all)' (normal2
+// twice, hard1, hard2) and froze the ladder. Only the API's stop/cancel and an explicit
+// disconnect are the user's; every internal caller names its source.
+export const LADDER_SAFE_STOPS=new Set(['reflex','autopilot','timeout','health','death','connection']);
 // Neutral mobs trail the bot without attacking; searches and explores ignore them unless
 // they crowd the bot (the reflexes answer real aggression).
 const NEUTRAL=new Set(['enderman','zombified_piglin','piglin','spider']);
@@ -228,20 +232,24 @@ export class Worker extends EventEmitter {
   });
   bot.on('error',e=>this.log('Connection error: '+e.message));
   bot.on('kicked',reason=>this.log('Server rejected connection: '+JSON.stringify(reason)));
-  bot.on('end',()=>{if(this.bot!==bot)return;this.stop('Connection ended');this.bot=null;this.ready=false;this.log('Disconnected. Connect again to retry.');});
-  bot.on('death',()=>{
+  bot.on('end',()=>this.onEnd(bot));
+  bot.on('death',()=>this.onDeath(bot));
+  bot.on('health',()=>this.onHealth(bot));
+  bot.on('messagestr',message=>this.log(message.slice(0,500)));
+ }
+ onEnd(bot){if(this.bot!==bot)return;this.stop('Connection ended','connection');this.bot=null;this.ready=false;this.log('Disconnected. Connect again to retry.');}
+ // deathResume (not userStopped) holds the ladder after a death: 'paused: died' until a resume.
+ onDeath(bot){
   const at=bot.entity?.position;
   const killer=at?Object.values(bot.entities).filter(e=>e!==bot.entity&&e.type==='hostile'&&e.position&&e.position.distanceTo(at)<=8).sort((x,y)=>x.position.distanceTo(at)-y.position.distanceTo(at))[0]:null;
   this.log('Bot died at '+(at?Math.floor(at.x)+', '+Math.floor(at.y)+', '+Math.floor(at.z):'an unknown position')+(killer?' (killed by '+killer.name+')':''));
   this.lastDeath={pos:at?{x:at.x,y:at.y,z:at.z}:null,t:Date.now()};
   this.deathResume=true;
-  this.stop('Bot died; inspect the world before resuming');
+  this.stop('Bot died; inspect the world before resuming','death');
   setTimeout(()=>{try{bot.respawn();}catch{}},500);
- });
-  bot.on('health',()=>{if(this.busy&&!this.survivalJob&&(bot.health<this.config.limits.minHealth||bot.food<this.config.limits.minFood))this.stop('Health or food is low');});
-  bot.on('messagestr',message=>this.log(message.slice(0,500)));
  }
- disconnect(){this.stop('Disconnected by user');this.bot?.quit();this.bot=null;this.ready=false;}
+ onHealth(bot){if(this.busy&&!this.survivalJob&&(bot.health<this.config.limits.minHealth||bot.food<this.config.limits.minFood))this.stop('Health or food is low','health');}
+ disconnect(){this.stop('Disconnected by user','user');this.bot?.quit();this.bot=null;this.ready=false;}
  submit(input){const spec=jobSchema.parse(input);const job={id:crypto.randomUUID(),spec,status:'queued',created:new Date().toISOString(),progress:0,message:'Waiting'};this.jobs.push(job);this.userStopped=false;this.deathResume=false;this.save();this.pump();return job;}
  stop(message='Stopped by user',source='user'){
   if(!LADDER_SAFE_STOPS.has(source))this.userStopped=true;
