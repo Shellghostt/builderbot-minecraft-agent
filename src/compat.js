@@ -2,9 +2,41 @@
 // Upstream diagnosis: PrismarineJS/mineflayer#4128 (pending in 4.39.0).
 // Apply per connection; no global package files or server settings are changed.
 // While asleep the server rejects client movement, so those packets are suppressed.
+// Global serverbound budget. Round 3 soak, hard2 17:58Z: Paper kicked the bot with 'You are
+// sending too many packets!' (its limiter counts ALL play packets, 500/s averaged over 7 s),
+// and only movement and input were capped here. Every play packet now goes through a 1 s
+// sliding window of PACKET_BUDGET. Over it, packets a later one supersedes (movement, look,
+// input, tick boundaries) and swings are dropped; everything else (digs, uses, attacks,
+// clicks, chat) queues in order and drains as the window frees, at most PACKET_QUEUE deep (a
+// runaway loop loses its newest packets, never memory). keep_alive and teleport_confirm
+// always go out. Swings are also capped at SWING_PER_SECOND on their own.
+export const PACKET_BUDGET=200,PACKET_QUEUE=256,SWING_PER_SECOND=10;
+const SUPERSEDED=new Set(['position','position_look','look','flying','player_input','tick_end','arm_animation']);
+const ALWAYS=new Set(['keep_alive','teleport_confirm']);
+const DROPPED=Symbol('dropped');
 export function installMovementFix(bot){
  const client=bot._client,write=client.write.bind(client);
  let enabled=false;
+ const sentAt=[],queue=[],swings=[];
+ const stats=bot.packetStats={sent:0,dropped:0,queued:0,droppedByName:{},peak:0};
+ let lastBudgetLog=0;
+ const trim=(list,now)=>{while(list.length&&now-list[0]>=1000)list.shift();};
+ const note=(name,how)=>{
+  stats[how]++;if(how==='dropped')stats.droppedByName[name]=(stats.droppedByName[name]||0)+1;
+  const now=Date.now();if(now-lastBudgetLog>1000){lastBudgetLog=now;console.log('PACKET_BUDGET',how,name,'window',sentAt.length,'queue',queue.length,'dropped',stats.dropped);}
+ };
+ const out=(name,data,now)=>{sentAt.push(now);stats.sent++;if(sentAt.length>stats.peak)stats.peak=sentAt.length;return write(name,data);};
+ const drain=now=>{trim(sentAt,now);while(queue.length&&sentAt.length<PACKET_BUDGET){const [n,d]=queue.shift();out(n,d,now);}};
+ const send=(name,data)=>{
+  if(client.state!=='play')return write(name,data);
+  const now=Date.now();
+  if(ALWAYS.has(name))return out(name,data,now);
+  if(name==='arm_animation'){trim(swings,now);if(swings.length>=SWING_PER_SECOND){note(name,'dropped');return DROPPED;}swings.push(now);}
+  drain(now);
+  if(!queue.length&&sentAt.length<PACKET_BUDGET)return out(name,data,now);
+  if(SUPERSEDED.has(name)||queue.length>=PACKET_QUEUE){note(name,'dropped');return DROPPED;}
+  queue.push([name,data]);note(name,'queued');return undefined;
+ };
  // Windows timer hiccups make the physics catch-up loop burst position packets (300+/s),
  // which 26.3 servers reject with "You are sending too many packets!". Cap movement and
  // input packets at 30 per second; dropped intermediate positions are superseded by the next.
@@ -33,7 +65,7 @@ export function installMovementFix(bot){
  bot.on('physicsTick',()=>{
   if(!enabled||client.state!=='play'||!bot.getControlState||bot.isSleeping)return;
   if(!allowPace(inputPace,inputClock))return;
-  write('player_input',{inputs:{forward:bot.getControlState('forward'),backward:bot.getControlState('back'),left:bot.getControlState('left'),right:bot.getControlState('right'),jump:bot.getControlState('jump'),shift:bot.getControlState('sneak'),sprint:bot.getControlState('sprint')}});
+  send('player_input',{inputs:{forward:bot.getControlState('forward'),backward:bot.getControlState('back'),left:bot.getControlState('left'),right:bot.getControlState('right'),jump:bot.getControlState('jump'),shift:bot.getControlState('sneak'),sprint:bot.getControlState('sprint')}});
  });
  client.write=(name,data)=>{
   countPacket(name);
@@ -64,7 +96,6 @@ export function installMovementFix(bot){
   }
   // The next position that gets through carries the rotation the dropped packet held.
   if(name==='position'&&staleLook&&data&&typeof data.yaw==='number')name='position_look';
-  if(name==='position_look'||name==='look'){staleLook=false;if(data)sentRot={yaw:data.yaw,pitch:data.pitch};}
   if(name==='teleport_confirm'){
    // Every teleport id must be confirmed exactly once. Paper does not re-send an unconfirmed
    // teleport (updateAwaitingTeleport has the resend disabled), so a dropped confirm leaves
@@ -79,8 +110,10 @@ export function installMovementFix(bot){
   if(name==='teleport_confirm'&&bot.entity){
    data={...data,x:bot.entity.position.x,y:bot.entity.position.y,z:bot.entity.position.z,yRot:180-bot.entity.yaw*180/Math.PI,xRot:-bot.entity.pitch*180/Math.PI};
   }
-  const result=write(name,data);
-  if(enabled&&client.state==='play'&&!bot.isSleeping&&movement)write('tick_end',{});
+  const result=send(name,data);
+  if(result===DROPPED){if(name==='position_look'||name==='look')staleLook=true;return undefined;}
+  if(name==='position_look'||name==='look'){staleLook=false;if(data)sentRot={yaw:data.yaw,pitch:data.pitch};}
+  if(enabled&&client.state==='play'&&!bot.isSleeping&&movement)send('tick_end',{});
   return result;
  };
  function syncLook(){
@@ -90,7 +123,7 @@ export function installMovementFix(bot){
   const onGround=!!bot.entity.onGround;
   client.write('look',{yaw,pitch,onGround,flags:{onGround,hasHorizontalCollision:false}});
  }
- const timer=setInterval(()=>{if(enabled&&client.state==='play'&&!bot.isSleeping)write('tick_end',{});},50);timer.unref();
+ const timer=setInterval(()=>{if(client.state==='play')drain(Date.now());if(enabled&&client.state==='play'&&!bot.isSleeping)send('tick_end',{});},50);timer.unref&&timer.unref();
  bot.once('end',()=>clearInterval(timer));
 }
 

@@ -36,7 +36,19 @@ export const movementTask=(ctx,name,mk)=>{
  if(f){try{const t=f();if(t&&typeof t.onTick==='function')return t;}catch{}}
  return mk();
 };
-const digSafe=(bot,block)=>{const p=bot.dig(block);p&&p.catch&&p.catch(()=>{});};
+// One dig at a time per bot: these tasks tick at 20 Hz, and a bot.dig per tick restarts the
+// dig every 50 ms (dig start + abort + swing + look) - a packet flood toward Paper's
+// 'You are sending too many packets!' kick, and the block never breaks.
+const digging=new WeakSet();
+const digSafe=(bot,block)=>{
+ if(digging.has(bot))return;
+ const p=bot.dig(block);
+ if(p&&p.then){
+  digging.add(bot);
+  const t=setTimeout(()=>digging.delete(bot),5000);t.unref&&t.unref(); // a dig that never settles
+  p.then(()=>{clearTimeout(t);digging.delete(bot);},()=>{clearTimeout(t);digging.delete(bot);});
+ }
+};
 // mineflayer's equip reads item.slot: a bare {name} made the equip THROW silently, the
 // item never reached the hand and every placement that depended on it was refused by the
 // server (the A4 water douse burned the full fire clock this way - measured 2026-10-13).
