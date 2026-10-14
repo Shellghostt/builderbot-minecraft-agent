@@ -324,3 +324,107 @@ fix. Model never started, no server, no processes touched. Five commits on `main
 - **Not done:** MobDefenseChain (reflexes on, autopilot) still only flees a wild creeper;
   the pillar runs only inside fight jobs. If the corrected flee still loses to creepers in
   soaks, a `CreeperPillarTask` in the swelling-creeper branch is the next step.
+
+
+## Cloud session round 2 (Claude, 2026-10-14, code only - `docs/CLOUD_TASK_2.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **250 passed, 0 failed** (222 at the start
+of the round, plus 28 new). Offline Python checks: `tests/combat_damage_check.py` and
+`tests/soak_metrics_check.py` both pass. One commit per task on `main`.
+
+1. **Arrows never register hits** (`bf26c2c`). The release path itself looks correct for
+   1.21.4: `use_item` carries `hand`, `sequence` and the rotation, and the release is
+   `block_dig` status 5 (RELEASE_USE_ITEM). The 0-hit result came from detection, plus one
+   aim fault:
+   - Bow shots never counted as hits at all. `stats.hits` was only bumped by melee.
+   - The probe looked 120 ms after the release for an `arrow` within 6 blocks of the feet. A
+     full-draw arrow flies 3 blocks/tick, so by then it was 6+ blocks out, already in the
+     target, or stuck past the radius. That is why an arrow name was visible but "not near".
+   - `compat.js` drops `position_look` over the 30/s cap. mineflayer records the aim as sent
+     before that wrapper runs, and never re-sends an unchanged aim, so the server could
+     release along a stale rotation. A dropped rotation now rides the next `position`, and a
+     bow release first re-sends the current aim (one `look`) when the server's copy is stale.
+   - New `src/arrowShots.js` tracks each shot.
+     - **Released:** the inventory arrow count drops, or an arrow spawns within 5 of the eye.
+       The spawn `objectData` owner filters out skeleton arrows.
+     - **Landed:** `entityHurt` (damage_event) on the target within 3 s, or the target's
+       `health` metadata (index 9) drops.
+     - **Missed:** `in_ground`, or silence past the window.
+     - **Unreleased:** neither a count drop nor a spawn. It logs
+       `no arrow left the bow: arrows N->N`, which is the live answer to "is it released?".
+   - Landed arrows count as hits. Fight summaries add `released=` and `landed=`.
+2. **Combat damage accounting** (`81f4f7a`, `tests/combat_integration.py`).
+   - `damage_from()` sums every health drop between consecutive samples. That equals start
+     minus end plus anything healed or eaten. A death still counts the hp lost.
+   - `settle(m)` adds the live health after the kill checks and sweeps. The lane creeper's
+     blast very likely landed after the job settled, outside every old sample.
+   - Tests 2-8 now call `record()` before their post-fight asserts. Job status and end
+     health are in the notes.
+3. **Stuck at canopy spawns** (`86df23e`). Gather failures went into one job-wide counter,
+   and only the column of every third failure was blacklisted. Attempts alternating between
+   trunks never blacklisted anything. `badColumns` was also lost when the ladder resubmitted
+   the gather.
+   - `gatherFailed()` counts per block and per column.
+   - A reach failure skips the block at once. The reach fallbacks have already run by then.
+   - Any other error skips the block on its second failure. Three failures in a column drop
+     the column.
+   - Skipped blocks also go into the shared worker blacklist for 10 minutes, so the next job
+     skips them.
+   - A missing harvest tool fails the job at once.
+4. **Ladder regressions** (`8158c99`).
+   - **Table never collected:** the wooden axe and furnace crafts carry `keepTable` AND
+     `collectTable`, but the craft only collected when `!keepTable`. Every step's table
+     stayed in the world, which matches hard2 ending with no table held. `collectTable` now
+     wins.
+   - **normal3 going idle (likely cause):** the autopilot cancels its own food explore when
+     animals come into range. `cancel()` went through a user-sourced `stop()`, which set
+     `userStopped`, and the next tick switched the autopilot off as "Stop all". The job
+     watchdog did the same. `cancel(id,source)` now takes a source, and the
+     `autopilot`/`timeout` stops leave `userStopped` alone.
+   - **Table left out of reach:** a `keepTable` craft records its table in
+     `worker.leftTable`. While that table stands within 32, it counts as the wood step's
+     table, and the ladder walks back (`goto`) before a step-kit craft. Two trips that do not
+     reach it forget it.
+5. **Zombie trio** (`0cc8eed`).
+   - `setTarget()` reset the attack charge, so a switch allowed an instant uncharged swing.
+     It no longer does.
+   - FightTask stays on a target that is in reach, or until another is 1+ block closer.
+     A creeper always takes over.
+   - Between swings, if another hostile is within `groupReach` 3.5, the controller faces the
+     target and steps back or sideways. It picks the open heading that gives the most room
+     from the other mobs, never into the target. When walled in, it holds and swings.
+   - A full charge with the target in reach still strikes first (the force-field rule).
+   - The shield goes through the existing primitive, which stays ablated.
+   - A 10 s trio simulation: ticks with 2+ zombies in reach drop from 196 to 49, still 10
+     swings.
+
+### Files
+
+`src/arrowShots.js` (new), `src/combat.js`, `src/compat.js`, `src/worker.js`,
+`src/autopilot.js`, `src/chains/fightTask.js`; `tests/combat_integration.py`; new tests
+`arrows`, `gather-blacklist`, `ladder`, `group` (`.test.js`) and
+`tests/combat_damage_check.py`.
+
+### Needs live verification
+
+- **Arrows:** every shot now logs `Combat: arrow <mob> @Ns: released|landed|missed|unreleased (...)`.
+  - `unreleased` means the release really fails on this path. Then look at the held slot
+    and the draw time.
+  - `released` followed by `missed` means aim or ballistics, not detection.
+  - Compare `shots=` with `released=` and `landed=` in the fight summary.
+  - Watch for a `PACKET_RATE` line from the extra `look` before a release. Expect at most one
+    per shot.
+- **Combat suite damage:** `4_creeper` `damage_taken` should now match the hp the bot really
+  lost (start 20, end 3.86 gives about 16). Failed legs should still appear in
+  `data/combat-results.json`.
+- **Soak:**
+  - hard anchors: `Gather: skipping <block> at x,y,z (Cannot reach ...)` once per block, then
+    the gather moves on or explores. It should no longer sit for minutes at [138..141,130,21..23].
+  - The wood predicate (table in inventory) should hold after each step's last craft.
+  - No `Autopilot stopped (Stop all)` after `food explore cancelled - animals in range`.
+- **test2_zombie_triple:** expect `group-spacing` states between swings, fewer hits taken,
+  and no retreat at 8. The group step still needs checking in the 12-wide roofed arena,
+  where walls limit the headings.
+- **Not changed:** bow ballistics constants and the shield ablation. The night soak branch
+  (Cursor's harness fix) is still unmeasured from round 1.
