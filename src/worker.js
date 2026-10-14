@@ -553,7 +553,14 @@ export class Worker extends EventEmitter {
    // A furnace this job placed goes back into the inventory like the table: left standing,
    // the ladder's stone step (furnace held or within 16) regressed as soon as the bot
    // walked on, and re-mined 8 cobblestone for a new one.
-   if(placedFurnace){try{await this.pickUp(placedFurnace,'furnace',token);}catch(e){this.log('Left the furnace at '+placedFurnace);}}
+   if(placedFurnace){
+    // A bare hand breaks a furnace so slowly the drop never lands in the inventory
+    // (integration smelt, no pickaxe: block gone, furnace count 0, 2026-10-14).
+    // Leave it in the world in that case. With a pickaxe (the ladder, after stone)
+    // pick it up so a furnace left within 16 is not treated as already owned.
+    const hasPick=b.inventory.items().some(i=>/_pickaxe$/.test(i.name));
+    if(hasPick){try{await this.pickUp(placedFurnace,'furnace',token);}catch(e){this.log('Left the furnace at '+placedFurnace+': '+e.message);}}
+   }
   }
   if(this.count(outputName)<before+s.count)throw Error(`Smelting did not produce ${s.count} ${outputName}`);
   if(b.registry.foodsByName&&b.registry.foodsByName[outputName])this.meals.cooked+=s.count;

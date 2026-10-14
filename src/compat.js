@@ -43,8 +43,11 @@ export function installMovementFix(bot){
    if(now-lastKeepAlive<500)return undefined;
    lastKeepAlive=now;
   }
-  // Only the physics flood (position/flying) is paced; look packets aim attacks and must land.
-  const paced=name==='position'||name==='flying';
+  // Physics catch-up sends position_look (not bare position) whenever yaw also changes.
+  // That packet was uncapped, so a bed teleport plus a look every tick crossed Paper's
+  // packet limit and kicked the bot mid-sleep (integration 2026-10-14 09:22 and 09:39,
+  // "You are sending too many packets!"). Pure look stays uncapped so a shot still lands.
+  const paced=name==='position'||name==='position_look'||name==='flying';
   const movement=['position','position_look','look','flying'].includes(name);
   if(bot.isSleeping&&movement)return undefined;
   if(paced&&!allowPace(movementPace,movementClock))return undefined;
