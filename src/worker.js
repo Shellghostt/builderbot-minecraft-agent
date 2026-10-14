@@ -20,7 +20,7 @@ import {FightTask} from './chains/fightTask.js';
 import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
-import {avoidanceActive,pickOpenStand,stepCost,trackProgress} from './move-safety.js';
+import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS} from './move-safety.js';
 import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
@@ -396,14 +396,22 @@ export class Worker extends EventEmitter {
   const direction=dirs[spec.direction]?spec.direction:['north','south','east','west'][Math.floor(Math.random()*4)];
   const start=b.entity.position.floored(),goalX=start.x+dirs[direction][0]*spec.distance,goalZ=start.z+dirs[direction][1]*spec.distance;
   const previous=this.movements;b.pathfinder.setMovements(this.exploreMovements());
-  let watch;const threatened=new Promise((_,reject)=>{watch=setInterval(()=>{
+  let watch,lastHealth=b.health,shooters=null;const threatened=new Promise((_,reject)=>{watch=setInterval(()=>{
    try{this.check(token);}catch(e){clearInterval(watch);reject(e);return;}
+   // Shot at with no shield (round 3 normal3 died 'shot by Skeleton' while the food explore
+   // walked on): stop the leg and break line of sight below.
+   const hurt=b.health<lastHealth;lastHealth=b.health;
+   if(hurt&&b.inventory.slots?.[45]?.name!=='shield'){
+    const seen=Object.values(b.entities).filter(e=>e&&e.type==='hostile'&&SHOOTERS.test(e.name||'')&&e.position&&e.position.distanceTo(b.entity.position)<=24&&canSeeTarget(b,e));
+    if(seen.length){shooters=seen;clearInterval(watch);reject(new Error('Shot at by '+seen[0].name+' with no shield; explore stopped to break line of sight'));return;}
+   }
    // Neutral mobs (endermen trail the bot for minutes) must not abort every search; the
    // reflexes answer them when they actually attack or crowd the bot.
    const threat=Object.values(b.entities).find(e=>e&&e.type==='hostile'&&e.position&&e.position.distanceTo(b.entity.position)<6&&!NEUTRAL.has(e.name)&&canSeeTarget(b,e));
    if(threat){clearInterval(watch);reject(new Error('Hostile '+(threat.name||'mob')+' is close; explore stopped early'));}
   },250);});
   try{await Promise.race([this.navigate(new goals.GoalXZ(goalX,goalZ),token,spec.seconds??60+spec.distance*2),threatened]);}
+  catch(e){if(shooters&&token===this.epoch){try{b.pathfinder.setGoal(null);}catch{}await this.takeCover(token,shooters);}throw e;}
   finally{clearInterval(watch);if(token===this.epoch){try{b.pathfinder.setGoal(null);b.pathfinder.stop();}catch{}b.clearControlStates();b.pathfinder.setMovements(previous);}}
   this.check(token);
   const end=b.entity.position.floored();
@@ -412,6 +420,16 @@ export class Worker extends EventEmitter {
   // (and the step's failure budget) for a perfectly useful scan.
   if(Math.hypot(end.x-start.x,end.z-start.z)<Math.min(spec.distance-1,spec.distance*0.6))throw Error('Explore stopped early at '+end);
   return direction;
+ }
+ // Walk (no digging) to the nearest cell within 5 that no shooter can see.
+ async takeCover(token,shooters){
+  const b=this.bot;
+  const cell=coverCell((x,y,z)=>b.blockAt(new Vec3(x,y,z)),b.entity.position,shooters.map(e=>e.position));
+  if(!cell){this.log('Explore: shot at by '+shooters[0].name+'; no cover within 5 blocks');return false;}
+  this.log('Explore: shot at by '+shooters.map(e=>e.name).join(',')+'; taking cover at '+cell.x+','+cell.y+','+cell.z);
+  b.pathfinder.setMovements(this.movements);
+  try{await this.walk(new Vec3(cell.x,cell.y,cell.z),token,0,8);}catch(e){this.check(token);this.log('Explore: cover walk failed: '+e.message);}
+  return true;
  }
  async explore(job,token){
   const b=this.bot;
@@ -428,8 +446,16 @@ export class Worker extends EventEmitter {
   // Food-step graze: abort before a 64-block GoalXZ walks up a peak (soak 5 normal1
   // fell from y=173 at 07:21; soak 4 hard2 fell at y=82). Floor still optional.
   if(job.spec.surfaceCeiling!=null)this.surfaceCeil=job.spec.surfaceCeiling;
+  // Food-step graze floor: the graze is a surface activity. Round 3 normal3 followed the
+  // terrain from the y=131 anchor down into a cave and was shot dead at y=41. Paths below
+  // the floor cost extra, and the leg aborts once the bot is under it.
+  const moves=this.exploreMovements(),floor=job.spec.surfaceFloor,deep=block=>block.position.y<floor?100:0;
+  if(floor!=null){this.surfaceFloor=floor;moves.exclusionAreasStep.push(deep);}
   try{await this.exploreLeg(token,{direction:job.direction,distance:job.spec.distance});}
-  finally{if(job.spec.surface)this.surfaceFloor=null;if(job.spec.surfaceCeiling!=null)this.surfaceCeil=null;}
+  finally{
+   if(job.spec.surface||floor!=null)this.surfaceFloor=null;if(job.spec.surfaceCeiling!=null)this.surfaceCeil=null;
+   if(floor!=null)moves.exclusionAreasStep=moves.exclusionAreasStep.filter(fn=>fn!==deep);
+  }
  }
  async place(job,token){
   const b=this.bot,s=job.spec,target=pos(s.position);

@@ -61,3 +61,36 @@ export function trackProgress(pos,now,prev,limitMs=12000){
  if(!prev||pos.distanceTo(prev.pos)>0.35)return {pos:pos.clone(),since:now,stuck:false};
  return {pos:prev.pos,since:prev.since,stuck:now-prev.since>limitMs};
 }
+
+// Round 3 normal3 died 'shot by Skeleton' at y=41 while the food explore kept walking. An
+// unshielded bot under fire breaks line of sight instead: the nearest standable cell within
+// `radius` (feet and head open, solid floor, no fluid) whose eye line to every shooter's eye
+// passes through a solid block. Sampled every 0.25 blocks; null when nothing near is covered.
+export const SHOOTERS=RANGED;
+export function lineBlocked(blockAt,from,to){
+ const dx=to.x-from.x,dy=to.y-from.y,dz=to.z-from.z,len=Math.hypot(dx,dy,dz),steps=Math.ceil(len/0.25);
+ const fx=Math.floor(from.x),fy=Math.floor(from.y),fz=Math.floor(from.z),tx=Math.floor(to.x),ty=Math.floor(to.y),tz=Math.floor(to.z);
+ for(let i=1;i<steps;i++){
+  const x=Math.floor(from.x+dx*i/steps),y=Math.floor(from.y+dy*i/steps),z=Math.floor(from.z+dz*i/steps);
+  if((x===fx&&y===fy&&z===fz)||(x===tx&&y===ty&&z===tz))continue;
+  const bl=blockAt(x,y,z);
+  if(bl&&bl.boundingBox==='block')return true;
+ }
+ return false;
+}
+export function coverCell(blockAt,origin,shooters,{radius=5}={}){
+ const ox=Math.floor(origin.x),oy=Math.floor(origin.y),oz=Math.floor(origin.z);
+ const eyes=(shooters||[]).map(p=>({x:p.x,y:p.y+1.62,z:p.z}));
+ if(!eyes.length)return null;
+ let best=null,bestD=Infinity;
+ for(let dy=-1;dy<=1;dy++)for(let dx=-radius;dx<=radius;dx++)for(let dz=-radius;dz<=radius;dz++){
+  const x=ox+dx,y=oy+dy,z=oz+dz,d=Math.hypot(dx,dz)+Math.abs(dy);
+  if(d>radius||d>=bestD)continue;
+  const feet=blockAt(x,y,z),head=blockAt(x,y+1,z),floor=blockAt(x,y-1,z);
+  if(!feet||!head||!floor||feet.boundingBox==='block'||head.boundingBox==='block'||floor.boundingBox!=='block')continue;
+  if([feet,head,floor].some(bl=>/water|lava/.test(bl.name||'')))continue;
+  const eye={x:x+0.5,y:y+1.62,z:z+0.5};
+  if(eyes.every(s=>lineBlocked(blockAt,s,eye))){best={x,y,z};bestD=d;}
+ }
+ return best;
+}

@@ -57,6 +57,8 @@ export function grazeDirection(bot){
 }
 // M5 (iron): [item, ingots, sticks] crafted first, in this order; then the rest of the kit.
 const IRON_CORE=[['iron_pickaxe',3,2],['iron_sword',2,1],['shield',1,0]];
+// The food graze may go this far below its anchor (hills, not caves).
+const GRAZE_DEPTH=6;
 const STONE_KIT=[['stone_pickaxe',3],['stone_sword',2],['stone_axe',3],['stone_shovel',1]];
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
@@ -183,7 +185,11 @@ export const STEPS=[
   const anchorY=Number.isFinite(ctx.lastSurfaceY)?ctx.lastSurfaceY:ctx.standY;
   let cap=Number.isFinite(anchorY)?anchorY+8:undefined;
   if(cap!=null&&Number.isFinite(ctx.standY)&&ctx.standY>cap)cap=ctx.standY;
-  return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{})};
+  // The floor mirrors the cap: the graze is a surface activity, never a cave walk (round 3
+  // normal3 was shot dead at y=41, 90 below its anchor). A bot already under it stays level.
+  let floor=Number.isFinite(anchorY)?anchorY-GRAZE_DEPTH:undefined;
+  if(floor!=null&&Number.isFinite(ctx.standY)&&ctx.standY<floor)floor=ctx.standY;
+  return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{}),...(floor!=null?{surfaceFloor:floor}:{})};
  }},
  {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=8,next(c,ctx){
   // M5 core FIRST: iron pickaxe, then iron sword, then the shield (COMBAT_SPEC 7a: right after
