@@ -87,6 +87,20 @@ def fill_ok(command_text,tries=4):
             time.sleep(.3)
         time.sleep(1.5)
     return False
+def bot_idle(s):
+    # No queued/running job, no survival tree acting, not mid-reflex.
+    r=s.get('runner') or {}
+    return (not any(j['status'] in ('running','queued') for j in s.get('jobs',[]))
+            and not s.get('busy') and not s.get('reflexBusy') and not (r.get('chain') and r.get('task')))
+def wait_bot_idle(seconds=30):
+    # Two idle reads 1 s apart at the same position: nothing will act on the next fixture.
+    def check():
+        a=api('state')
+        if not bot_idle(a):return False
+        time.sleep(1);b=api('state')
+        return bot_idle(b) and math.dist([a['position'][k] for k in 'xyz'],[b['position'][k] for k in 'xyz'])<0.1
+    try:return wait(check,seconds)
+    except TimeoutError:return False
 def give_kit():
     for item in ['leather_helmet','leather_chestplate','leather_leggings','leather_boots']:command('give BuilderBot minecraft:'+item+' 1')
 def clear_hostiles():
@@ -657,7 +671,11 @@ def main():
     state=api('state');ax,az=math.floor(state['position']['x']),math.floor(state['position']['z'])
     # 1-deep lava trench at ground level: a player steps out immediately. (A 2-deep trench
     # is a death sentence for ANY bot - the lava wade speed makes 3s of burn unavoidable.)
-    # Tp onto the trench cell FIRST (loads the chunk), then fill and verify server-side.
+    # Fixture order (round 2, 13:04Z: "the lava trench is not in the world"): the lava was
+    # filled ON the bot, whose escape poured its water bucket into the trench before the
+    # verify ran, and the cell read water. Now: sweep, park the bot 2 blocks off the trench
+    # (not lava-adjacent) and wait until it is idle, fill, verify server-side, and only then
+    # put the bot in the lava.
     # Sweep stray lava from EARLIER A4 attempts first. The old sweep was checked with
     # "unless block <trench> lava", which is true even when the fill never ran: the
     # field had grown to ~150 blocks over the sessions (mapped 2026-10-14) and the bot was
@@ -667,18 +685,28 @@ def main():
     assert fill_ok('fill %d -63 %d %d -56 %d minecraft:air replace minecraft:lava'%(ax-14,az-14,ax+14,az+14)),'A4 the lava sweep never ran'
     assert fill_ok('fill %d -63 %d %d -56 %d minecraft:air replace minecraft:fire'%(ax-14,az-14,ax+14,az+14)),'A4 the fire sweep never ran'
     assert fill_ok('fill %d -63 %d %d -56 %d minecraft:air replace minecraft:water'%(ax-14,az-14,ax+14,az+14)),'A4 the water sweep never ran'
-    command('tp BuilderBot %d -60 %d'%(ax+2,az));time.sleep(1.5)
-    # No plant_block here: its success shuttle would tp the burning bot out and back in.
+    command('tp BuilderBot %d -60 %d'%(ax,az));time.sleep(1.5)
+    assert wait_bot_idle(),'A4 the bot did not settle (job or survival tree still acting) before the lava fill'
+    # No plant_block here: its success shuttle would tp the bot around the trench.
     assert fill_ok('fill %d -60 %d %d -60 %d minecraft:lava'%(ax+2,az,ax+4,az)),'A4 the lava trench never filled'
     mark=len((ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace'));marker='AGENT_VERIFIED_'+uuid.uuid4().hex
-    command('execute if block %d -60 %d minecraft:lava run say %s'%(ax+2,az,marker))
+    command('execute if block %d -60 %d minecraft:lava if block %d -60 %d minecraft:lava run say %s'%(ax+2,az,ax+4,az,marker))
     assert wait_for_marker(marker,mark),'A4 the lava trench is not in the world'
+    command('tp BuilderBot %d -60 %d'%(ax+2,az))
+    # The escape is judged only after the lava has touched the bot (the first lava tick is
+    # 4 damage): right after the tp the bot is still at 20 and would pass the health clause
+    # below before it ever burned. No damage within 5 s means the escape beat the first tick.
+    try:wait(lambda:api('state')['health']<20,5)
+    except TimeoutError:print('NOTE: A4 no lava damage within 5 s of the tp',flush=True)
     escaped=wait(lambda:(lambda s:math.dist([s['position']['x'],s['position']['z']],[ax+3,az])>4 or s['health']>=18)(api('state')),150)
     state=api('state')
     assert math.dist([state['position']['x'],state['position']['z']],[ax+3,az])<60,'A4 the bot died in the lava and respawned far away'
     assert state['health']>0,'A4 the bot died in lava'
     assert state['health']>=12,f'A4 escaped the lava but took too much damage (hp {round(state["health"],1)})'
     print(f'PASS: A4 escaped the lava trench (hp {round(state["health"],1)}, at '+str([round(state['position'][k]) for k in ('x','y','z')])+')',flush=True)
+    # Reported, not asserted: the first-tick ownership throw fixed in round 3 (worker.douseFire).
+    lost=[e['message'] for e in api('state').get('events',[])[:40] if 'control changed hands' in e['message']]
+    if lost:print('NOTE: A4 douse lost to an ownership change: '+lost[0][:120],flush=True)
     fill_ok('fill %d -63 %d %d -56 %d minecraft:air replace minecraft:lava'%(ax-14,az-14,ax+14,az+14))
     fill_ok('fill %d -63 %d %d -56 %d minecraft:air replace minecraft:fire'%(ax-14,az-14,ax+14,az+14))
     command('forceload remove all');command('kill @e[type=minecraft:item]')

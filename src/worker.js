@@ -936,6 +936,11 @@ export class Worker extends EventEmitter {
   // probe 2026-10-13). Ownership is checked LIVE at each step: a captured token goes stale
   // because the runner legitimately churns the epoch while the tree owns control.
   const owned=()=>this.controlToken===this.epoch;
+  // The tasks call this from onTick, i.e. inside runner.tick() BEFORE the runner claims
+  // control for a tree that just started (the claim follows tickChain). Checking at once
+  // threw on the first tick of every fresh lava escape (integration A4, 2026-10-14
+  // 13:04:32Z) and lost one of its two bucket attempts. Wait out that claim, bounded.
+  for(let i=0;i<5&&!owned();i++)await sleep(i?50:0);
   if(!owned())throw Error('Douse interrupted: control changed hands');
   const bucketItem=b.inventory.items().find(i=>i.name==='water_bucket');
   if(!bucketItem)throw Error('No water bucket to douse with');
