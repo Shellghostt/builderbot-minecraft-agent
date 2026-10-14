@@ -101,3 +101,33 @@ The landed hurt event is a real hit, so this release was not a mirrored miss. Af
 ### Zombie trio
 
 `2_zombie_x3`: ttk 22.6 s, hits 13, sweeps 10, `damage_taken=0`, end health 20, all three dead, tactic melee. Four `Combat: group-spacing zombie` lines between swings. No retreat.
+
+## 2026-10-14 18:44–20:22 IST — dual soak (`e84fa05`, bot code `409f594`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 5862 s. `SOAK DONE (clean)`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, difficulty peaceful). Anchors: normal [310, 131, 30], hard [142, 131, 31]. Deaths 0, no death lines. Resumes 0. No `Autopilot stopped (Stop all)`. No second soak.
+
+| Run | Wood | Stone pick | Furnace | Food peak | Eaten | Points | Cooked | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 90 | 331 | 361 | 1 | 0 | 0 | 0 | 0 |
+| normal2a2 | 90 | 331 | 391 | 1 | 0 | 0 | 0 | 0 |
+| normal3a3 | 90 | 331 | 391 | 6 | 0 | 0 | 6 | 0 |
+| hard1a1 | 150 | — | — | 0 | 0 | 0 | 0 | 0 |
+| hard2a2 | 150 | — | — | 0 | 0 | 0 | 0 | 0 |
+| hard3a3 | 271 | 632 | — | 0 | 0 | 0 | 0 | 0 |
+
+Totals: wood 6/6, stone 3/6, food 3/6. Every run ended with a crafting table still in the inventory (2, 2, 2, 2, 1, 1), so the wood predicate held. Eaten and food points are 0. Only normal3 cooked anything.
+
+### Night
+
+All three hard runs submitted `[night] {"type":"shelter"}` and the shelter completed: 13:58Z→14:08Z, 14:19Z→14:29Z, 14:41Z→14:51Z. No `[night]` sleep, and no `Sleeping` line. `tod_end` is `day` on all six because each hard run outlasted the night. hard1 spent that shelter stuck at [149, 132, 42] from t=632 to t=1233, then went back to stone gather with 22 cobble and no stone pickaxe.
+
+### Iron
+
+The iron step never started. No `[iron]` line, no ore, no ingots, no iron pickaxe. The three normal runs were still on food when the 600 s clock ended. The three hard runs never finished the stone kit.
+
+### Stuck, table, idle
+
+- Unreachable blocks are skipped in a burst now (`Gather: skipping stone at … (Cannot reach or harvest this block)` dozens of times in one second at 13:56Z and 14:14Z) instead of one column for the whole run. hard2 still finished with 0 cobble, backing off on stone. hard3 got a stone pickaxe and nothing else in the kit (`queued: gather` at the end).
+- hard1 was unstuck four times, at [135, 129, 31], [139, 129, 34], [145, 126, 38], and [147, 130, 40].
+- normal3's food explore went down to y=62 at [308, 62, 105] with health still 20, then climbed. No idle resumes.
+- No deaths.
