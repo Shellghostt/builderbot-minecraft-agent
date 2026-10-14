@@ -551,3 +551,136 @@ fixture in `tests/combat.test.js`.
     anyway, the remaining cause is a later owner change (a tp or a job), not the first tick.
 - **Not changed:** the lane `4_creeper` repelled-in-1.1 s case, the bow ballistics, and
   MobDefenseChain's wild-creeper flee. The pillar still runs only inside fight jobs.
+
+## Cloud session round 4 (Claude, 2026-10-14, code only - `docs/CLOUD_TASK_4.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **304 passed, 0 failed** (270 at the start
+of the round, plus 34 new). `tests/soak_metrics_check.py` and `tests/combat_damage_check.py`
+pass. One commit per task on `main` (`0ac0ea8`..`9058977`). All six tasks were done.
+
+1. **Suffocation during the dig-down** (`0ac0ea8`).
+   - Cause: `digTunnelStep` dug the step feet -> head -> corner. The bot stepped in 80 ms
+     later without re-reading the cells. Sand or gravel over the corner fell into the step,
+     onto the bot. Then the low-health stop (task 2) froze the job, and nothing in the code
+     ever freed a head stuck in a block.
+   - Steps are now dug top-down and settled (`clearCells`): re-dig until every cell is air,
+     nothing that falls sits on the top cell, and no `falling_block` entity is still dropping
+     in that column. After 12 rounds the step is refused instead of entered.
+   - After every staircase and strip-mine step, the bot's own head and feet are freed again
+     (a late fall).
+   - `pickStairDir` skips steps with sand or gravel on top.
+   - New `EscapeSuffocationTask` in `WorldSurvivalChain`, priority 100, after the head has
+     been in a solid block for 0.3 s. It runs after a Stop too, like the lava escape.
+     - It digs natural or falling blocks, one dig at a time.
+     - Inside a built block it pushes toward an open side and never breaks it.
+   - Stop/cancel mid-tunnel: each staircase step records the tunnel on the worker
+     (`strandedTunnel`).
+     - The next gather adopts it and climbs it at its end.
+     - Surface jobs (goto, explore, hunt, collect, shear, breed, deposit, build, place)
+       climb it before they start.
+     - A user stop still halts on the spot (the hard rule). The cells around the bot are air
+       by construction, and the escape covers anything that falls later.
+   - `NATURAL_DIG` moved to `src/digDown.js`.
+2. **`Autopilot stopped (Stop all)` on its own** (`fd062a0`).
+   - Cause: the low-health stop (`bot.on('health')`), the death stop and the connection-end
+     stop still used `stop()`'s default `'user'` source. Every hard hit mid-job switched the
+     ladder off: normal2 twice, hard1 and hard2, each just before a death.
+   - Fix: they are now `onHealth`, `onDeath` and `onEnd`, with the sources `'health'`,
+     `'death'` and `'connection'` (`LADDER_SAFE_STOPS`, exported). Death still holds the
+     ladder through `deathResume` ('paused: died').
+   - `app.js` passes `'user'` explicitly for `/api/stop` and `/api/cancel`, and so does
+     `disconnect()`.
+   - Follow-through, because a health stop now leaves the ladder on: below minHealth the
+     autopilot eats once (when food < 18, since regen needs it) and waits up to 60 s. It
+     does not submit jobs that `check()` refuses, which would burn 3 failures and block the
+     step. The night job still goes out.
+   - `tests/stop-sources.test.js`:
+     - one test per caller: health, death, connection, watchdog, runner preemption, and the
+       API/disconnect;
+     - a source scan that fails on any new internal stop/cancel call without a ladder-safe
+       source.
+3. **Packet kick** (`40cbb1d`, `9058977`).
+   - `src/compat.js` now budgets every serverbound play packet: a 1 s sliding window of 200.
+     Paper's limit is 500/s averaged over 7 s.
+   - Over the budget:
+     - movement, look, input, the timer `tick_end` and swings are dropped (a later packet
+       supersedes them);
+     - digs, uses, attacks, clicks and chat queue in order and drain as the window frees
+       (256 deep, newest dropped beyond that).
+   - Always sent: `keep_alive`, `teleport_confirm`, and the tick boundary after a movement
+     that went out.
+   - Swings are capped at 10/s. A dropped look still marks the rotation stale.
+   - `bot.packetStats` and a rate-limited `PACKET_BUDGET <queued|dropped> <name>` console
+     line name the packet that hit the cap.
+   - Flood found: `digSafe` in the powder-snow and fire escapes called `bot.dig` on every
+     20 Hz tick. Each call restarted the dig (dig start, abort, swing, look), so the block
+     never broke. It now runs one dig at a time per bot.
+   - The 17:58Z record itself (which packet flooded) was not in the repo. The next kick, or
+     near-kick, will print it.
+4. **Hard stone: cobble but no pickaxe** (`b491fee`).
+   - Cause: the stone step crafted nothing until 32 cobble was held. On the hard anchor the
+     dig-down gather failed short every time, so the ladder kept resubmitting the gather.
+   - Fix: the kit is crafted in order as soon as the next piece is affordable. The pickaxe
+     comes at 3 cobble, then the sword (2), axe (3), shovel (1), then the furnace (8).
+     Only a shortfall gathers (still up to 32), and the order never skips ahead.
+   - Table and furnace provisioning (`placementCells` `avoid`) keeps the open tunnel's
+     cells free, so a craft at the bottom of a dig-down cannot block the climb out.
+5. **Skeleton death in a cave** (`b1b17d2`).
+   - Fix: the food explore gets `surfaceFloor` = anchor - 6, mirroring the +8 ceiling (a bot
+     already under it stays level).
+     - `explore()` arms the navigation's surface check with it.
+     - It also adds a pathfinder cost of 100 per step below the floor.
+     - The schema accepts the field.
+   - Shot at with no shield in the off hand: `exploreLeg` stops the leg when health drops
+     while a skeleton, stray or bogged within 24 has line of sight.
+     - It then walks (normal movements, no digging) to the nearest cell within 5 that no
+       shooter can see (`coverCell` and `lineBlocked` in `move-safety.js`).
+     - The job then fails with the reason, and the ladder backs off and re-decides.
+   - With a shield, the leg is left to the shield and the fight chains.
+6. **Small ones** (`fa3f98c`).
+   - Snow: tunnels dig a block without its harvest tool when its hardness is at most 0.5
+     (snow, snow blocks, netherrack; about 2.5 s by hand). Stone and ores still need the
+     pickaxe.
+   - Furnace output: the smelt job takes its output every 8 items. When it ends early (stop,
+     reflex, time limit, the soak bell), it takes the finished output and the unsmelted
+     input back before the window closes, because the furnace it placed is picked up next.
+
+### Files
+
+`src/worker.js`, `src/compat.js`, `src/autopilot.js`, `src/digDown.js`, `src/move-safety.js`,
+`src/place-support.js`, `src/schema.js`, `src/app.js`, `src/chains/fallbackTasks.js`,
+`src/chains/worldSurvivalChain.js`.
+
+New tests: `tunnel-safety`, `stop-sources`, `packet-budget`, `cave-graze` (`.test.js`), plus
+new cases in `stone-step` and `iron`. Fakes in `gather-blacklist`, `stone-step` and `iron`
+gained the new worker methods. One fake `dig` in `stone-step` now really opens the cell,
+because the step verifies it.
+
+### Needs live verification
+
+- **Soak, hard dig-down:**
+  - No `suffocated in a wall`.
+  - In gravel: `Tunnel stopped: gravel keeps falling into ...` only for bottomless stacks,
+    and steps dug while gravel lands.
+  - If a head ever ends up in a block: `WorldSurvival: head in <block> at ..., digging out`.
+  - After a stop or cancel mid-tunnel: `Climbing out of the tunnel an interrupted gather left`
+    at the next surface job.
+- **Soak, Stop all:** expect no `Autopilot stopped (Stop all)` without an operator stop. After
+  a hit to below 10 hp: `recovering: health N` (or a `[recover] {"type":"eat"}`), then the
+  ladder carries on.
+- **Packets:**
+  - No `You are sending too many packets!`.
+  - Watch the bot console for `PACKET_BUDGET`. Any line names the flooding packet, so report
+    it.
+  - Normal play should print none. 200/s is well above the about 80/s baseline.
+- **Hard stone:** `craft stone_pickaxe` within seconds of the first 3 cobble, then
+  sword/axe/shovel. Expect the furnace before the 32-cobble top-up finishes.
+- **Food graze:**
+  - Explores carry `surfaceFloor` (anchor - 6), and `Navigation left the surface` ends a leg
+    that drops below it.
+  - Under skeleton fire with no shield: `Explore: shot at by skeleton; taking cover at ...`.
+- **Normal dig-down in snow:** no `needs a suitable tool ... snow_block`.
+- **Iron:** with a long smelt at the bell, ingots should already be held. `Smelt ended early:
+  took N iron_ingot ...` appears when the job is cut off.
+- **Not changed:** the combat pillar and bow, the shelter, the bed prep, the soak harness.
