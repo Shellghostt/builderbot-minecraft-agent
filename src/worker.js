@@ -36,6 +36,10 @@ function guardDiagonals(movement){
 const NATURAL_DIG=new Set(['dirt','grass_block','coarse_dirt','rooted_dirt','podzol','mycelium','mud','moss_block','sand','red_sand','gravel','clay','stone','cobblestone','deepslate','cobbled_deepslate','andesite','granite','diorite','tuff','calcite','dripstone_block','sandstone','netherrack','soul_sand','soul_soil','end_stone','snow','snow_block','packed_mud','terracotta']);
 // Blocks a gather job may descend for: they live underground when no exposure is in range.
 const UNDERGROUND=/(_ore$|^deepslate|^stone$|^cobblestone$|^tuff$)/;
+// Gather failures that mean THIS block cannot be taken from anywhere the bot can get to:
+// the reach fallbacks (reachUp, descendToReach, canopyDrop) already ran before the throw.
+const UNREACHABLE_BLOCK=/Cannot reach or harvest|Walked onto the target|Fluid (beside|under) target/;
+export const GATHER_BLACKLIST_SECONDS=600;
 // Neutral mobs trail the bot without attacking; searches and explores ignore them unless
 // they crowd the bot (the reflexes answer real aggression).
 const NEUTRAL=new Set(['enderman','zombified_piglin','piglin','spider']);
@@ -1221,6 +1225,9 @@ export class Worker extends EventEmitter {
     const wantOpen=!!s.openSky;
     const skyOpen=p=>{for(let dy=2;dy<=10;dy++){const bl=b.blockAt(p.offset(0,dy,0));if(bl&&bl.boundingBox==='block'&&bl.name!=='log')return false;}return true;};
     let targets=b.findBlocks({matching:match,point:pos(job.anchor),maxDistance:radius,count:64}).map(p=>b.blockAt(p)).filter(block=>block&&block.position.distanceTo(pos(job.anchor))<=radius);
+    // Blocks that failed for good (this job, or a recent job: the ladder resubmits the same
+    // gather) are skipped. hard1/hard2 sat for minutes re-trying the same canopy logs.
+    targets=targets.filter(t=>!this.gatherBlacklisted(job,t.position));
     // openSky RANKS open trunks first but never empties the list: the dark-canopy hard
     // anchor has no open-sky trunks at all, and a filtered gather starved there (measured).
     if((anyLog||wantOpen) && job.skyKey!==job.anchor.x+','+job.anchor.z){
@@ -1328,7 +1335,7 @@ export class Worker extends EventEmitter {
      this.log('Gather: column '+ck+' has nothing that can be dug without taking the floor');
      continue;
     }
-    const target=diggable[failures%diggable.length];
+    const target=diggable[((job.colFails||{})[bestCol[0].position.x+','+bestCol[0].position.z]||0)%diggable.length];
     try{
      if(target.position.equals(b.entity.position.floored().offset(0,-1,0))){
       // The last target sits directly under the feet and its cover is natural: dig the floor
@@ -1371,7 +1378,7 @@ export class Worker extends EventEmitter {
        if(nowUnder&&/_log$/.test(nowUnder.name)&&count_()-job.startDrop<s.count)await this.mineColumnUnder(token);
       }
       failures=0;
-     }catch(e){this.check(token);failures++;const where=target?target.name+' at '+target.position.floored():'an empty column';this.log('Gather: attempt '+failures+' on '+where+' failed: '+e.message);if(failures>=3&&target){const ck=target.position.x+','+target.position.z;if(!job.badColumns.includes(ck))job.badColumns.push(ck);failures=0;if(job.badColumns.length>=8)throw Error('Cannot gather safely: '+e.message);}}
+     }catch(e){this.check(token);failures++;const where=target?target.name+' at '+target.position.floored():'an empty column';this.log('Gather: attempt '+failures+' on '+where+' failed: '+e.message);if(target)this.gatherFailed(job,target,e);}
     this.update(job,Math.max(0,count_()-job.startDrop),`Collected ${Math.max(0,count_()-job.startDrop)}/${s.count} ${job.dropName}`);
    }
    await this.sweepDrops(token);
@@ -1384,6 +1391,34 @@ export class Worker extends EventEmitter {
    }
    this.surfaceFloor=null;
   }
+ }
+ // Failure bookkeeping for one gather target, counted per block and per column. The old
+ // single counter blacklisted only the column of every THIRD failure, so attempts that
+ // alternated between two trunks never blacklisted either, and the job-local list died with
+ // the job (the ladder resubmits the same gather). A block that cannot be reached is
+ // blacklisted at once (job + the shared blacklist, so the next job skips it too); any other
+ // error twice on the same block also blacklists it; three failures in a column drop it.
+ gatherFailed(job,target,e){
+  const msg=String(e&&e.message||e);
+  // Every block of this type needs the same tool: no other target can succeed either.
+  if(/suitable harvesting tool/.test(msg))throw e;
+  const p=target.position,bk=p.x+','+p.y+','+p.z,ck=p.x+','+p.z;
+  job.blockFails=job.blockFails||{};job.colFails=job.colFails||{};job.badBlocks=job.badBlocks||[];
+  if(!job.badColumns)job.badColumns=[];
+  const n=job.blockFails[bk]=(job.blockFails[bk]||0)+1;
+  const c=job.colFails[ck]=(job.colFails[ck]||0)+1;
+  if((UNREACHABLE_BLOCK.test(msg)||n>=2)&&!job.badBlocks.includes(bk)){
+   job.badBlocks.push(bk);if(job.badBlocks.length>64)job.badBlocks.shift();
+   try{this.blacklist&&this.blacklist.block&&this.blacklist.block(p,GATHER_BLACKLIST_SECONDS);}catch{}
+   this.log('Gather: skipping '+target.name+' at '+bk+' ('+msg+')');
+  }
+  if(c>=3&&!job.badColumns.includes(ck))job.badColumns.push(ck);
+  this.save();
+  if(job.badColumns.length>=8||job.badBlocks.length>=24)throw Error('Cannot gather safely: '+msg);
+ }
+ gatherBlacklisted(job,p){
+  if(job.badBlocks&&job.badBlocks.includes(p.x+','+p.y+','+p.z))return true;
+  try{return !!(this.blacklist&&this.blacklist.blockRecently&&this.blacklist.blockRecently(p));}catch{return false;}
  }
  // Safe staircase: a 2-high 45-degree descending tunnel, dug by hand so every block is
  // checked. Stops (and fails honestly) at fluids and bedrock; records the tunnel so the
