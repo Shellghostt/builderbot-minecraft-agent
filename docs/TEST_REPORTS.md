@@ -197,3 +197,39 @@ No `[bed-prep]` line and no `[night] sleep`. Two shelters: 17:30Z (hard1, after 
 `4b_creeper_roofed`: two ground shots first (`arrow creeper` released at 3.01 and 2.98 b/t, both landed), then `Combat: pillar-up 2 at 1496,-60,1497 (creeper at 7.9)`, perched 2 up, and a third shot that landed. Summary: `shots=3 released=3 landed=3`. Suite `damage_taken=0`, end health 20, ttk 6.2 s, creeper killed, no crater. No `pillar step` line and no `los-break` on this leg.
 
 `4_creeper` (lane) is still the known gap: ttk 0.0, recorded repelled, damage 0, end health 20, no combat line. The cloud session left that case alone.
+
+## 2026-10-15 00:42–02:58 IST — dual soak (`34dc5d4`, bot code `b5c7c7b`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 8117 s. `SOAK DONE (with errors)`. The clean copy was not promoted; the record is `data/soak-results-20261015-025757.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [142, 131, 31], normal [310, 131, 30].
+
+| Run | Wood | Stone pick | Furnace | Ore | Ingots peak | Iron pick | Cooked | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 90 | 331 | 361 | 30 | 1 | 722 | 8 | 0 |
+| normal2a2 | 90 | 271 | 301 | 30 | 6 | 662 | 8 | 0 |
+| normal3a3 | 90 | 301 | 331 | 27 | 1 | 782 | 10 | 0 |
+| hard1a1 | 240 | 541, gone at the end | never | 0 | 0 | — | 0 | 1 |
+| hard2a2 | 90 | 631, still held | never | 0 | 0 | — | 0 | 0 |
+| hard3a3 | never | never | never | 0 | 0 | — | 0 | 2 skeleton shots; the run line says 0 |
+
+`iron_runs` 3, `stone_runs` 1 (only normal3 still held a furnace at the bell). Eaten and food points are 0 on every run. normal1 and normal2 fail the stone predicate because the furnace was out of the inventory while smelting. The operator returned normal1 from [319, 122, 34].
+
+### Iron
+
+All three normal runs crafted an iron pickaxe (722 s, 662 s, 782 s) and an iron sword. normal1 and normal2 were still smelting 30 raw iron at the bell. The job then logged `Smelt ended early: took 18 iron_ingot` (normal1, 19:36Z) and `took 17 iron_ingot` (normal2, 19:56Z). The soak's end inventory still reads 0 ingots and 30 raw iron on both. normal3 never started that long smelt; at the bell it was still gathering, with 0 ingots and 27 raw iron held.
+
+### Hard stone
+
+Dig-downs fired (y=125, 129, 123, 116) and none suffocated. No `snow_block` tool stop. hard1's pickaxe job started at 20:22Z, about 541 s, then sword, axe and shovel by 20:26Z. No furnace job followed, and the skeleton death emptied the kit, so the end count is 0 cobble and 0 stone tools. hard2 crafted only the pickaxe (20:48Z, 631 s) and ended holding it plus 24 cobble, with no sword, axe, shovel or furnace. On the normal runs the pickaxe job landed once cobble was already in the 20s (normal1 still had 29 cobble and no pickaxe at t=301), not within seconds of the first 3.
+
+### Night and food
+
+No `[bed-prep]` and no sleep. Shelters at 20:27Z (hard1), 20:48Z (hard2), and 21:09Z, 21:11Z, 21:14Z (hard3). Food explores do carry `surfaceFloor`. One dropped it to 92. No `taking cover` line and no `Navigation left the surface` line. Cooked food was 8, 8 and 10 on the normal runs and was never eaten.
+
+### Deaths, stops, packets
+
+No `suffocated in a wall`. No `Autopilot stopped (Stop all)`. No `PACKET_BUDGET` line and no packet kick.
+
+- hard1, 20:36Z: `shot by Skeleton`. Four unstucks before that, all within a few blocks of the anchor. The operator resumed the ladder.
+- hard3 stood on the anchor backing off wood for about 10 minutes with an empty inventory, then died twice: `shot by Skeleton` at 21:11Z and again at 21:14Z. Between them it was `working: shelter` at 8.3 hp and did not eat. The second shelter was still running at 0.3 hp. The final dashboard read timed out, so the run line records deaths=0 and two errors, and that is why the clean copy was not promoted. The death causes and the samples both have the two shots.
+
+No second soak.
