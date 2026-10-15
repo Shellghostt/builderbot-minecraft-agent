@@ -30,7 +30,7 @@ test('the unblock explore after a surface gather passes the job schema',()=>{
 const WOOD={oak_log:16,oak_planks:16,stick:4,crafting_table:1,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1};
 const STONE={...WOOD,stick:10,oak_planks:8,cobblestone:32,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1,furnace:1};
 // COMBAT_SPEC 7a: full iron tier - one sword, one axe, shield, bow, 32 arrows and full armour.
-const IRON={...STONE,_edible:8,iron_pickaxe:1,iron_sword:1,iron_axe:1,iron_helmet:1,iron_chestplate:1,iron_leggings:1,iron_boots:1,bucket:1,shield:1,bow:1,arrow:32,torch:8};
+const IRON={...STONE,_edible:8,iron_pickaxe:1,iron_sword:1,iron_axe:1,iron_helmet:1,iron_chestplate:1,iron_leggings:1,iron_boots:1,bucket:1,shield:1,bow:1,arrow:32,torch:16};
 const FULL={...IRON,chest:1,red_wool:3,red_bed:1};
 test('an empty inventory starts the ladder with a small log gather',()=>{
  const {step,job}=plan(counts({}));
@@ -212,21 +212,73 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  assert.equal(r.job.type,'craft');assert.equal(r.job.item,'oak_planks');
  r=valid(plan(counts({...shieldNext,oak_planks:0,oak_log:0})));
  assert.equal(r.job.type,'gather');assert.equal(r.job.block,'log');
- // Core done: coal for torches and smelting, then the remaining 30 ore, smelted with it.
+ // Round 8 - core done: coal for the torches (the band staircase only with no coal in reach),
+ // then 16 torches.
  assert.equal(have.iron_ingot,0);
  r=valid(plan(counts(have)));
- assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,16);
- have={...have,coal:16};
- r=valid(plan(counts({...have,stone_pickaxe:1})));
+ assert.deepEqual([r.job.type,r.job.block,r.job.count,r.job.targetY,r.job.bandTop],['gather','coal_ore',4,32,64]);
+ r=valid(plan(counts(have),{coalNear:true}));
+ assert.deepEqual([r.job.type,r.job.block,r.job.count,r.job.targetY,r.job.bandTop],['gather','coal_ore',4,undefined,64],'exposed/near coal first: no staircase');
+ r=valid(plan(counts({...have,coal:4,stick:2})));
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['craft','stick',2],'a stick per 4 torches');
+ r=valid(plan(counts({...have,coal:4})));
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['craft','torch',16]);
+ have={...have,torch:16};
+ // The iron helmet and chestplate: 13 ingots, dug (spare stone pickaxe first) and smelted.
+ r=valid(plan(counts(have)));
  assert.deepEqual([r.job.type,r.job.item],['craft','stone_pickaxe'],'one stone pickaxe: the spare comes first');
  have={...have,stone_pickaxe:2};
  r=valid(plan(counts(have)));
- assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,6,'the remaining 30 ore in batches of 6');assert.equal(r.job.targetY,16);
- r=valid(plan(counts({...have,raw_iron:30})));
- assert.equal(r.job.type,'smelt');assert.equal(r.job.count,30);
- r=valid(plan(counts({...have,raw_iron:2,iron_ingot:12})));
- assert.deepEqual([r.job.block,r.job.count],['iron_ore',6],'2 raw: below the smelt batch, dig on');
- have={...have,iron_ingot:30};
+ assert.deepEqual([r.job.type,r.job.block,r.job.count,r.job.targetY],['gather','iron_ore',6,16],'13 ore for the core armour, in batches of 6');
+ r=valid(plan(counts({...have,raw_iron:3})));
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['smelt','raw_iron',3]);
+ r=valid(plan(counts({...have,iron_ingot:5})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','iron_helmet']);
+ r=valid(plan(counts({...have,iron_ingot:5,iron_helmet:1})));
+ assert.deepEqual([r.job.type,r.job.block,r.job.count],['gather','iron_ore',3],'the chestplate\'s 8, less the 5 held');
+ r=valid(plan(counts({...have,iron_ingot:8,iron_helmet:1})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','iron_chestplate']);
+ // The full set when affordable: legs and boots ride along while their ingots are held.
+ r=valid(plan(counts({...have,iron_ingot:11,iron_helmet:1,iron_chestplate:1})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','iron_leggings']);
+ r=valid(plan(counts({...have,iron_ingot:4,iron_helmet:1,iron_chestplate:1,iron_leggings:1})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','iron_boots']);
+ // ...and is worn at once; an equip that changed nothing is not repeated.
+ const armoured={...have,iron_helmet:1,iron_chestplate:1};
+ r=valid(plan(counts(armoured)));
+ assert.deepEqual(r.job,{type:'equip'});
+ r=plan(counts(armoured),{lastEquip:'iron_helmet,iron_chestplate'});
+ assert.notEqual(r.job.type,'equip');
+ r=plan(counts({...armoured,_equipped_iron_helmet:1,_equipped_iron_chestplate:1}));
+ assert.notEqual(r.job.type,'equip','worn already');
+ have={...armoured,_equipped_iron_helmet:1,_equipped_iron_chestplate:1};
+ // A bed while its wool is cheap: a sheep near and a sword (hunt) or shears (shear).
+ r=valid(plan(counts(have),{sheepNear:2}));
+ assert.deepEqual(r.job,{type:'hunt',entity:'sheep',count:2});
+ r=valid(plan(counts({...have,shears:1}),{sheepNear:2}));
+ assert.deepEqual(r.job,{type:'shear'});
+ r=valid(plan(counts({...have,white_wool:3}),{sheepNear:2}));
+ assert.deepEqual(r.job,{type:'craft',item:'white_bed',count:1});
+ r=plan(counts({...have,white_wool:3}),{bedNear:true});
+ assert.notEqual(r.job.item,'white_bed','a bed placed nearby is enough');
+ r=plan(counts(have),{sheepNear:2,bedOff:true});
+ assert.notEqual(r.job.type,'hunt','a failed bed job sets the bed aside');
+ // No sheep: the rung waits on nothing - coal for smelting, then the remaining ore.
+ r=valid(plan(counts(have)));
+ assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,16);
+ have={...have,coal:16};
+ r=valid(plan(counts(have)));
+ assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,6,'the remaining 17 ore in batches of 6');assert.equal(r.job.targetY,16);
+ r=valid(plan(counts({...have,raw_iron:17})));
+ assert.equal(r.job.type,'smelt');assert.equal(r.job.count,17);
+ have={...have,iron_ingot:17};
+ // The ingots for the legs and boots are held now: crafted and worn before the bow.
+ r=valid(plan(counts(have)));assert.equal(r.job.item,'iron_leggings');
+ have={...have,iron_leggings:1,iron_ingot:10};
+ r=valid(plan(counts(have)));assert.equal(r.job.item,'iron_boots');
+ have={...have,iron_boots:1,iron_ingot:6};
+ r=valid(plan(counts(have)));assert.deepEqual(r.job,{type:'equip'});
+ have={...have,_equipped_iron_leggings:1,_equipped_iron_boots:1};
  // Bow: string from spiders is hunted first.
  r=valid(plan(counts(have)));
  assert.equal(r.job.type,'hunt');assert.equal(r.job.entity,'spider');
@@ -244,17 +296,17 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  r=valid(plan(counts(have)));
  assert.equal(r.job.item,'arrow');assert.equal(r.job.count,32);
  have={...have,arrow:32};
- // COMBAT_SPEC 7a: axe, then the full armour set, then the bucket and torches.
- for(const item of ['iron_axe','iron_helmet','iron_chestplate','iron_leggings','iron_boots','bucket']){
+ // COMBAT_SPEC 7a: the axe, then the bucket.
+ for(const item of ['iron_axe','bucket']){
   r=valid(plan(counts(have)));
   assert.equal(r.step,'iron');assert.equal(r.job.item,item,item);
   have[item]=1;
  }
- r=valid(plan(counts(have)));assert.equal(r.job.item,'torch');
- r=plan(counts({...have,torch:8}));assert.equal(r.step,'bed');
+ r=plan(counts(have));assert.equal(r.step,'bed');
 });
 test('a worn weapon is replaced before the iron step hunts spiders (COMBAT_SPEC 7a)',()=>{
- const have={...STONE,_edible:8,coal:16,iron_ingot:36,iron_pickaxe:1,shield:1};
+ const armour={iron_helmet:1,iron_chestplate:1,iron_leggings:1,iron_boots:1,_equipped_iron_helmet:1,_equipped_iron_chestplate:1,_equipped_iron_leggings:1,_equipped_iron_boots:1};
+ const have={...STONE,_edible:8,coal:16,torch:16,iron_ingot:36,iron_pickaxe:1,shield:1,...armour};
  // Nearly-broken iron sword, no fresh spare: replaced in the best payable tier - iron here.
  let r=plan(counts({...have,iron_sword:1,_worn_iron_sword:1}));
  assert.equal(r.step,'iron');assert.equal(r.job.type,'craft');assert.equal(r.job.item,'iron_sword');

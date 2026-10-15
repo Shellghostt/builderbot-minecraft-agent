@@ -103,6 +103,88 @@ export function duskCobbleJob(counts,ctx={}){
  return {type:'gather',block:'stone',count:need-c('cobblestone'),radius:32,searchIfMissing:true};
 }
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
+// Round 8, the rung after the iron core (AltoClef's order: tools, then light, then armour,
+// then a bed): coal for torches, TORCHES torches, then the iron helmet and chestplate (the
+// legs and boots too while their ingots are held), worn at once, then a bed when wool is cheap.
+export const TORCH_COAL=4,TORCHES=16;
+export const ARMOUR_CORE=[['iron_helmet',5],['iron_chestplate',8]];
+const ARMOUR_SET=[...ARMOUR_CORE,['iron_leggings',7],['iron_boots',4]];
+const ARMOUR_KINDS=['helmet','chestplate','leggings','boots'];
+const PLATE={leather:1,golden:2,chainmail:3,iron:4,diamond:5,netherite:6};
+// The armour pieces held but not worn that beat what their slot wears, as a signature
+// ('iron_helmet,iron_chestplate'), or null. counts() marks worn pieces _equipped_<name>.
+export function armourToWear(c){
+ if(typeof c!=='function')c=countFactory(c||{});
+ const better=[];
+ for(const kind of ARMOUR_KINDS){
+  let worn=0,spare=null;
+  for(const [tier,rank] of Object.entries(PLATE)){
+   const name=tier+'_'+kind;
+   if(c('_equipped_'+name)>=1)worn=Math.max(worn,rank);
+   if(c(name)-c('_equipped_'+name)>=1&&(!spare||rank>spare.rank))spare={rank,name};
+  }
+  if(spare&&spare.rank>worn)better.push(spare.name);
+ }
+ return better.length?better.join(','):null;
+}
+// Coal for the torches: exposed or nearby coal first (a hillside seam, a cave wall - ctx.coalNear
+// from a block scan), the band staircase only when none is in reach.
+function coalJob(c,ctx,count){
+ if(ctx.coalNear)return {type:'gather',block:'coal_ore',count,radius:32,bandTop:IRON_TOP};
+ return {type:'gather',block:'coal_ore',count,radius:32,searchIfMissing:true,targetY:IRON_Y,bandTop:IRON_TOP};
+}
+const sticksFor=(c,ctx,need)=>{
+ if(c('stick')>=need)return null;
+ const planks=planksJob(c,ctx,2);if(planks)return planks;
+ return {type:'craft',item:'stick',count:need-c('stick')};
+};
+// The bed when its wool is cheap: 3 wool of one colour held, or a sheep within 32 and shears
+// (shear) or a sword (hunt), with the 3 planks (7 without a table) payable from what is held
+// - never a log hunt for it. ctx: {bedNear, sheepNear, worldTable} and the wood totals.
+export function bedJob(c,ctx){
+ if(typeof c!=='function')c=countFactory(c||{});
+ if(ctx.bedNear||WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1))return null;
+ const wool=WOOLS.reduce((a,w)=>c(w)>c(a)?w:a,WOOLS[0]);
+ const planks=3+(c('crafting_table')>=1||ctx.worldTable?0:4);
+ if(c(wool)>=3){
+  if(ctx.planksTotal<planks)return ctx.logsTotal>=1?{type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:planks-ctx.planksTotal}:null;
+  return {type:'craft',item:wool.replace('_wool','_bed'),count:1};
+ }
+ if(!ctx.sheepNear||ctx.planksTotal+4*ctx.logsTotal<planks)return null;
+ if(c('shears')>=1)return {type:'shear'};
+ if(Object.keys(PLATE).concat(['wooden','stone']).some(t=>c(t+'_sword')>=1))return {type:'hunt',entity:'sheep',count:Math.max(1,Math.min(3-c(wool),ctx.sheepNear))};
+ return null;
+}
+export const isBedJob=job=>!!job&&(job.type==='shear'||(job.type==='hunt'&&job.entity==='sheep')||(job.type==='craft'&&/_bed$/.test(job.item||'')));
+// The rung after the iron core, or null when it is done (or waits on wool that is not cheap).
+export function ironRung(c,ctx){
+ if(typeof c!=='function')c=countFactory(c||{});
+ // Light: coal for TORCHES, then the torches (1 coal + 1 stick make 4).
+ if(c('torch')<TORCHES){
+  const coalNeed=Math.ceil((TORCHES-c('torch'))/4);
+  if(c('coal')+c('charcoal')<coalNeed)return coalJob(c,ctx,Math.max(TORCH_COAL,coalNeed)-c('coal')-c('charcoal'));
+  return sticksFor(c,ctx,coalNeed)||{type:'craft',item:'torch',count:TORCHES-c('torch')};
+ }
+ // Armour: helmet and chestplate are dug for; legs and boots ride along while affordable.
+ const coreLeft=ARMOUR_CORE.filter(([item])=>c(item)<1);
+ const ingots=c('iron_ingot');
+ if(coreLeft.length){
+  if(ingots>=coreLeft[0][1])return {type:'craft',item:coreLeft[0][0],count:1};
+  const short=coreLeft.reduce((a,[,n])=>a+n,0)-ingots;
+  if(c('raw_iron')>=Math.min(IRON_SMELT_AT,coreLeft[0][1]-ingots))return smeltIron(c,ctx);
+  const spare=spareStonePick(c,ctx);if(spare)return spare;
+  return ironGather(short-c('raw_iron'));
+ }
+ const extra=ARMOUR_SET.find(([item,n])=>c(item)<1&&ingots>=n);
+ if(extra)return {type:'craft',item:extra[0],count:1};
+ // Wear what was crafted (once per new set of pieces: an equip that could not change the
+ // slots must not loop).
+ const wear=armourToWear(c);
+ if(wear&&wear!==ctx.lastEquip)return {type:'equip'};
+ // A bed while the wool is cheap; otherwise the ladder moves on (the dusk prep still tries).
+ if(!ctx.bedOff){const bed=bedJob(c,ctx);if(bed)return bed;}
+ return null;
+}
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
 // radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
 // covers 0..64, so most digs stop well above the deepslate layer.
@@ -261,7 +343,7 @@ export const STEPS=[
   if(floor!=null&&Number.isFinite(ctx.standY)&&ctx.standY<floor)floor=ctx.standY;
   return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{}),...(floor!=null?{surfaceFloor:floor}:{})};
  }},
- {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=8,next(c,ctx){
+ {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=TORCHES,next(c,ctx){
   // M5 core FIRST: iron pickaxe, then iron sword, then the shield (COMBAT_SPEC 7a: right after
   // the first ingots) - 6 ingots from one short dig, before the 16-coal / 36-ore expedition
   // that used to stand between the stone kit and any iron tool at all.
@@ -284,6 +366,10 @@ export const STEPS=[
    const spare=spareStonePick(c,ctx);if(spare)return spare;
    return ironGather(short-c('raw_iron'));
   }
+  // Round 8: torches, the iron helmet and chestplate (worn), then a cheap bed - after a
+  // nearly-broken weapon's replacement (COMBAT_SPEC 7a).
+  const worn=replacementJob(c,ctx);if(worn)return worn;
+  const rung=ironRung(c,ctx);if(rung)return rung;
   if(c('coal')<16)return {type:'gather',block:'coal_ore',count:16-c('coal'),radius:32,searchIfMissing:true,targetY:IRON_Y,bandTop:IRON_TOP};
   // The rest of the kit after the core: axe 3, bucket 3 and the armour set 24 = 30 ingots.
   const rest=IRON_REST.filter(([item])=>c(item)<1).reduce((a,[,n])=>a+n,0);
@@ -333,7 +419,7 @@ export const STEPS=[
    const planks=planksJob(c,ctx,2);if(planks)return planks;
    return {type:'craft',item:'stick',count:2-c('stick')};
   }
-  if(c('torch')<8)return {type:'craft',item:'torch',count:8-c('torch')};
+  if(c('torch')<TORCHES)return {type:'craft',item:'torch',count:TORCHES-c('torch')};
   return null;
  }},
  {name:'bed',done:c=>WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1),next(c,ctx){
@@ -384,24 +470,15 @@ export const NIGHT_RETRIES=3;
 export const KIT_GRACE=600,KIT_HOSTILE=8;
 // Dusk cobble gathers per day, and how long before sunset they stop (the dirt's minute).
 export const DUSK_COBBLE_JOBS=3,DUSK_COBBLE_STOP=1200;
+// A failed rung bed job (the sheep ran off, no wool) sets the bed aside for this long.
+export const BED_OFF_MS=10*60000;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
  const c=countFactory(counts);
  ctx=woodTotals(counts,{...ctx});
  if(ctx.bedNear||ctx.tod==null||ctx.tod<BED_PREP_FROM||ctx.tod>=SUNSET)return null; // the shelter starts at sunset
- if(WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1))return null;
- const wool=WOOLS.reduce((a,w)=>c(w)>c(a)?w:a,WOOLS[0]);
- const planks=3+(c('crafting_table')>=1||ctx.worldTable?0:4);
- if(c(wool)>=3){
-  if(ctx.planksTotal<planks)return ctx.logsTotal>=1?{type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:planks-ctx.planksTotal}:null;
-  return {type:'craft',item:wool.replace('_wool','_bed'),count:1};
- }
- // The bed itself must be payable from what is held: no log hunt at dusk.
- if(!ctx.sheepNear||ctx.planksTotal+4*ctx.logsTotal<planks)return null;
- if(c('shears')>=1)return {type:'shear'};
- if(Object.keys(counts).some(n=>/_sword$/.test(n)&&counts[n]>0))return {type:'hunt',entity:'sheep',count:Math.min(3-c(wool),ctx.sheepNear)};
- return null;
+ return bedJob(c,ctx);
 }
 export function plan(counts,ctx={}){
  const c=countFactory(counts);
@@ -479,7 +556,7 @@ export class Autopilot{
    // A queued craft is a kit craft about to start (seconds): the shelter waits for it too,
    // or the survival pump would run the shelter first and the kit never.
    const busy=(active.status==='running'&&['fight','eat','sleep','shelter','craft'].includes(active.spec?.type))||(active.status==='queued'&&active.spec?.type==='craft');
-   const nightJob=!busy&&nightJobFor(dayTicks(b),this.bedNear(b));
+   const nightJob=!busy&&nightJobFor(dayTicks(b),this.bedForNight(b));
    // Round 5 hard1: a bed-prep sheep hunt ran into sunset, this branch sent the shelter
    // straight away and the grace kit (idle branch only) never ran - no furnace, 19 cobble.
    const kit=active.status==='running'&&nightJob&&nightJob.type==='shelter'&&this.lastNightKey!==String(b.time?.day)&&this.sunsetKit(b,dayTicks(b)??0);
@@ -536,7 +613,7 @@ export class Autopilot{
     return;
    }
   }
-  const nightJob=nightJobFor(todNow,!!bedNear);
+  const nightJob=nightJobFor(todNow,this.bedForNight(b));
   // Sunset grace (KIT_GRACE ticks, ~30 s, still before the first spawns): finish any stone-kit
   // craft that is affordable right now before sealing in for the night.
   if(nightJob&&nightJob.type==='shelter'&&this.lastNightKey!==String(b.time?.day)){
@@ -576,6 +653,15 @@ export class Autopilot{
   }catch{this.worker.cobbleReserve=0;}
  }
  bedNear(b){return b.inventory.items().some(i=>BED.test(i.name))||!!b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});}
+ // Tonight's night job: a bed held or standing near means sleep (round 8: preferred to the
+ // shelter), unless a sleep already failed tonight - then the shelter (sleepFailedTonight).
+ bedForNight(b){return this.bedNear(b)&&!this.sleepFailedTonight(b);}
+ sleepFailedTonight(b){
+  const n=this.nightJob;
+  if(!n||n.day!==String(b.time?.day))return false;
+  const job=this.worker.jobs.find(j=>j.id===n.id);
+  return !!job&&job.spec?.type==='sleep'&&['failed','cancelled'].includes(job.status);
+ }
  // One night job per day, plus up to NIGHT_RETRIES more when the night job failed while
  // it is still dark (an unsealable spot, a lost race) - caught outside is the deadly case.
  nightKeyFree(b){
@@ -602,7 +688,7 @@ export class Autopilot{
   const tod=dayTicks(b);
   if(!shelterDue(tod))return false;
   if(w.jobs.some(j=>['running','queued'].includes(j.status)&&['shelter','sleep'].includes(j.spec?.type)))return false;
-  const job=nightJobFor(tod,this.bedNear(b))||{type:'shelter'};
+  const job=nightJobFor(tod,this.bedForNight(b))||{type:'shelter'};
   this.lastNightKey=String(b.time?.day);
   this.log('Autopilot: respawned at night; '+job.type+' at the spawn point first');
   this.submit('night',job,{keepHolds:true});
@@ -625,6 +711,7 @@ export class Autopilot{
    this.coolUntil=Date.now()+8000; // give the world (and reflexes) time before retrying
    if(step==='bed-prep'&&this.bedPrep)this.bedPrep.off=true; // shelter tonight
    if(step==='dusk-cobble'&&this.duskCobble)this.duskCobble.off=true; // the dirt now
+   if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
    // Only ladder steps block (and explore to unblock): a night job that keeps failing must
    // never turn into an explore in the dark - nightKeyFree caps its retries instead.
    if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
@@ -639,7 +726,12 @@ export class Autopilot{
  counts(){
   const map={};
   const registry=this.worker.bot.registry;
-  for(const item of this.worker.bot.inventory.items()){
+  // Round 8: worn armour (slots 5-8) and the off hand (45) are held too - inventory.items()
+  // skips them, so an equipped chestplate or shield read as missing and was crafted again.
+  const slots=this.worker.bot.inventory.slots||[];
+  const worn=[5,6,7,8,45].map(i=>slots[i]).filter(Boolean);
+  for(const item of worn)map['_equipped_'+item.name]=(map['_equipped_'+item.name]||0)+1;
+  for(const item of [...this.worker.bot.inventory.items(),...worn]){
    map[item.name]=(map[item.name]||0)+item.count;
    // COMBAT_SPEC 7a: mark nearly-broken gear so the ladder can craft a replacement
    // before it breaks mid-fight (repair-by-replacement).
@@ -720,7 +812,9 @@ export class Autopilot{
   const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:8})||!!(left&&left.distance<=32);
   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
-  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY};
+  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
+   // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0)};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
   // While ANY step is blocked the ladder must not run later steps' jobs on top of the gap
@@ -754,7 +848,18 @@ export class Autopilot{
    if(++this.tableTrips.n<=2){this.submit(choice.step,{type:'goto',position:left.position});return;}
    this.worker.leftTable=null;
   }else if(left&&left.distance<=5)this.tableTrips=null; // reached: the trips worked
+  // The iron rung's bed jobs run under their own name: a sheep that runs off must not count
+  // toward blocking the iron step (a failure sets the bed aside for BED_OFF_MS instead).
+  if(choice.step==='iron'&&isBedJob(choice.job)){this.submit('bed-rung',choice.job);return;}
+  if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
+ }
+ // A block of one of `names` within `radius` (any exposure; the gather prefers exposed ones).
+ oreNear(b,names,radius){
+  try{
+   const ids=names.map(n=>b.registry.blocksByName[n]&&b.registry.blocksByName[n].id).filter(id=>id!=null);
+   return ids.length?!!b.findBlock({matching:ids,maxDistance:radius}):false;
+  }catch{return false;}
  }
  submit(step,spec,opts){
   try{
