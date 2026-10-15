@@ -1243,3 +1243,112 @@ Changed expectations:
   reached. Only the rung's diamond pickaxe is. Reordering is a ladder-design call.
 - Iron `done` still needs a bow and 32 arrows (spider and chicken hunts), so the `bed` and
   `home` steps stay unreachable on most runs. The rung's bed covers the bed.
+
+## Cloud session round 9 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_9.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **429 passed, 0 failed** (414 at the start
+of the round, plus 15 new). `tests/soak_metrics_check.py` passes. One commit per task on
+`main` (`8759f34`, `d340ea4`, `1c52bfc`, `31bcf67`). All four tasks were done. There were no
+dashboard logs in the sandbox, so the diagnoses come from the code, mineflayer 4.39's sources
+and the round-8 TEST_REPORTS text.
+
+1. **Eating at a full bar** (`8759f34`, cases in `meals`, `soak_metrics_check`).
+   - The bot did not eat at a full bar. `Food: ate cooked_porkchop (bar 20)` printed the bar
+     *after* the meal: a porkchop eaten at 14 reads 20.
+   - Why the soak read `never attempted (due 2)` and **eaten 0 on every run since the counter
+     existed**: mineflayer injects its plugins (`bot.consume`, `bot.equip`) on `inject_allowed`,
+     a `setTimeout(0)` after `createBot` returns (`lib/loader.js:134`). `trackMeals` and
+     `guardEquip` ran right after `createBot`. `bot.consume` was undefined, so the meal counter
+     was never wired and **`guardEquip` was never installed live**. The unit fakes had both
+     methods up front, so the tests passed.
+   - The verdict then said `never attempted` whenever the sampled bar stayed above 14, even
+     with `attempts > 0`. The 30 s samples miss a dip to 14 that a meal fixes at once.
+   - Fixes:
+     - `afterInject` (`src/eating.js`): `trackMeals` and `guardEquip` wrap after injection.
+     - FoodChain keeps its own count of good meals, `meals.ok`. The log reads
+       `Food: ate X (bar A -> B)`.
+     - AltoClef's fill-up (`_requestFillup`) is gone. It kept eating to 20 after any meal, so
+       a second porkchop went at 15-19.
+     - Above 14 the bot eats only on low health (health < 14, the eat-to-full rule) or fire
+       or wither, and never the last edible item. Critical health (< 6) still eats it.
+   - Soak: `meals_delta` adds `ok`. The verdict uses `max(eaten, ok)`. With attempts and no
+     recorded meal it reads `attempted N, no meal recorded (...)`, never `never attempted`.
+2. **The food step cannot hold the ladder** (`d340ea4`, new `tests/food-step.test.js`).
+   - The step is done at `FOOD_ENOUGH` (4) edible held. 4 held plus eaten since `start()`
+     (`_eaten` in `counts()`, from `meals.eaten`/`ok`) also counts. Either way it reopens if
+     the bar is 14 or less with nothing held. Raw meat with a furnace held is still cooked
+     first.
+   - `FOOD_LEGS` (6) graze legs without progress (a new high of held + eaten), or 3 food
+     failures, set the step aside for `FOOD_OFF_MS` (8 min). Food failures no longer
+     enter the `blocked:` explore loop. Log: `Autopilot: food step set aside for 8 min (...)`.
+     After that, food comes back only when hungry with nothing held.
+3. **hard2: no logs, and a pillar every 3 s** (`1c52bfc`, cases in `gather-blacklist`,
+   `shelter-seal`).
+   - Wood. Most likely cause, unconfirmed without the log: the three hard runs share one
+     anchor in one world session, so hard2 starts among hard1's leftovers. Those are canopy
+     logs out of reach and stubs it already refused. They are "in range", so `searchIfMissing`
+     never fired. The gather failed in place with `Only the block under the bot...` or
+     `Cannot gather safely`, and the ladder looped wood, blocked, a 48-block explore and the
+     operator return.
+     - Now these cases take a search leg (3 per job, as before): only refused columns in
+       range, only logs above reach after two climbs, or the 8-column / 24-block refusal
+       limit. Logs: `Gather: only refused logs within 32 (...); searching further afield` and
+       `Gather: N columns / M blocks refused here; searching further afield`.
+   - Pillar. A failed climb used to retry after a flat 3 s. Climbs that fail in a row now back
+     off (`pillarBackoff`: 3, 6, 12, 24, 48, 60 s). Being knocked off a perch still
+     re-climbs in 3 s.
+     - The failure line now says what the climb saw, for example `timed out at 0/3; rose 0.00,
+       0 clicks, holding dirt, on grass_block`. The code does not show why every climb got
+       0/3; the next live run will name it.
+   - Smaller pod. Short of blocks for the 3x3x3 box, the shelter seals a 1x1 pod instead of
+     going to the pillar: `shelterShell(origin, true)`. It is 14 cells: the 4 feet faces, the
+     full head ring, the roof and one roof anchor. The roof cell has no face to place against
+     without the anchor. The feet diagonals stay open. Under a solid head ring no 2-high mob
+     stands there, and a spider is too wide.
+     - Log: `Shelter: N blocks held, M for the box; sealing a 1x1 pod (P)`. Short even for
+       that: `Shelter: a 1x1 pod would need P here`, then the usual pillar fallback, with the
+       message unchanged.
+4. **Soak length** (`31bcf67`). `NORMAL_SECONDS=2400` (frozen day), `HARD_SECONDS=1250`.
+   After `SUMMARY`, the soak prints `RUNGS`: one row per run with columns run, wood, stone
+   pick, furnace, iron pick, torches, armour worn, bed, diamonds, diamond pick, food and
+   deaths. Times are seconds from the run start, and `-` means never. A full soak is now
+   about 3 h 20 min.
+
+### Files
+
+`src/eating.js`, `src/worker.js` (trackMeals, gather search legs, shelter pod),
+`src/chains/foodChain.js`, `src/chains/mobDefenseChain.js` (pillarBackoff),
+`src/chains/fallbackTasks.js` (pillar failure line), `src/night.js` (pod shell),
+`src/autopilot.js` (foodDone, food deferral, `_eaten`); `tests/soak.py`,
+`tests/soak_metrics_check.py`; `AGENTS.md` (shelter line). New tests: `food-step.test.js`;
+new cases in `meals`, `gather-blacklist`, `shelter-seal`.
+
+Changed expectations:
+- `soak_metrics_check`: `meals_delta` carries `ok`, and `NORMAL_SECONDS` is 2400.
+- Nothing else. The existing food-step cases hold 0 or 8 edible, which give the same step
+  under the new rule.
+
+### Needs live verification
+
+- **Meals counted:** expect `Food: ate cooked_... (bar 14 -> 20)` lines and `eaten` > 0 in
+  the soak. The verdict should read `ate N`. If `eaten` stays 0 while `ok` > 0, the consume
+  wrap still misses: check `bot.consume.__tracked` live.
+- **guardEquip is live for the first time.** A hand equip during a meal now waits up to
+  4.5 s (`EAT_GUARD_MS`). Watch for slow pillar or sword equips right after a `Food: ate`
+  line, and for creeper fights that start while the bot is eating.
+- **No meal above 14 at full health:** no `Food: ate` line whose `bar A` is above 14 unless
+  health was below 14.
+- **Food step:** the ladder should reach `[iron]` with 4 food held or eaten. If it does
+  not, expect `Autopilot: food step set aside` after 6 legs. No more `food failed 3 times;
+  exploring before retry`.
+- **Iron rung (the point of 2400 s):** iron pickaxe at 15-20 min, then `craft torch x16`,
+  iron helmet and chestplate, `armour worn 2`, maybe a bed. All of it is in the `RUNGS`
+  table.
+- **hard2 wood:** `searching further afield` lines instead of a run without logs. If it still
+  gets 0 logs, the gather log names the reason.
+- **Pod:** on a short night, `sealing a 1x1 pod` and then `Shelter: sealed at ...
+  (N blocks placed)`, with no damage taken inside. If zombies hit it through the feet
+  diagonals, the pod needs the full feet ring (4 more blocks).
+- **Pillar:** the new failure line says why a climb fails (rise, clicks, item, support).
+  Retries should now be spaced 3, 6, 12 ... s apart.
