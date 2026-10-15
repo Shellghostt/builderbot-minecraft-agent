@@ -224,6 +224,12 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  r=valid(plan(counts({...have,coal:4})));
  assert.deepEqual([r.job.type,r.job.item,r.job.count],['craft','torch',16]);
  have={...have,torch:16};
+ // Round 10, habit 9: a water bucket after the light (3 ingots), filled at water in reach.
+ r=valid(plan(counts({...have,iron_ingot:5})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','bucket']);
+ r=valid(plan(counts({...have,bucket:1}),{waterAt:{x:4,y:63,z:0}}));
+ assert.deepEqual(r.job,{type:'use',item:'bucket',position:{x:4,y:63,z:0}});
+ have={...have,water_bucket:1};
  // The iron helmet and chestplate: 13 ingots, dug (spare stone pickaxe first) and smelted.
  r=valid(plan(counts(have)));
  assert.deepEqual([r.job.type,r.job.item],['craft','stone_pickaxe'],'one stone pickaxe: the spare comes first');
@@ -305,8 +311,8 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  r=valid(plan(counts(have)));
  assert.equal(r.job.item,'arrow');assert.equal(r.job.count,32);
  have={...have,arrow:32};
- // COMBAT_SPEC 7a: the axe, then the bucket.
- for(const item of ['iron_axe','bucket']){
+ // COMBAT_SPEC 7a: the axe (the bucket came with the light, habit 9).
+ for(const item of ['iron_axe']){
   r=valid(plan(counts(have)));
   assert.equal(r.step,'iron');assert.equal(r.job.item,item,item);
   have[item]=1;
@@ -315,7 +321,7 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
 });
 test('a worn weapon is replaced before the iron step hunts spiders (COMBAT_SPEC 7a)',()=>{
  const armour={iron_helmet:1,iron_chestplate:1,iron_leggings:1,iron_boots:1,_equipped_iron_helmet:1,_equipped_iron_chestplate:1,_equipped_iron_leggings:1,_equipped_iron_boots:1};
- const have={...STONE,_edible:8,coal:16,torch:16,iron_ingot:36,iron_pickaxe:1,shield:1,diamond_pickaxe:1,...armour};
+ const have={...STONE,_edible:8,coal:16,torch:16,iron_ingot:36,iron_pickaxe:1,shield:1,diamond_pickaxe:1,water_bucket:1,...armour};
  // Nearly-broken iron sword, no fresh spare: replaced in the best payable tier - iron here.
  let r=plan(counts({...have,iron_sword:1,_worn_iron_sword:1}));
  assert.equal(r.step,'iron');assert.equal(r.job.type,'craft');assert.equal(r.job.item,'iron_sword');

@@ -110,6 +110,8 @@ const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_l
 // then a bed): coal for torches, TORCHES torches, then the iron helmet and chestplate (the
 // legs and boots too while their ingots are held), worn at once, then a bed when wool is cheap.
 export const TORCH_COAL=4,TORCHES=16;
+// Habit 9: water for the bucket is looked for this far.
+export const WATER_NEAR=24;
 export const ARMOUR_CORE=[['iron_helmet',5],['iron_chestplate',8]];
 const ARMOUR_SET=[...ARMOUR_CORE,['iron_leggings',7],['iron_boots',4]];
 const ARMOUR_KINDS=['helmet','chestplate','leggings','boots'];
@@ -215,12 +217,16 @@ export function ironRung(c,ctx){
   if(c('coal')+c('charcoal')<coalNeed)return coalJob(c,ctx,Math.max(TORCH_COAL,coalNeed)-c('coal')-c('charcoal'));
   return sticksFor(c,ctx,coalNeed)||{type:'craft',item:'torch',count:TORCHES-c('torch')};
  }
+ // Habit 9: a water bucket (3 ingots) after the light, filled at water in reach and kept - the
+ // MLG fall chain and the fire douse use it, and pick the water back up.
+ if(c('bucket')+c('water_bucket')<1&&c('iron_ingot')>=3)return {type:'craft',item:'bucket',count:1};
+ if(c('water_bucket')<1&&c('bucket')>=1&&ctx.waterAt)return {type:'use',item:'bucket',position:ctx.waterAt};
  // Armour: helmet and chestplate are dug for; legs and boots ride along while affordable.
  const coreLeft=ARMOUR_CORE.filter(([item])=>c(item)<1);
  const ingots=c('iron_ingot');
  if(coreLeft.length){
   if(ingots>=coreLeft[0][1])return {type:'craft',item:coreLeft[0][0],count:1};
-  const short=coreLeft.reduce((a,[,n])=>a+n,0)-ingots;
+  const short=coreLeft.reduce((a,[,n])=>a+n,0)+(c('bucket')+c('water_bucket')<1?3:0)-ingots;
   if(c('raw_iron')>=Math.min(IRON_SMELT_AT,coreLeft[0][1]-ingots))return smeltIron(c,ctx);
   const spare=spareStonePick(c,ctx);if(spare)return spare;
   return ironGather(short-c('raw_iron'));
@@ -511,7 +517,7 @@ export const STEPS=[
   if(floor!=null&&Number.isFinite(ctx.standY)&&ctx.standY<floor)floor=ctx.standY;
   return {type:'explore',distance:32,direction:ctx.grazeDirection||'random',...(cap!=null?{surfaceCeiling:cap}:{}),...(floor!=null?{surfaceFloor:floor}:{})};
  }},
- {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')>=1&&c('torch')>=TORCHES,next(c,ctx){
+ {name:'iron',done:c=>c('iron_pickaxe')>=1&&c('iron_sword')>=1&&c('iron_axe')>=1&&c('shield')>=1&&c('bow')>=1&&c('arrow')>=ARROWS&&c('iron_helmet')>=1&&c('iron_chestplate')>=1&&c('iron_leggings')>=1&&c('iron_boots')>=1&&c('bucket')+c('water_bucket')>=1&&c('torch')>=TORCHES,next(c,ctx){
   // M5 core FIRST: iron pickaxe, then iron sword, then the shield (COMBAT_SPEC 7a: right after
   // the first ingots) - 6 ingots from one short dig, before the 16-coal / 36-ore expedition
   // that used to stand between the stone kit and any iron tool at all.
@@ -540,7 +546,7 @@ export const STEPS=[
   const rung=ironRung(c,ctx);if(rung)return rung;
   if(c('coal')<16)return {type:'gather',block:'coal_ore',count:16-c('coal'),radius:32,searchIfMissing:true,targetY:IRON_Y,bandTop:IRON_TOP};
   // The rest of the kit after the core: axe 3, bucket 3 and the armour set 24 = 30 ingots.
-  const rest=IRON_REST.filter(([item])=>c(item)<1).reduce((a,[,n])=>a+n,0);
+  const rest=IRON_REST.filter(([item])=>c(item)+(item==='bucket'?c('water_bucket'):0)<1).reduce((a,[,n])=>a+n,0);
   if(c('raw_iron')>=IRON_SMELT_AT&&c('iron_ingot')<rest)return smeltIron(c,ctx);
   if(c('raw_iron')+c('iron_ingot')<rest){
    const spare=spareStonePick(c,ctx);if(spare)return spare;
@@ -582,7 +588,7 @@ export const STEPS=[
   if(c('iron_chestplate')<1)return {type:'craft',item:'iron_chestplate',count:1};
   if(c('iron_leggings')<1)return {type:'craft',item:'iron_leggings',count:1};
   if(c('iron_boots')<1)return {type:'craft',item:'iron_boots',count:1};
-  if(c('bucket')<1)return {type:'craft',item:'bucket',count:1};
+  if(c('bucket')+c('water_bucket')<1)return {type:'craft',item:'bucket',count:1};
   if(c('stick')<2){
    const planks=planksJob(c,ctx,2);if(planks)return planks;
    return {type:'craft',item:'stick',count:2-c('stick')};
@@ -1059,7 +1065,7 @@ export class Autopilot{
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,animalsClose:animals?animals.close:0,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
-   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,coalOff:Date.now()<(this.coalOffUntil||0),bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),waterAt:this.waterSource(b),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,coalOff:Date.now()<(this.coalOffUntil||0),bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
@@ -1179,6 +1185,20 @@ export class Autopilot{
    const p=new Vec3(h.x+dx,h.y,h.z+dz),top=b.blockAt(p),ground=b.blockAt(p.offset(0,-1,0));
    if(top&&top.boundingBox==='empty'&&!/water|lava/.test(top.name||'')&&ground?.boundingBox==='block')return {x:p.x,y:p.y,z:p.z};
   }
+  return null;
+ }
+ // Habit 9: a still water source within WATER_NEAR with open air above (a bucket fills from
+ // the top), for the rung's bucket. Only looked for while an empty bucket is held.
+ waterSource(b){
+  try{
+   if(!b.inventory.items().some(i=>i.name==='bucket')||b.inventory.items().some(i=>i.name==='water_bucket'))return null;
+   const id=b.registry.blocksByName.water?.id;
+   if(id==null||typeof b.findBlocks!=='function')return null;
+   for(const p of b.findBlocks({matching:id,maxDistance:WATER_NEAR,count:32})){
+    const bl=b.blockAt(p),up=b.blockAt(p.offset(0,1,0));
+    if(bl&&(bl.metadata??0)===0&&up&&up.boundingBox==='empty'&&up.name!=='water')return {x:p.x,y:p.y,z:p.z};
+   }
+  }catch{}
   return null;
  }
  // Exposed ore and logs within PICKUP_RADIUS (pickupJob), skipping blocks a gather refused.
