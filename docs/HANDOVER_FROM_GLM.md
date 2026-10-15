@@ -834,3 +834,140 @@ All six tasks were done.
   lane runs.
 - **Not changed:** the combat pillar and bow, the bed prep (it now ends at sunset), the iron
   step.
+
+## Cloud session round 6 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_6.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **366 passed, 0 failed** (343 at the start
+of the round, plus 23 new). `tests/soak_metrics_check.py` (now with the food bar) and
+`tests/combat_damage_check.py` pass. One commit per task on `main` (`2efbce0`..`8295fbc`).
+All seven tasks were done. The repo has no round-5 logs or results JSON (`data/soak-results.json`
+is still the old 10-13 one), so tasks 2 and 3 were diagnosed from code, archived soaks and the
+TEST_REPORTS text. Each adds a log line or metric that will confirm it on the next live run.
+
+1. **Shelter cancelled before sealing** (`2efbce0`, new `tests/shelter-seal.test.js`).
+   - What cancelled it: the soak bell. The end-of-run cancel (`soak.py`, about 600 s after the
+     sunset start) is the `Current job cancelled` at 01:18Z and 01:39Z. The job itself had been
+     running for 11 minutes without sealing.
+   - Why it never sealed: it demanded 26 spare blocks wherever it stood. hard1 held 19 cobble,
+     14 of it reserved for the kit, so it had 5. The dirt loop then re-found the same nearest dirt
+     block with no blacklist and no deadline: a failed walk (20 s), `canDigBlock` false or water
+     above all looped back to the same block. In the dark forest or a dig-down tunnel that block
+     can be unreachable all night.
+   - Fixes:
+     - The need is the open shell cells where the bot stands (`shelterNeed`), plus supports. A
+       stone tunnel needs 2-3, flat ground 25.
+     - The dirt dig tries every spot once, for at most `SHELTER_DIG_MS` (45 s). The seal has
+       `SHELTER_SEAL_MS` (30 s). Reserved kit cobble is still spent only as the last resort.
+     - Short of blocks, or a seal that cannot finish, fails the job with the reason
+       (`Short of shelter blocks: 5 held, 25 needed at (x, y, z); night pillar instead`). It
+       also sets `worker.nightPillar`.
+     - Mob Defense then climbs a **holding** `NightPillarTask` (forced `nightRefuge`, 3+ blocks,
+       no crowd needed). It stays up until morning and does not come down after 15 quiet
+       seconds. Log: `Reflex: no shelter tonight; night pillar until morning`.
+     - The ladder does not resend the shelter that night: a queued retry would gate the pillar
+       off and dig the same ground. It holds for morning instead.
+     - A Stop or cancel mid-seal is not a failure and sets no pillar.
+2. **Food never eaten** (`0bb17a7`).
+   - FoodChain (AltoClef defaults) eats at food <= 10, at 11..14 only when the best food fills
+     the bar exactly (cooked beef at 12), and below 14 health. AGENTS.md's "auto-eat at food <=
+     14" describes the retired reflex loop, not this chain.
+   - Evidence it is a full bar, not a broken path: the archived 20-min runs in `data/` bottom out
+     at 14-18. The two exceptions are hard3 runs (10 and 5), and the hard runs held no food. The
+     round-5 eat path itself was fixed in round 5 (the real stack is equipped).
+   - Now measurable:
+     - FoodChain counts `meals.due` (each episode a meal was wanted with food held) and
+       `meals.failed` / `lastError`.
+     - `soak.py` samples saturation, records `food_level` (min/max) per run and diffs due/failed.
+     - It prints `bar MIN..MAX: <verdict>`, where the verdict is `ate`, `never hungry (food min
+       N)`, `no food held` or `EAT FAILED (due D, failed F, reason)`. The summary has
+       `food_min/max/due/failed/verdict`.
+3. **Iron pickaxe disappeared** (`7f80f5e`, new `src/toolWear.js`, `tests/tool-wear.test.js`).
+   - Most likely it broke. mineflayer-tool and the pathfinder both equip the *fastest* tool.
+     After 752 s every staircase cell to the iron band (~90 steps x 3 cells from the surface per
+     gather) and every stone cell of the 16-coal and 30-ore gathers wore the iron pickaxe, which
+     has 250 uses.
+   - Why the 30 raw iron stayed raw: the ladder smelts only after the whole 30-ore gather. With
+     the pickaxe gone it first rebuilds the stone kit and then smelts for the iron pickaxe, so
+     the bell came first.
+   - Fix: `conserveTool` digs with a stone tool of the block's kind whenever it can harvest the
+     block and an iron, diamond or netherite one is held. It takes the most worn first and never
+     the wooden pickaxe (the wood step needs it). It is hooked into `equipForBlock` and
+     `pathfinder.bestHarvestTool`. A broken stone pickaxe costs 3 cobble, and the stone step
+     re-crafts it.
+   - Diagnostics: `Tool left the inventory: <tool> (N uses left[, broke])` on any tool loss while
+     alive. A break now reads differently from a toss or a deposit.
+   - Not changed: `save()` trims an active job's in-memory `job.tunnel` to its last 20 points, so
+     a deep iron staircase only climbs its bottom 20 steps.
+4. **Hard1 never crafted a furnace** (`95118af`, cases in `tests/hard-kit.test.js`).
+   - Cause 1: the bed-prep sheep hunt was running at sunset. The active-job branch sent the
+     shelter at once, and the sunset grace was only checked when idle.
+   - Cause 2: `duskKitJob` stopped at the next piece in kit order. With no stick for the sword it
+     returned null, so the furnace (no sticks needed) was never reached.
+   - Fixes:
+     - `duskKitJob` crafts sticks from held planks (or planks from held logs). With no wood it
+       falls through to the furnace.
+     - The active branch cuts a running day job for the grace kit.
+     - A queued kit craft holds the shelter back; otherwise the survival pump runs the shelter
+       first.
+     - In the dusk window (9000..12000) an affordable kit craft outranks the bed prep (`dusk -
+       finishing the stone kit first`).
+     - A hostile within 8 (was 16) holds a craft. Two failed stone crafts stop the dusk retries.
+5. **Lane creeper** (`dddce10`, cases in `tests/combat.test.js`).
+   - Why `pillar-hold` never moved on: under the lane roof the column is 2 high. 2 up, the base
+     is still inside the 3-block fuse ring (flat sqrt(9-4) = 2.24). The creeper walked to the
+     base and fused, and the perch's fusing branch only raised the shield and cancelled the
+     draw. The blast beside the column cratered the midpoint. In 4b the bow killed the creeper
+     before it arrived.
+   - Fix: on a perch under 3 high, the melee weapon goes in hand once the creeper is within 1.6
+     of the ring (hysteresis +1.5 back to the bow). The bot swings as soon as the creeper is
+     within `knockReach` 3.4 eye-to-box, so the knockback keeps it out before the fuse starts.
+     Log: `Combat: perch 2 up is inside the fuse ring; knocking the creeper back`. A fuse that
+     starts anyway still holds the shield. A 3-high perch is unchanged.
+   - `knockReach` relies on the 1.20.5+ server check (interaction range 3 + 3 buffer). If
+     hits beyond 3 are rejected on this ViaVersion path, the window shrinks to about 2.24..2.6
+     flat.
+6. **Integration reflex pause** (`d11945b`, `tests/integration.py`).
+   - Likely cause: at the origin the autopilot fixture's logs (1..6,-60,2..7) may still stand
+     2-7 blocks away, so the gather could finish on one of them. The creeper was also summoned
+     at the start column, after four setup commands.
+   - Now the fixture runs on a clean strip:
+     - It runs at z=-40, with every oak log in the search radius cleared, and the setup runs
+       before the job.
+     - The log is 28 blocks out.
+     - The NoAI creeper is summoned 4 blocks *ahead* of the bot's live position once the gather
+       is running and the bot is walking.
+     - A gather that ends first fails with its status.
+   - Pause, resume and completion checks are unchanged.
+7. **Tunnel climb failures** (`8295fbc`, case in `tests/tunnel-safety.test.js`).
+   - Cause: `climbTunnel` walks each step with digging off, so one refilled step (gravel,
+     sand, a placed block) aborted the whole climb.
+   - Fix: a failed step is retried with the explore movements (natural blocks only, dirt/cobble
+     scaffold). One that still fails is skipped, and only the top step must be reached. Log:
+     `Tunnel climb: step x,y,z failed (...); digging through natural fill`.
+
+### Files
+
+`src/worker.js`, `src/autopilot.js`, `src/night.js`, `src/combat.js`, `src/toolWear.js` (new),
+`src/chains/{mobDefenseChain,fallbackTasks,foodChain}.js`; `tests/soak.py`,
+`tests/soak_metrics_check.py`, `tests/integration.py`. New tests: `shelter-seal`, `tool-wear`
+(`.test.js`); new cases in `meals`, `hard-kit` (one expectation changed: 3 cobble + 1 stick
+with planks held now crafts sticks instead of nothing), `combat`, `tunnel-safety`.
+
+### Needs live verification
+
+- **Hard nights:** either `Shelter: sealed at ... (N blocks placed)` within seconds of
+  `[night] shelter`, or `Shelter: Short of shelter blocks ...; night pillar instead`, then
+  `Reflex: no shelter tonight; night pillar until morning` and `Night: perched 3 up`. Check that
+  there is no 11-minute `working: shelter` and that a pillared bot survives the archers.
+- **Food:** the run line's `bar MIN..MAX: verdict`. `never hungry` on the normal runs confirms
+  the diagnosis. Report any `EAT FAILED` with its reason.
+- **Iron:** `Tool left the inventory:` lines (expect stone pickaxes breaking, not the iron one).
+  The iron pickaxe should still be held at the bell, and expect more ingots than raw iron. A
+  stone staircase is slower: about 0.56 s per stone cell instead of 0.38.
+- **Hard kit:** `sunset - finishing the stone kit first (furnace)` or `dusk - ...`. A hard run
+  with 8+ cobble should end with a furnace.
+- **Combat `4_creeper`:** `knocking the creeper back`, then hits and a kill, with no crater at
+  the lane midpoint.
+- **Integration:** `Reflex paused the gather: Reflex: ...` at the new fixture.
+- **Climbs:** `Tunnel climb: step ...` lines instead of `Could not climb back up the tunnel`.
