@@ -87,6 +87,8 @@ export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
 export const HAND_CLEAR_HARDNESS=0.5;
 // The smelt job takes its output every this many items.
 export const SMELT_TAKE=8;
+// A take job waits at most this long past the batch's ready time (a slow or cold furnace).
+export const SMELT_TAKE_GRACE=15000;
 // Jobs that climb out of a stranded tunnel before they start (surface work).
 const STRANDED_CLIMB=new Set(['goto','explore','hunt','collect','shear','breed','deposit','build','place']);
 // Stops that are not the user's: they pause the queue but leave the autopilot running. A
@@ -706,6 +708,7 @@ export class Worker extends EventEmitter {
  }
  async smelt(job,token){
   const b=this.bot,s=job.spec;
+  if(s.take)return this.takeSmelt(job,token);
   const input=b.registry.itemsByName[s.item];if(!input)throw Error('Unknown item '+s.item);
   const outputName=SMELTING[s.item]||(s.item.endsWith('_log')?'charcoal':null);
   if(!outputName)throw Error('Unknown smelting output for '+s.item);
@@ -713,7 +716,7 @@ export class Worker extends EventEmitter {
   if(!output)throw Error('Unknown output item '+outputName);
   const fuel=await this.fuelPlan(s.count,s.fuel);
   const before=this.count(outputName);
-  let block=null,placedAt=null,placedFurnace=null;
+  let block=null,placedAt=null,placedFurnace=null,left=false;
   try{
    block=b.findBlock({matching:b.registry.blocksByName.furnace.id,maxDistance:16});
    if(!block){
@@ -742,14 +745,22 @@ export class Worker extends EventEmitter {
    try{
     await furnace.putInput(input.id,null,s.count);
     await furnace.putFuel(fuel.id,null,fuel.count);
+    if(s.leave){
+     // Round 10 (efficiency 1): a furnace works on its own. Loaded, the job ends and the bot
+     // does other work nearby; the ladder's take job (furnaceRun) collects the output.
+     if(furnace.inputItem&&!furnace.inputItem())throw Error('The furnace did not take the '+s.item);
+     const p=block.position;
+     this.furnaceRun={x:p.x,y:p.y,z:p.z,item:s.item,output:outputName,count:s.count,readyAt:Date.now()+s.count*KILN_ITEM_MS+1000,placed:!!placedFurnace,started:Date.now()};
+     this.log('Smelt: furnace at '+p.x+','+p.y+','+p.z+' loaded with '+s.count+' '+s.item+'; back for the '+outputName+' in ~'+Math.round(s.count*KILN_ITEM_MS/1000)+' s');
+     done=true;left=true;
+    }
     const deadline=Date.now()+s.count*10000+30000;
-    while(taken+out()<s.count){
+    while(!left&&taken+out()<s.count){
      if(Date.now()>deadline)throw Error('Smelting timed out waiting for the output');
      await sleep(1000);this.check(token);
      if(out()>=SMELT_TAKE)await take();
     }
-    await take();done=true;
-    await sleep(300);
+    if(!left){await take();done=true;await sleep(300);}
    }finally{
     if(!done){
      try{await take();}catch{}
@@ -763,7 +774,7 @@ export class Worker extends EventEmitter {
    // A furnace this job placed goes back into the inventory like the table: left standing,
    // the ladder's stone step (furnace held or within 16) regressed as soon as the bot
    // walked on, and re-mined 8 cobblestone for a new one.
-   if(placedFurnace){
+   if(placedFurnace&&!left){
     // A bare hand breaks a furnace so slowly the drop never lands in the inventory
     // (integration smelt, no pickaxe: block gone, furnace count 0, 2026-10-14).
     // Leave it in the world in that case. With a pickaxe (the ladder, after stone)
@@ -772,8 +783,37 @@ export class Worker extends EventEmitter {
     if(hasPick){try{await this.pickUp(placedFurnace,'furnace',token);}catch(e){this.log('Left the furnace at '+placedFurnace+': '+e.message);}}
    }
   }
+  if(left)return;
   if(this.count(outputName)<before+s.count)throw Error(`Smelting did not produce ${s.count} ${outputName}`);
   if(b.registry.foodsByName&&b.registry.foodsByName[outputName])this.meals.cooked+=s.count;
+ }
+ // The take side of a left furnace (smelt take:true): walk back, wait out what is left of the
+ // batch (SMELT_TAKE_GRACE past its ready time at most), take the output and any unsmelted
+ // input, and pick up a furnace this run placed unless keepFurnace (more cooking ahead).
+ async takeSmelt(job,token){
+  const b=this.bot,run=this.furnaceRun;
+  if(!run)throw Error('No furnace run to collect');
+  const at=new Vec3(run.x,run.y,run.z);
+  await this.walk(at,token,2);this.check(token);
+  const block=b.blockAt(at);
+  if(block?.name!=='furnace'){this.furnaceRun=null;throw Error('The furnace at '+at+' is gone');}
+  const before=this.count(run.output);
+  const furnace=await b.openFurnace(block);
+  let taken=0;
+  try{
+   const until=Math.max(Date.now(),run.readyAt)+SMELT_TAKE_GRACE;
+   while(furnace.inputItem&&furnace.inputItem()&&Date.now()<until){await sleep(1000);this.check(token);}
+   const n=furnace.outputItem()?.count||0;if(n){await furnace.takeOutput();taken=n;}
+   try{if(furnace.inputItem&&furnace.inputItem())await furnace.takeInput();}catch{}
+   if(!job.spec.keepFurnace){try{if(furnace.fuelItem&&furnace.fuelItem())await furnace.takeFuel();}catch{}}
+  }finally{try{await b.closeWindow(furnace);}catch{}}
+  this.furnaceRun=null;
+  this.log('Smelt: took '+taken+' '+run.output+' from the furnace at '+at.x+','+at.y+','+at.z+(job.spec.keepFurnace?' (left standing)':''));
+  if(run.placed&&!job.spec.keepFurnace&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
+   try{await this.pickUp(at,'furnace',token);}catch(e){this.log('Left the furnace at '+at+': '+e.message);}
+  }
+  if(this.count(run.output)<=before)throw Error('The furnace gave no '+run.output);
+  if(b.registry.foodsByName&&b.registry.foodsByName[run.output])this.meals.cooked+=taken;
  }
  async sleep(job,token){
   const b=this.bot;

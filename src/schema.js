@@ -17,7 +17,9 @@ export const jobSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('eat')}).strict(),
  z.object({type:z.literal('equip')}).strict(),
  z.object({type:z.literal('collect'),radius:z.number().int().min(1).max(64).optional()}).strict(),
- z.object({type:z.literal('smelt'),item,count:z.number().int().min(1).max(48),fuel:item.optional()}).strict(),
+ // leave: load the furnace and finish (worker.furnaceRun records it); take: collect that run
+ // (waiting out what is left), keepFurnace: leave a placed furnace standing for more cooking.
+ z.object({type:z.literal('smelt'),item,count:z.number().int().min(1).max(48),fuel:item.optional(),leave:z.boolean().optional(),take:z.boolean().optional(),keepFurnace:z.boolean().optional()}).strict(),
  z.object({type:z.literal('sleep'),position:position.optional()}).strict(),
  z.object({type:z.literal('fight'),entity:item.optional(),maxSeconds:z.number().int().min(1).max(120).optional(),style:z.enum(['auto','melee','bow','plain']).optional(),
  primitives:z.object({backpedal:z.boolean().optional(),shield:z.boolean().optional(),sprintKnockback:z.boolean().optional(),kite:z.boolean().optional(),crit:z.boolean().optional()}).strict().optional()}).strict(),

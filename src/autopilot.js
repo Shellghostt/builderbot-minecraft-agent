@@ -303,6 +303,31 @@ export function foodDone(c,ctx){
  if(starving)return false;
  return edible+c('_eaten')>=FOOD_ENOUGH||!!ctx?.foodDeferred;
 }
+// Round 10 (efficiency 1): don't stand and stare at a working furnace. A ladder smelt of
+// SMELT_LEAVE_AT+ items loads the furnace and ends (smelt leave:true, worker.furnaceRun);
+// until the batch is ready the bot does useful work near it (furnaceWork), then the take job
+// collects the output. It goes back early at dusk, with a hostile near or when it strayed more
+// than FURNACE_LEASH from the furnace (each side job stays within radius FURNACE_WORK_RADIUS of
+// the bot, started within the leash), and does at most FURNACE_SIDE_JOBS side jobs per batch.
+export const SMELT_LEAVE_AT=2,FURNACE_LEASH=8,FURNACE_WORK_RADIUS=16,FURNACE_SIDE_JOBS=4,FURNACE_DUSK=SUNSET-1200;
+export function furnaceWork(run,counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ const take={type:'smelt',item:run.item,count:run.count,take:true,...(ctx.moreCooking?{keepFurnace:true}:{})};
+ if(ctx.now>=run.readyAt)return take;
+ if(ctx.tod!=null&&ctx.tod>=FURNACE_DUSK)return take; // never leave a furnace across a night
+ if((ctx.hostileDistance??Infinity)<=16||(ctx.furnaceDistance??0)>FURNACE_LEASH)return take;
+ if((ctx.sideJobs||0)>=FURNACE_SIDE_JOBS)return null; // wait for it
+ const r=FURNACE_WORK_RADIUS,pick=c('stone_pickaxe')+c('iron_pickaxe')+c('diamond_pickaxe')>=1;
+ // Coal for torches and the next batch, then iron (stone pickaxe), both in sight of the furnace.
+ if(pick&&ctx.coalNear&&c('coal')<16)return {type:'gather',block:'coal_ore',count:Math.min(4,16-c('coal')),radius:r};
+ if(pick&&ctx.ironNear&&c('raw_iron')<IRON_BATCH)return {type:'gather',block:'iron_ore',count:2,radius:r};
+ // Torches from what is held (1 coal + 1 stick make 4).
+ if(c('torch')<TORCHES&&c('coal')+c('charcoal')>=1&&c('stick')>=1)return {type:'craft',item:'torch',count:Math.min(TORCHES-c('torch'),4*Math.min(c('coal')+c('charcoal'),c('stick')))};
+ if(ctx.logsTotal<4&&ctx.logNear)return {type:'gather',block:'log',count:2,radius:r,belowFoots:true};
+ if(ctx.dropsNear)return {type:'collect',radius:r};
+ return null;
+}
 // The progression ladder. Each entry: name, done(counts) and next(counts, ctx) producing the
 // next job spec (ctx: {slotsFull, animalsNearby, huntPhase, home, homeChest, chestSpot,
 // heldLog, logsTotal, planksTotal}). Any log species works for the wood step.
@@ -886,8 +911,31 @@ export class Autopilot{
   if(block.name!=='crafting_table'){this.worker.leftTable=null;return null;} // picked up or broken
   return {position:{x:t.x,y:t.y,z:t.z},distance:b.entity.position.distanceTo(new Vec3(t.x+0.5,t.y,t.z+0.5))};
  }
+ // While a left furnace works: a side job near it, the take job when the batch is ready (or
+ // dusk, a hostile, the leash), else wait. True when the furnace owns this tick.
+ furnaceTick(b,counts){
+  const run=this.worker.furnaceRun;
+  if(!run)return false;
+  if(this.furnace?.key!==run.started)this.furnace={key:run.started,side:0,takes:0};
+  const me=b.entity&&b.entity.position;
+  const furnaceDistance=me?me.distanceTo(new Vec3(run.x+0.5,run.y,run.z+0.5)):0;
+  const meat=COOKABLE_MEAT.some(m=>counts[m]>=1);
+  const job=furnaceWork(run,counts,{now:Date.now(),tod:dayTicks(b),hostileDistance:this.hostileDistance(b),furnaceDistance,sideJobs:this.furnace.side,
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],FURNACE_WORK_RADIUS),ironNear:this.oreNear(b,['iron_ore','deepslate_iron_ore'],FURNACE_WORK_RADIUS),
+   logNear:this.oreNear(b,Object.keys(b.registry.blocksByName||{}).filter(n=>/_log$/.test(n)),FURNACE_WORK_RADIUS),
+   dropsNear:Object.values(b.entities||{}).some(e=>e&&e.name==='item'&&e.position&&me&&e.position.distanceTo(me)<=FURNACE_WORK_RADIUS),
+   moreCooking:meat||(this.animalsNearby(b)&&this.currentStep==='food')});
+  if(!job){this.state='furnace: working ('+Math.max(0,Math.ceil((run.readyAt-Date.now())/1000))+' s left)';return true;}
+  if(job.take){
+   // Two takes that did not clear the run: abandon it (the ladder smelts again from the inventory).
+   if(++this.furnace.takes>2){this.worker.furnaceRun=null;this.log('Autopilot: gave up on the furnace at '+run.x+','+run.y+','+run.z);return false;}
+  }else this.furnace.side++;
+  this.submit('furnace',job);
+  return true;
+ }
  decide(b){
   const counts=this.counts();
+  if(this.furnaceTick(b,counts))return;
   const animals=this.animalsNearby(b);
   const items=b.inventory.items().length;
   const left=this.leftTable(b);
@@ -900,6 +948,8 @@ export class Autopilot{
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
+  // A batch for the furnace: load it and move on (efficiency 1).
+  if(choice.job&&choice.job.type==='smelt'&&!choice.job.take&&choice.job.count>=SMELT_LEAVE_AT&&!this.worker.furnaceRun)choice.job={...choice.job,leave:true};
   // While ANY step is blocked the ladder must not run later steps' jobs on top of the gap
   // (a stone-step craft with no planks only burns failures); explore, then UNBLOCK and
   // retry the step from the new position. The unblock is the whole point of the explore -
