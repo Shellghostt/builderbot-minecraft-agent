@@ -119,3 +119,10 @@ test('kiln: no furnace, no fuel or no spot turns it off for the job; the gather 
   await k.w.kilnTick(job,0);await k.w.kilnTick(job,0,true); // off: no retries, nothing to collect
  }
 });
+test('the spare stone pickaxe is only asked for when a table (or its planks) is at hand',async()=>{
+ const {plan}=await import('../src/autopilot.js');
+ const base={oak_log:0,oak_planks:0,stick:2,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1,furnace:1,cobblestone:10,_edible:8};
+ assert.equal(plan({...base,crafting_table:1}).job.item,'stone_pickaxe');
+ assert.equal(plan({...base},{worldTable:true}).job.item,'stone_pickaxe');
+ assert.equal(plan({...base}).step,'wood','no table at all is the wood step\'s problem, never the iron step\'s');
+});

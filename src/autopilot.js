@@ -119,7 +119,10 @@ export const ironGather=count=>({type:'gather',block:'iron_ore',count:Math.max(1
 export const STONE_PICKS=2;
 function spareStonePick(c,ctx){
  if(c('stone_pickaxe')>=STONE_PICKS||c('cobblestone')<3)return null;
- if(c('stick')>=2)return {type:'craft',item:'stone_pickaxe',count:1};
+ // A 3x3 craft: a table held or near, or the planks for one (the craft job places it).
+ const table=c('crafting_table')>=1||!!ctx.worldTable;
+ if(c('stick')>=2)return table||ctx.planksTotal>=4?{type:'craft',item:'stone_pickaxe',count:1}:null;
+ if(!table)return null;
  if(ctx.planksTotal>=2)return {type:'craft',item:'stick',count:2};
  if(ctx.logsTotal>=1)return {type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:4};
  return null; // no wood: not worth a log hunt
