@@ -266,7 +266,7 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  // No sheep: the rung waits on nothing - the diamond pickaxe trip (round 8, task 4): the
  // band from -54 down to -58, strip-mined there, torches held.
  r=valid(plan(counts(have)));
- assert.deepEqual(r.job,{type:'gather',block:'diamond_ore',count:3,radius:32,targetY:-58,bandTop:-54,strip:true});
+ assert.deepEqual(r.job,{type:'gather',block:'diamond_ore',count:3,radius:32,targetY:-53,bandTop:-53,strip:true});
  r=valid(plan(counts({...have,diamond:3})));
  assert.deepEqual(r.job,{type:'craft',item:'diamond_pickaxe',count:1});
  r=plan(counts(have),{diamondOff:true});
@@ -357,7 +357,7 @@ test('a full inventory deposits at the home chest and the diamond step builds th
  const diamonds=STEPS.find(s=>s.name==='diamonds');
  assert.equal(diamonds.done(n=>counts(FULL)[n]||0),false);
  // COMBAT_SPEC 7a: diamond sword, axe and full armour need 29 diamonds in total.
- assert.deepEqual(diamonds.next(n=>counts({...FULL,diamond:0})[n]||0),{type:'gather',block:'diamond_ore',count:29,radius:32,targetY:-58,bandTop:-54,strip:true});
+ assert.deepEqual(diamonds.next(n=>counts({...FULL,diamond:0})[n]||0),{type:'gather',block:'diamond_ore',count:29,radius:32,targetY:-53,bandTop:-53,strip:true});
  // Diamonds on hand are spent piece by piece, cheapest first.
  assert.deepEqual(diamonds.next(n=>counts({...FULL,diamond:2})[n]||0),{type:'craft',item:'diamond_sword',count:1});
  let gear={...FULL,diamond:29};

@@ -160,11 +160,11 @@ export function torchSpot(blockAt,feet,dir){
  return solid(blockAt(ground.x,ground.y,ground.z))?{against:ground,face:{x:0,y:1,z:0},side:'floor'}:null;
 }
 const FILL_ITEMS=['cobblestone','cobbled_deepslate','dirt','netherrack','stone','deepslate','andesite','diorite','granite','tuff'];
-export function planTunnelStep(b,job,dir,dy){
+export function planTunnelStep(b,job,dir,dy,noTurn=false){
  const here=b.entity.position.floored(),at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
  const filler=FILL_ITEMS.find(n=>b.inventory.items().some(i=>i.name===n))||null;
  const why=[];
- for(const d of turnOrder(dir)){
+ for(const d of noTurn?[{x:dir.x,z:dir.z}]:turnOrder(dir)){
   const turned=d.x!==dir.x||d.z!==dir.z;
   if(turned&&(job.stairTurns||0)>=STAIR_TURNS){why.push('turn limit');break;}
   const next=here.offset(d.x,dy,d.z),foot=stepFooting(at3,next);
@@ -203,6 +203,28 @@ export async function wallPickups(w,job,token,feet,dir){
    job.wallPickups=(job.wallPickups||0)+1;(job.mined||(job.mined=[])).push(p.x+','+p.y+','+p.z);
    w.log('Tunnel: mined '+p.name+' in the wall at '+p.x+','+p.y+','+p.z);
   }catch(e){w.check(token);}
+ }
+}
+// Habit 8: lava beside the cells the bot stands in (it can flow in when a dig freed it) is
+// plugged with a held block placed into the lava cell, against any solid neighbour of it.
+export const BRANCH_MAIN=24,BRANCH_LEN=6,BRANCH_EVERY=3;
+export async function plugLava(w,token,feet){
+ const b=w.bot,at=p=>b.blockAt(p);
+ for(const cell of [feet,feet.offset(0,1,0)])for(const [dx,dy,dz] of [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]]){
+  const p=cell.offset(dx,dy,dz);
+  if(p.equals(feet)||p.equals(feet.offset(0,1,0)))continue;
+  if(at(p)?.name!=='lava')continue;
+  const filler=FILL_ITEMS.find(n=>b.inventory.items().some(i=>i.name===n));
+  if(!filler){w.log('Tunnel: lava at '+p+' and nothing to plug it with');throw Error('Tunnel stopped: lava at '+p+' (no block to plug it)');}
+  let ref=null,face=null;
+  for(const [fx,fy,fz] of [[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0]]){
+   const n=p.offset(fx,fy,fz),bl=at(n);
+   if(bl&&bl.boundingBox==='block'){ref=bl;face=new Vec3(-fx,-fy,-fz);break;}
+  }
+  if(!ref)throw Error('Tunnel stopped: lava at '+p+' with nothing to plug against');
+  await b.equip(b.inventory.items().find(i=>i.name===filler),'hand');w.check(token);
+  try{await b.placeBlock(ref,face);}catch{}
+  w.log('Tunnel: plugged lava at '+p.x+','+p.y+','+p.z+' with '+filler);
  }
 }
 async function fillFooting(w,token,foot,filler){
@@ -1902,8 +1924,8 @@ export class Worker extends EventEmitter {
       job.anchor=b.entity.position.floored();this.save();continue;
      }
      if(s.strip&&b.entity.position.y<=targetY&&!job.stripped){
-      job.stripped=true;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),'Digging a strip mine');
-      await this.stripMine(job,token,32);
+      job.stripped=true;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),'Digging a branch mine');
+      await this.branchMine(job,token,{stopWhen:()=>count_()-job.startDrop>=s.count});
       job.anchor=b.entity.position.floored();this.save();continue;
      }
      throw Error('No matching blocks within the allowed radius');
@@ -2162,9 +2184,9 @@ export class Worker extends EventEmitter {
  // footing (a turn when the way on is unsafe), dig the cells, fill a shallow hole, walk in,
  // then free the bot's own head and feet (a late fall can still land on it). A bot that
  // ends up below the step dropped somewhere: the tunnel stops there.
- async tunnelStep(job,token,dir,dy,corner,natural){
+ async tunnelStep(job,token,dir,dy,corner,natural,noTurn=false){
   const b=this.bot;
-  const plan=planTunnelStep(b,job,dir,dy);
+  const plan=planTunnelStep(b,job,dir,dy,noTurn);
   if(!plan.next)throw Error('Tunnel stopped: '+(plan.why.join('; ')||'no safe step')+'; no safe way on');
   const next=plan.next;
   const before=job.tunnel[job.tunnel.length-1];
@@ -2181,8 +2203,46 @@ export class Worker extends EventEmitter {
   const here=b.entity.position.floored();
   if(here.y<next.y)throw Error('Tunnel stopped: dropped to y='+here.y+' below the step at '+next);
   await this.clearCells(token,[here.offset(0,1,0),here],natural,false);
+  await plugLava(this,token,here);
   await wallPickups(this,job,token,here,plan.dir);
   return {dir:plan.dir,next};
+ }
+ // Habit 8: diamonds the safe way - a branch mine at the trip's level (y -53, above the lava
+ // lakes at -54): a main 1x2 tunnel (it may turn round a cave like any tunnel step) with a side
+ // branch to the left and right every BRANCH_EVERY blocks. A branch ends at anything unsafe
+ // (it never turns) and the bot walks back to the main tunnel; torches go every TORCH_EVERY
+ // steps, lava beside the bot is plugged, wall ore is mined on the way, and stopWhen (the
+ // gather has its count) ends it. job.tunnel holds only the main tunnel, for the climb back.
+ async branchMine(job,token,{main=BRANCH_MAIN,branch=BRANCH_LEN,every=BRANCH_EVERY,stopWhen=null}={}){
+  const b=this.bot;
+  if(!job.tunnel)job.tunnel=[];
+  const start=b.entity.position.floored();
+  let dir=[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x+start.z*5)%4];
+  for(let i=1;i<=main;i++){
+   this.check(token);
+   let step;
+   try{step=await this.tunnelStep(job,token,dir,0,false,undefined);}
+   catch(e){this.check(token);if(/^Tunnel stopped/.test(e.message)){this.log('Branch mine: main tunnel ended ('+e.message+')');break;}throw e;}
+   dir=step.dir;
+   job.tunnel.push({x:step.next.x,y:step.next.y,z:step.next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
+   if(i%TORCH_EVERY===0)await this.placeTorch(token,dir);
+   this.save();
+   if(stopWhen&&stopWhen())return;
+   if(i%every)continue;
+   const hub=b.entity.position.floored();
+   for(const side of [new Vec3(-dir.z||0,0,dir.x||0),new Vec3(dir.z||0,0,-dir.x||0)]){
+    const arm={id:job.id,tunnel:[{x:hub.x,y:hub.y,z:hub.z}],wallPickups:job.wallPickups,mined:job.mined};
+    for(let j=1;j<=branch;j++){
+     this.check(token);
+     try{const st=await this.tunnelStep(arm,token,side,0,false,undefined,true);arm.tunnel.push({x:st.next.x,y:st.next.y,z:st.next.z});}
+     catch(e){this.check(token);if(/^Tunnel stopped/.test(e.message))break;throw e;}
+     if(stopWhen&&stopWhen())break;
+    }
+    job.wallPickups=arm.wallPickups;
+    if(arm.tunnel.length>1){try{await this.climbTunnel(arm,token);}catch(e){this.check(token);this.log('Branch mine: walk back failed: '+e.message);}}
+    if(stopWhen&&stopWhen())return;
+   }
+  }
  }
  // Move one cell along dir: try the pathfinder first, then walk straight in. The pathfinder
  // sometimes refuses (or fakes) the single step down a dug staircase.

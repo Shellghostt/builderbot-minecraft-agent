@@ -188,11 +188,11 @@ export function woolJob(counts,ctx){
  return bedJob(c,{...ctx,bedSearch:false});
 }
 // Round 8, toward diamonds: once the iron kit is worn, 3 diamonds for a diamond pickaxe.
-// 1.18+ diamonds peak at the bottom of the world; the dig enters the band from its top
-// (DIAMOND_TOP, -54) by the safe staircase (lava/water checks, never straight down, a torch
-// every 6 steps), goes on to DIAMOND_Y (-58), never targets ore below it, and strip-mines
-// there (a torch every 8) when none is in reach. Torches must be held for the trip.
-export const DIAMOND_Y=-58,DIAMOND_TOP=-54,DIAMOND_PICK=3,DIAMOND_TORCHES=8;
+// Round 10, habit 8 (diamonds the safe way): lava lakes sit at -54 and below, so the trip goes
+// down by the safe staircase to DIAMOND_Y (-53) and branch-mines there (worker.branchMine: a
+// main tunnel, side branches every 3, torches, lava plugged) - diamonds in its walls and floor
+// line come out on the way. No ore below -53 is a target. Torches must be held for the trip.
+export const DIAMOND_Y=-53,DIAMOND_TOP=-53,DIAMOND_PICK=3,DIAMOND_TORCHES=8;
 export const diamondGather=count=>({type:'gather',block:'diamond_ore',count:Math.max(1,count),radius:32,targetY:DIAMOND_Y,bandTop:DIAMOND_TOP,strip:true});
 export function diamondPickJob(c,ctx){
  if(typeof c!=='function')c=countFactory(c||{});

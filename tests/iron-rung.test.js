@@ -106,10 +106,10 @@ test('night: a bed held means sleep; a sleep that failed tonight falls back to t
  }finally{t.done();}
 });
 // Round 8, task 4: the diamond pickaxe after the iron kit.
-test('diamondPickJob: 3 diamonds in the -58..-54 band, torches held, then the pickaxe',()=>{
+test('diamondPickJob: 3 diamonds branch-mined at -53, torches held, then the pickaxe',()=>{
  const kit={iron_pickaxe:1,torch:16,stick:4};
  const j=diamondPickJob(c(kit),{...wood});
- assert.deepEqual(j,{type:'gather',block:'diamond_ore',count:3,radius:32,targetY:-58,bandTop:-54,strip:true});
+ assert.deepEqual(j,{type:'gather',block:'diamond_ore',count:3,radius:32,targetY:-53,bandTop:-53,strip:true});
  assert.equal(jobSchema.safeParse(j).success,true);
  assert.equal(diamondPickJob(c({...kit,diamond:2}),{...wood}).count,1,'only what is missing');
  assert.deepEqual(diamondPickJob(c({...kit,diamond:3}),{...wood}),{type:'craft',item:'diamond_pickaxe',count:1});
