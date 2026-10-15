@@ -30,7 +30,8 @@ test('duskKitJob: the next affordable kit craft, in kit order, only between the 
  assert.deepEqual(duskKitJob({...WOOD,stone_pickaxe:1,cobblestone:24}),{type:'craft',item:'stone_sword',count:1,keepTable:true});
  assert.deepEqual(duskKitJob({...WOOD,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1,cobblestone:8}),{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true});
  assert.equal(duskKitJob({...WOOD,stone_pickaxe:1,cobblestone:1}),null,'not affordable: no craft');
- assert.equal(duskKitJob({...WOOD,cobblestone:3,stick:1}),null,'the pickaxe needs 2 sticks');
+ assert.deepEqual(duskKitJob({...WOOD,cobblestone:3,stick:1}),{type:'craft',item:'stick',count:5},'the pickaxe needs 2 sticks: craft them from the held planks (the whole kit needs 6)');
+ assert.equal(duskKitJob({...WOOD,oak_log:0,oak_planks:0,cobblestone:3,stick:1}),null,'no wood for sticks and 3 cobble is no furnace');
  assert.equal(duskKitJob({wooden_pickaxe:1,cobblestone:30}),null,'wood step not done');
  assert.equal(duskKitJob({...WOOD,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1,furnace:1,cobblestone:30}),null,'kit done');
 });
@@ -95,4 +96,36 @@ test('the dawn cleanup digs each block with its tool, so the cobble comes back',
  assert.deepEqual(equipped.sort(),['cobblestone','dirt']);
  assert.deepEqual(dug.sort(),['cobblestone','dirt']);
  assert.deepEqual(job.placed,[]);
+});
+// ---- round 6, task 4: hard1 held 19 cobble and a stone pickaxe and never crafted a furnace ----
+const HARD1={oak_log:0,oak_planks:0,stick:0,crafting_table:1,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1,stone_pickaxe:1,cobblestone:19};
+test('duskKitJob: a stick shortage no longer costs the furnace',()=>{
+ assert.deepEqual(duskKitJob(HARD1),{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:false},'no wood for the sword\'s stick: the furnace (8 cobble, no sticks)');
+ assert.deepEqual(duskKitJob({...HARD1,oak_planks:3}),{type:'craft',item:'stick',count:4},'planks held: the sticks the rest of the kit needs');
+ assert.deepEqual(duskKitJob({...HARD1,birch_log:1}),{type:'craft',item:'birch_planks',count:4});
+ assert.equal(duskKitJob({...HARD1,cobblestone:7}),null,'7 cobble: neither the sword (no stick) nor the furnace');
+ assert.equal(duskKitJob({...HARD1,stone_sword:1,stone_axe:1,stone_shovel:1,cobblestone:8},{worldFurnace:true}),null,'a furnace stands near: kit done');
+});
+test('a day job running into sunset (hard1: the bed-prep sheep hunt) gives way to the kit, then the shelter',()=>{
+ const hunt={id:'h1',status:'running',spec:{type:'hunt',entity:'sheep',count:3}};
+ const t=ladder({tod:SUNSET+20,items:{...HARD1},jobs:[hunt]});
+ try{
+  t.ap.tick();
+  assert.deepEqual(t.cancelled,['h1'],'the hunt is cut');
+  assert.deepEqual(t.submitted.map(s=>s.item||s.type),['furnace']);
+  t.ap.tick();t.ap.tick();
+  assert.deepEqual(t.submitted.map(s=>s.item||s.type),['furnace'],'the queued kit craft is neither duplicated nor overtaken by the shelter');
+  t.worker.jobs.at(-1).status='complete';
+  const inv=t.worker.bot.inventory.items();inv.push({name:'furnace',count:1});inv.find(x=>x.name==='cobblestone').count-=8;
+  t.ap.tick();
+  assert.deepEqual(t.submitted.map(s=>s.item||s.type),['furnace','shelter']);
+ }finally{t.done();}
+});
+test('in the dusk window an affordable kit craft outranks the bed prep; a hostile within 8 holds it',()=>{
+ let t=ladder({tod:10500,items:{...HARD1,oak_planks:3}});
+ try{t.ap.tick();assert.deepEqual(t.submitted.map(s=>s.item||s.type),['stick']);}finally{t.done();}
+ t=ladder({tod:10500,items:{...HARD1,oak_planks:3},hostile:[5,64,0]});
+ try{t.ap.tick();assert.ok(!t.submitted.some(s=>s.item==='stick'));}finally{t.done();}
+ t=ladder({tod:SUNSET+40,items:{...HARD1},hostile:[12,64,0]});
+ try{t.ap.tick();assert.deepEqual(t.submitted.map(s=>s.item||s.type),['furnace'],'a mob at 12 no longer blocks a 2-second craft');}finally{t.done();}
 });

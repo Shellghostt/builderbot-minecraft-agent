@@ -70,15 +70,25 @@ export function kitCobbleNeed(c,ctx={}){
  const tools=STONE_KIT.filter(([item])=>c(item)<1).reduce((a,[,n])=>a+n,0);
  return tools+((c('furnace')>=1||ctx?.worldFurnace)?0:8);
 }
-// The stone-kit craft that is affordable right now (cobble and sticks held), or null. Used
-// in the sunset grace: a craft takes seconds, the night takes the rest of a hard run.
+// The stone-kit craft that is affordable right now, or null. Used in the sunset grace (and
+// ahead of the bed prep): a craft takes seconds, the night takes the rest of a hard run.
+// Round 5 hard1 held 19 cobble and a stone pickaxe and slept without a furnace: the next
+// piece in kit order (the sword) lacked a stick, so the furnace (no sticks) was never reached.
+// Sticks short: craft them from held planks (or planks from held logs) first; no wood at all:
+// the furnace still comes, it needs only 8 cobble.
 export function duskKitJob(counts,ctx={}){
  const c=countFactory(counts);
  ctx=woodTotals(counts,{...ctx});
  if(!STEPS[0].done(c,ctx)||STEPS[1].done(c,ctx))return null;
- const piece=STONE_KIT.find(([item])=>c(item)<1);
- if(piece)return c('cobblestone')>=piece[1]&&c('stick')>=KIT_STICKS[piece[0]]?{type:'craft',item:piece[0],count:1,keepTable:true}:null;
- return c('cobblestone')>=8?{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true}:null;
+ const left=STONE_KIT.filter(([item])=>c(item)<1),piece=left[0];
+ if(piece&&c('cobblestone')>=piece[1]){
+  if(c('stick')>=KIT_STICKS[piece[0]])return {type:'craft',item:piece[0],count:1,keepTable:true};
+  const sticks=left.reduce((a,[item])=>a+KIT_STICKS[item],0)-c('stick');
+  if(ctx.planksTotal>=2)return {type:'craft',item:'stick',count:Math.max(1,sticks)};
+  if(ctx.logsTotal>=1)return {type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:4};
+ }
+ const furnace=c('furnace')>=1||!!ctx.worldFurnace;
+ return !furnace&&c('cobblestone')>=8?{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:!piece}:null;
 }
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
@@ -327,7 +337,7 @@ export const RECOVER_MS=60000;
 // Extra night jobs per night after the first one failed or was cancelled while still dark.
 export const NIGHT_RETRIES=3;
 // Sunset grace for affordable stone-kit crafts (ticks after SUNSET; spawns start ~12970).
-export const KIT_GRACE=600;
+export const KIT_GRACE=600,KIT_HOSTILE=8;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
@@ -420,8 +430,18 @@ export class Autopilot{
    // night job the moment it settles (the key is only spent when the job goes out).
    // The shelter goes up at SUNSET (12000), before the first spawns; a bed waits for 12541.
    // A running craft takes seconds and is never cut (round 4: the kit stopped at sunset).
-   const busy=active.status==='running'&&['fight','eat','sleep','shelter','craft'].includes(active.spec?.type);
+   // A queued craft is a kit craft about to start (seconds): the shelter waits for it too,
+   // or the survival pump would run the shelter first and the kit never.
+   const busy=(active.status==='running'&&['fight','eat','sleep','shelter','craft'].includes(active.spec?.type))||(active.status==='queued'&&active.spec?.type==='craft');
    const nightJob=!busy&&nightJobFor(dayTicks(b),this.bedNear(b));
+   // Round 5 hard1: a bed-prep sheep hunt ran into sunset, this branch sent the shelter
+   // straight away and the grace kit (idle branch only) never ran - no furnace, 19 cobble.
+   const kit=active.status==='running'&&nightJob&&nightJob.type==='shelter'&&this.lastNightKey!==String(b.time?.day)&&this.sunsetKit(b,dayTicks(b)??0);
+   if(kit){
+    try{this.worker.cancel(active.id,'autopilot');}catch(e){this.state='cancel failed: '+e.message;return;}
+    this.log('Autopilot: sunset - finishing the stone kit first ('+kit.item+')');this.submit('stone',kit);
+    return;
+   }
    const night=nightJob&&this.nightKeyFree(b)&&nightJob;
    if(night){
     this.lastNightKey=String(b.time?.day); // once per day even if the submit loses the race
@@ -442,6 +462,12 @@ export class Autopilot{
   // Bed before dusk when wool is cheap (bedPrepJob); a failed prep job ends it for the day.
   const day=String(b.time?.day);
   if(this.bedPrep?.day!==day)this.bedPrep={day,jobs:0,off:false};
+  // A kit craft affordable right now outranks the bed prep (both are dusk work; the craft
+  // takes seconds and the furnace is what a hard night ends up missing).
+  if(todNow>=BED_PREP_FROM&&todNow<SUNSET){
+   const kit=this.sunsetKit(b,todNow,true);
+   if(kit){this.log('Autopilot: dusk - finishing the stone kit first ('+kit.item+')');this.submit('stone',kit);return;}
+  }
   if(!this.bedPrep.off&&this.bedPrep.jobs<BED_PREP_JOBS){
    const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:4});
    const job=bedPrepJob(this.counts(),{tod:dayTicks(b),bedNear:!!bedNear,sheepNear:this.sheepNear(b),worldTable});
@@ -459,9 +485,8 @@ export class Autopilot{
   const nightJob=nightJobFor(todNow,!!bedNear);
   // Sunset grace (KIT_GRACE ticks, ~30 s, still before the first spawns): finish any stone-kit
   // craft that is affordable right now before sealing in for the night.
-  if(nightJob&&nightJob.type==='shelter'&&todNow<SUNSET+KIT_GRACE&&this.hostileDistance(b)>16){
-   const left=this.leftTable(b);
-   const kit=duskKitJob(this.counts(),{worldTable:!!left&&left.distance<=32,worldFurnace:!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16})});
+  if(nightJob&&nightJob.type==='shelter'&&this.lastNightKey!==String(b.time?.day)){
+   const kit=this.sunsetKit(b,todNow);
    if(kit){this.log('Autopilot: sunset - finishing the stone kit first ('+kit.item+')');this.submit('stone',kit);return;}
   }
   const night=nightJob&&this.nightKeyFree(b)&&nightJob;
@@ -475,6 +500,17 @@ export class Autopilot{
    this.state='night: no shelter; holding for morning';return;
   }
   this.decide(b);
+ }
+ // The kit craft for the sunset grace (KIT_GRACE ticks after SUNSET, before the first spawns)
+ // or, with dusk=true, for the dusk window: affordable now and no hostile within 8 (a craft
+ // takes seconds; Mob Defense still answers anything that closes in).
+ sunsetKit(b,tod,dusk=false){
+  if(!dusk&&!(tod>=SUNSET&&tod<SUNSET+KIT_GRACE))return null;
+  if(this.hostileDistance(b)<=KIT_HOSTILE)return null;
+  if((this.failures.stone||0)>=2)return null; // a craft that keeps failing must not storm the dusk
+  if(this.current&&this.current.step==='stone'&&this.worker.jobs.some(j=>j.id===this.current.id&&['queued','running'].includes(j.status)))return null;
+  const left=this.leftTable(b);
+  return duskKitJob(this.counts(),{worldTable:!!left&&left.distance<=32,worldFurnace:!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16})});
  }
  // The cobble the unfinished stone kit still costs: the shelter builds with dirt first and
  // leaves this much cobble alone (round 4 hard runs: the box took the furnace's cobble).
