@@ -109,7 +109,11 @@ export class FoodChain extends SingleTaskChain{
   if(f.eatAtHunger!=null&&foodLevel>f.eatAtHunger){
    if(health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
    if(this.cachedFoodItems!=null&&this.cachedFoodItems<=1)return false;
-   return health<(f.criticalHealth??10)&&foodLevel<(f.regenHunger??18);
+   if(health<(f.criticalHealth??10)&&foodLevel<(f.regenHunger??18))return true;
+   // Habit 10: hurt (under 14) with the bar under 18, regeneration has stopped - top it up,
+   // but only with food that fits (no points wasted over 20): small food, never a fill-up.
+   const fit=this.cachedPerfectFood&&foodLevel+(this.cachedPerfectFood.fills||99)<=20;
+   return health<f.alwaysEatWhenBelowHealth&&foodLevel<(f.regenHunger??18)&&!!fit;
   }
   if(onFireOrWither(bot)||health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
   if(foodLevel>f.alwaysEatWhenBelowHunger){

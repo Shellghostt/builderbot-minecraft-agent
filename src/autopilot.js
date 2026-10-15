@@ -342,6 +342,18 @@ export function furnaceWork(run,counts,ctx){
  if(ctx.dropsNear)return {type:'collect',radius:r};
  return null;
 }
+// Round 10, habit 10: heal before risky work. A deep dig (a gather with a target depth, a
+// branch mine) waits while health is under RISKY_HEALTH: with the bar under 18 (natural
+// regeneration stops there) and food held, an eat job tops it up first; then it waits for the
+// health, at most HEAL_WAIT_MS per episode, and goes ahead.
+export const RISKY_HEALTH=16,HEAL_WAIT_MS=90000;
+export const riskyJob=job=>!!job&&job.type==='gather'&&(job.targetY!=null||!!job.strip);
+export function healFirst({job,health,food,edible,since=0,now=Date.now(),ate=false}){
+ if(!riskyJob(job)||!(health<RISKY_HEALTH))return null;
+ if(since&&now-since>=HEAL_WAIT_MS)return null;
+ if(food<18&&edible>0&&!ate)return {type:'eat'};
+ return 'wait';
+}
 // Round 10, habit 7: torches as soon as coal and sticks exist (any step after the wood kit),
 // keeping one coal for the furnace, up to TORCHES; and TORCHES_HOME torches beside the home bed
 // (a lit base: monsters near a bed refuse the sleep), once per home.
@@ -1111,6 +1123,17 @@ export class Autopilot{
    const exposed=this.exposedNear(b);
    const pick=exposed&&pickupJob(counts,{...ctx,tod:dayTicks(b),exposed,sinceLast:this.lastPickup?Date.now()-this.lastPickup:null});
    if(pick&&!(choice.job?.type==='gather'&&choice.job.block===pick.block)){this.lastPickup=Date.now();this.submit('pickup',pick);return;}
+  }
+  // Habit 10: heal before a deep dig.
+  {
+   const hurt=b.health<RISKY_HEALTH&&riskyJob(choice.job);
+   if(!hurt)this.heal=null;
+   else{
+    if(!this.heal)this.heal={since:Date.now(),ate:false};
+    const h=healFirst({job:choice.job,health:b.health,food:b.food,edible:counts._edible||0,since:this.heal.since,ate:this.heal.ate});
+    if(h==='wait'){this.state='healing before '+choice.step+' (health '+Math.round(b.health)+')';return;}
+    if(h){this.heal.ate=true;this.submit('heal',h);return;}
+   }
   }
   if(choice.step==='food'&&this.foodTrack(counts,choice.job))return; // set aside: next tick moves on
   if(choice.step==='food'&&choice.job?.type==='explore'&&this.lastSurfaceY==null&&this.foodAnchorY==null)this.foodAnchorY=standY;

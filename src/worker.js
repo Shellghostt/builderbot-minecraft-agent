@@ -1154,7 +1154,7 @@ export class Worker extends EventEmitter {
     await this.guardShelter(job,token,origin);
     const tod=dayTicks(b);
     // Habit 4: use the night - a staircase mine under the box, back before dawn.
-    if(!job.nightMined&&nightMineWanted({tod,pod:job.pod,pickaxe:b.inventory.items().some(i=>/^(stone|iron|diamond|netherite)_pickaxe$/.test(i.name)),blocks:this.shelterStock(true),enabled:this.config?.nightMine!==false})){
+    if(!job.nightMined&&nightMineWanted({tod,pod:job.pod,pickaxe:b.inventory.items().some(i=>/^(stone|iron|diamond|netherite)_pickaxe$/.test(i.name)),blocks:this.shelterStock(true),enabled:this.config?.nightMine!==false,health:b.health})){
      job.nightMined=true;this.save();
      try{await this.nightMine(job,token,origin);}catch(e){this.check(token);this.log('Night mine: '+e.message);}
      finally{this.shelterSealed=true;}
