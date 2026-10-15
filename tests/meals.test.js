@@ -132,13 +132,23 @@ test('FoodChain: a meal at 14 is one bite, no fill-up to 20, logged with the bar
  assert.equal(meals.ok,1,'an eaten meal is counted as eaten');
  assert.ok(logs.includes('Food: ate cooked_porkchop (bar 14 -> 19)'),logs.join('|'));
 });
-test('FoodChain: low health eats above 14, but never the last edible item',async()=>{
- const chain=new FoodChain(),one=porkBot(16,{count:1,health:12});
+test('FoodChain: above 14 only critical health eats, never a fill-up, never the last edible item',async()=>{
+ const chain=new FoodChain(),one=porkBot(16,{count:1,health:9});
  chain.priority(one,{worker:{meals:{}}});await settle();
  assert.equal(one.consumed,0,'the last item waits for real hunger');
- const two=porkBot(16,{count:2,health:12});
+ // Round 10, bug C (round-9 normal3: 16 -> 20 at 12.4 hp): health 12 is not critical.
+ const twelve=porkBot(16,{count:2,health:12});
+ new FoodChain().priority(twelve,{worker:{meals:{}}});await settle();
+ assert.equal(twelve.consumed,0,'health 12 at bar 16: no meal');
+ const two=porkBot(16,{count:2,health:9});
  new FoodChain().priority(two,{worker:{meals:{}}});await settle();
- assert.equal(two.consumed,1,'health 12: eat');
+ assert.equal(two.consumed,1,'health 9 (under the low-health stop) at bar 16: eat, regen needs 18');
+ // Round-9 normal1's `19 -> 20` fill-up: a bar of 18+ regenerates on its own.
+ for(const bar of [18,19]){
+  const full=porkBot(bar,{count:4,health:9});
+  new FoodChain().priority(full,{worker:{meals:{}}});await settle();
+  assert.equal(full.consumed,0,'bar '+bar+' at health 9: no fill-up');
+ }
  const crit=porkBot(16,{count:1,health:5});
  new FoodChain().priority(crit,{worker:{meals:{}}});await settle();
  assert.equal(crit.consumed,1,'critical health eats the last item');

@@ -101,13 +101,17 @@ export class FoodChain extends SingleTaskChain{
   const foodLevel=bot.food|0,health=bot.health;
   if(foodLevel>=20)return false;
   if(foodLevel<=(f.eatAtHunger??0))return true;
-  if(onFireOrWither(bot)||health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
-  // Round 9: above the 14 threshold only low health eats (the critical-health case), and
-  // never the last edible item - that one is the food step's, kept for real hunger.
+  // Round 10 (bug C: 3 of 7 round-9 meals started above 14 - a 19 -> 20 fill-up, 16 -> 20 at
+  // 12 hp): above the 14 threshold only the critical-health path eats. That is health under
+  // the low-health stop (criticalHealth, 10) with the bar under regenHunger (18: natural
+  // regeneration needs 18+, so a bar of 18 or 19 heals on its own and a meal there is a
+  // fill-up), or health under 6 at any bar. Never the last edible item unless under 6.
   if(f.eatAtHunger!=null&&foodLevel>f.eatAtHunger){
+   if(health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
    if(this.cachedFoodItems!=null&&this.cachedFoodItems<=1)return false;
-   return health<f.alwaysEatWhenBelowHealth;
+   return health<(f.criticalHealth??10)&&foodLevel<(f.regenHunger??18);
   }
+  if(onFireOrWither(bot)||health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
   if(foodLevel>f.alwaysEatWhenBelowHunger){
    if(health<f.alwaysEatWhenBelowHealth)return true; // 7f: eat to full, return at health >= 14
   }else return true; // half hunger or worse
