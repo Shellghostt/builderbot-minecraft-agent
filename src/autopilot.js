@@ -155,6 +155,21 @@ export function bedJob(c,ctx){
  if(Object.keys(PLATE).concat(['wooden','stone']).some(t=>c(t+'_sword')>=1))return {type:'hunt',entity:'sheep',count:Math.max(1,Math.min(3-c(wool),ctx.sheepNear))};
  return null;
 }
+// Round 8, toward diamonds: once the iron kit is worn, 3 diamonds for a diamond pickaxe.
+// 1.18+ diamonds peak at the bottom of the world; the dig enters the band from its top
+// (DIAMOND_TOP, -54) by the safe staircase (lava/water checks, never straight down, a torch
+// every 6 steps), goes on to DIAMOND_Y (-58), never targets ore below it, and strip-mines
+// there (a torch every 8) when none is in reach. Torches must be held for the trip.
+export const DIAMOND_Y=-58,DIAMOND_TOP=-54,DIAMOND_PICK=3,DIAMOND_TORCHES=8;
+export const diamondGather=count=>({type:'gather',block:'diamond_ore',count:Math.max(1,count),radius:32,targetY:DIAMOND_Y,bandTop:DIAMOND_TOP,strip:true});
+export function diamondPickJob(c,ctx){
+ if(typeof c!=='function')c=countFactory(c||{});
+ if(c('diamond_pickaxe')>=1||c('iron_pickaxe')<1)return null;
+ if(c('diamond')>=DIAMOND_PICK)return sticksFor(c,ctx,2)||{type:'craft',item:'diamond_pickaxe',count:1};
+ if(ctx.diamondOff||c('torch')<DIAMOND_TORCHES)return null;
+ return diamondGather(DIAMOND_PICK-c('diamond'));
+}
+export const isDiamondJob=job=>!!job&&((job.type==='gather'&&job.block==='diamond_ore')||(job.type==='craft'&&job.item==='diamond_pickaxe'));
 export const isBedJob=job=>!!job&&(job.type==='shear'||(job.type==='hunt'&&job.entity==='sheep')||(job.type==='craft'&&/_bed$/.test(job.item||'')));
 // The rung after the iron core, or null when it is done (or waits on wool that is not cheap).
 export function ironRung(c,ctx){
@@ -183,7 +198,8 @@ export function ironRung(c,ctx){
  if(wear&&wear!==ctx.lastEquip)return {type:'equip'};
  // A bed while the wool is cheap; otherwise the ladder moves on (the dusk prep still tries).
  if(!ctx.bedOff){const bed=bedJob(c,ctx);if(bed)return bed;}
- return null;
+ // Then the diamond pickaxe (set aside for DIAMOND_OFF_MS after a failed trip).
+ return diamondPickJob(c,ctx);
 }
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
 // radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
@@ -441,7 +457,7 @@ export const STEPS=[
   if(!remaining.length)return null;
   const [item,cost]=remaining[0];
   if(c('diamond')>=cost)return {type:'craft',item,count:1};
-  return {type:'gather',block:'diamond_ore',count:remaining.reduce((a,[,need])=>a+need,0)-c('diamond'),radius:32,searchIfMissing:true,targetY:-58,strip:true};
+  return diamondGather(remaining.reduce((a,[,need])=>a+need,0)-c('diamond'));
  }},
 ];
 
@@ -472,6 +488,8 @@ export const KIT_GRACE=600,KIT_HOSTILE=8;
 export const DUSK_COBBLE_JOBS=3,DUSK_COBBLE_STOP=1200;
 // A failed rung bed job (the sheep ran off, no wool) sets the bed aside for this long.
 export const BED_OFF_MS=10*60000;
+// A failed diamond trip (lava in the way, nothing in the strip) waits this long before the next.
+export const DIAMOND_OFF_MS=20*60000;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
@@ -712,6 +730,7 @@ export class Autopilot{
    if(step==='bed-prep'&&this.bedPrep)this.bedPrep.off=true; // shelter tonight
    if(step==='dusk-cobble'&&this.duskCobble)this.duskCobble.off=true; // the dirt now
    if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
+   if(step==='diamond-rung')this.diamondOffUntil=Date.now()+DIAMOND_OFF_MS;
    // Only ladder steps block (and explore to unblock): a night job that keeps failing must
    // never turn into an explore in the dark - nightKeyFree caps its retries instead.
    if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
@@ -814,7 +833,7 @@ export class Autopilot{
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
-   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0)};
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),diamondOff:Date.now()<(this.diamondOffUntil||0)};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
   // While ANY step is blocked the ladder must not run later steps' jobs on top of the gap
@@ -851,6 +870,7 @@ export class Autopilot{
   // The iron rung's bed jobs run under their own name: a sheep that runs off must not count
   // toward blocking the iron step (a failure sets the bed aside for BED_OFF_MS instead).
   if(choice.step==='iron'&&isBedJob(choice.job)){this.submit('bed-rung',choice.job);return;}
+  if(choice.step==='iron'&&isDiamondJob(choice.job)){this.submit('diamond-rung',choice.job);return;}
   if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
  }

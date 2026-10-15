@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {Vec3} from 'vec3';
-import {Autopilot,ironRung,armourToWear,bedJob,isBedJob,BED_OFF_MS,TORCHES} from '../src/autopilot.js';
+import {Autopilot,ironRung,armourToWear,bedJob,isBedJob,BED_OFF_MS,TORCHES,diamondPickJob,isDiamondJob,diamondGather,DIAMOND_OFF_MS,DIAMOND_Y,DIAMOND_TOP} from '../src/autopilot.js';
+import {descentTarget} from '../src/worker.js';
 import {jobSchema} from '../src/schema.js';
 const c=map=>n=>map[n]||0;
 const base={iron_pickaxe:1,iron_sword:1,shield:1,stone_sword:1,stick:8,oak_planks:8,crafting_table:1,cobblestone:20,stone_pickaxe:2};
@@ -84,7 +85,13 @@ test('autopilot: the rung equips crafted armour once, and a failed sheep hunt se
   assert.ok(t.ap.bedOffUntil>Date.now()+BED_OFF_MS-1000);
   t.ap.coolUntil=0;t.ap.tick();
   assert.notEqual(t.submitted.at(-1).entity,'sheep','the ladder moved on');
-  assert.equal(t.submitted.at(-1).block,'coal_ore');
+  assert.equal(t.submitted.at(-1).block,'diamond_ore','on to the diamond pickaxe');
+  assert.equal(t.ap.currentStep,'diamond-rung');
+  // a failed trip is not charged to the iron step either, and waits DIAMOND_OFF_MS
+  t.jobs.at(-1).status='failed';t.ap.tick();
+  assert.equal(t.ap.failures.iron||0,0);assert.ok(t.ap.diamondOffUntil>Date.now()+DIAMOND_OFF_MS-1000);
+  t.ap.coolUntil=0;t.ap.tick();
+  assert.equal(t.submitted.at(-1).block,'coal_ore','then the rest of the iron step');
  }finally{t.done();}
 });
 test('night: a bed held means sleep; a sleep that failed tonight falls back to the shelter',()=>{
@@ -97,4 +104,27 @@ test('night: a bed held means sleep; a sleep that failed tonight falls back to t
   assert.deepEqual(t.submitted.at(-1),{type:'shelter'},'the shelter, not a second refused sleep');
   assert.equal(t.submitted.filter(s=>s.type==='sleep').length,1);
  }finally{t.done();}
+});
+// Round 8, task 4: the diamond pickaxe after the iron kit.
+test('diamondPickJob: 3 diamonds in the -58..-54 band, torches held, then the pickaxe',()=>{
+ const kit={iron_pickaxe:1,torch:16,stick:4};
+ const j=diamondPickJob(c(kit),{...wood});
+ assert.deepEqual(j,{type:'gather',block:'diamond_ore',count:3,radius:32,targetY:-58,bandTop:-54,strip:true});
+ assert.equal(jobSchema.safeParse(j).success,true);
+ assert.equal(diamondPickJob(c({...kit,diamond:2}),{...wood}).count,1,'only what is missing');
+ assert.deepEqual(diamondPickJob(c({...kit,diamond:3}),{...wood}),{type:'craft',item:'diamond_pickaxe',count:1});
+ assert.deepEqual(diamondPickJob(c({...kit,diamond:3,stick:0,oak_planks:0,oak_log:2}),{planksTotal:0,logsTotal:2,heldLog:'oak_log'}),{type:'craft',item:'oak_planks',count:2},'sticks from planks first');
+ assert.equal(diamondPickJob(c({...kit,torch:4}),{...wood}),null,'no trip into the dark without torches');
+ assert.equal(diamondPickJob(c({...kit,iron_pickaxe:0,stone_pickaxe:2}),{...wood}),null,'diamond ore needs the iron pickaxe');
+ assert.equal(diamondPickJob(c({...kit,diamond_pickaxe:1}),{...wood}),null);
+ assert.equal(diamondPickJob(c(kit),{...wood,diamondOff:true}),null);
+ assert.equal(isDiamondJob(j),true);assert.equal(isDiamondJob({type:'craft',item:'diamond_pickaxe',count:1}),true);
+ assert.equal(isDiamondJob({type:'gather',block:'iron_ore',count:6}),false);
+});
+test('the diamond descent enters the band at -54, ends at -58 and never goes below it',()=>{
+ const s=diamondGather(3);
+ assert.equal(descentTarget(s,70),DIAMOND_TOP,'one staircase leg straight to the band top');
+ assert.equal(descentTarget(s,-54),DIAMOND_Y);
+ assert.equal(descentTarget(s,-58),DIAMOND_Y);
+ assert.ok(DIAMOND_Y>-60,'clear of the bedrock layers');
 });
