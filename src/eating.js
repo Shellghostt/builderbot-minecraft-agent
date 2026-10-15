@@ -19,8 +19,16 @@ async function until(fn,ms){
  for(;;){if(fn())return true;if(Date.now()>=end)return false;await sleep(Math.min(50,Math.max(1,end-Date.now())));}
 }
 // Hand equips from anyone but the meal wait (bounded) for the meal in flight to settle.
+// Round 9: mineflayer injects its plugins (bot.equip, bot.consume) on 'inject_allowed', a
+// setTimeout after createBot returns - wrapping right after createBot wrapped nothing, live.
+export function afterInject(bot,name,fn){
+ if(!bot)return;
+ if(typeof bot[name]==='function')return fn();
+ if(typeof bot.once==='function')bot.once('inject_allowed',()=>{if(typeof bot[name]==='function')fn();});
+}
 export function guardEquip(bot){
- if(!bot||typeof bot.equip!=='function'||bot.__rawEquip)return;
+ if(!bot||bot.__rawEquip)return;
+ if(typeof bot.equip!=='function')return afterInject(bot,'equip',()=>guardEquip(bot));
  const raw=bot.__rawEquip=bot.equip.bind(bot);
  bot.equip=async(item,dest,...rest)=>{
   if(bot.__meal&&(dest==null||dest==='hand'))await Promise.race([bot.__meal,sleep(EAT_GUARD_MS)]);

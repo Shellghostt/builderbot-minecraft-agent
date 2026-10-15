@@ -87,3 +87,62 @@ test('FoodChain: a failing eat is counted with its reason',async()=>{
  assert.equal(meals.failed,1);
  assert.equal(meals.lastError,'equip refused');
 });
+// Round 9: round-8 normal1 logged `Food: ate cooked_porkchop (bar 20)` twice and the soak read
+// `EAT FAILED: never attempted (due 2)`. mineflayer injects bot.consume / bot.equip on
+// 'inject_allowed' (a setTimeout after createBot), so the wraps installed right after
+// createBot wrapped nothing and no meal was ever counted live.
+test('trackMeals and guardEquip wrap consume/equip injected after createBot',async()=>{
+ const {guardEquip}=await import('../src/eating.js');
+ const bot=new EventEmitter();
+ Object.assign(bot,{food:10,health:20,heldItem:{name:'cooked_porkchop'}});
+ const w={meals:{eaten:0,points:0,cooked:0,items:{}}};
+ // createBot registers mineflayer's plugin loader first; the wraps come after it
+ bot.once('inject_allowed',()=>{bot.consume=async()=>{};bot.equip=async()=>'equipped';});
+ Worker.prototype.trackMeals.call(w,bot);guardEquip(bot);
+ assert.equal(bot.consume,undefined,'nothing to wrap yet');
+ bot.emit('inject_allowed');
+ assert.ok(bot.consume.__tracked,'consume wrapped');assert.ok(bot.__rawEquip,'equip guarded');
+ bot.emit('health');await bot.consume();bot.food=18;bot.emit('health');
+ assert.equal(w.meals.eaten,1);assert.deepEqual(w.meals.items,{cooked_porkchop:1});
+ assert.equal(await bot.equip({name:'stone_pickaxe'},'hand'),'equipped');
+});
+function porkBot(food,{count=3,health=20,fills=8}={}){
+ const items=[{name:'cooked_porkchop',count,slot:36}];
+ const bot={entity:{position:{x:0,y:0,z:0},metadata:[0]},health,food,consumed:0,
+  inventory:{items:()=>items.filter(i=>i.count>0)},registry:{foodsByName:{cooked_porkchop:{foodPoints:fills,saturation:12.8}}},
+  equip:async()=>{},consume:async()=>{bot.consumed++;bot.food=Math.min(20,bot.food+fills);items[0].count--;}};
+ return bot;
+}
+test('FoodChain: bar 20, or 15-19 at full health, with cooked food held is no meal',async()=>{
+ for(const food of [20,19,16,15]){
+  const meals={eaten:0,due:0,failed:0,attempts:0};
+  const chain=new FoodChain(),bot=porkBot(food);
+  for(let i=0;i<5;i++)chain.priority(bot,{worker:{meals}});
+  await settle();
+  assert.equal(bot.consumed,0,'bar '+food);assert.equal(meals.due,0);assert.equal(meals.attempts,0);
+ }
+});
+test('FoodChain: a meal at 14 is one bite, no fill-up to 20, logged with the bar before and after',async()=>{
+ const meals={eaten:0,due:0,failed:0,attempts:0},logs=[];
+ const chain=new FoodChain(),bot=porkBot(14,{fills:5}),ctx={worker:{meals,log:m=>logs.push(m)}};
+ chain.priority(bot,ctx);await settle();
+ assert.equal(bot.food,19);assert.equal(bot.consumed,1);
+ for(let i=0;i<5;i++)chain.priority(bot,ctx);await settle();
+ assert.equal(bot.consumed,1,'19 at full health: the old fill-up ate a second item here');
+ assert.equal(meals.ok,1,'an eaten meal is counted as eaten');
+ assert.ok(logs.includes('Food: ate cooked_porkchop (bar 14 -> 19)'),logs.join('|'));
+});
+test('FoodChain: low health eats above 14, but never the last edible item',async()=>{
+ const chain=new FoodChain(),one=porkBot(16,{count:1,health:12});
+ chain.priority(one,{worker:{meals:{}}});await settle();
+ assert.equal(one.consumed,0,'the last item waits for real hunger');
+ const two=porkBot(16,{count:2,health:12});
+ new FoodChain().priority(two,{worker:{meals:{}}});await settle();
+ assert.equal(two.consumed,1,'health 12: eat');
+ const crit=porkBot(16,{count:1,health:5});
+ new FoodChain().priority(crit,{worker:{meals:{}}});await settle();
+ assert.equal(crit.consumed,1,'critical health eats the last item');
+ const hungry=porkBot(14,{count:1});
+ new FoodChain().priority(hungry,{worker:{meals:{}}});await settle();
+ assert.equal(hungry.consumed,1,'hungry: the last item is eaten');
+});

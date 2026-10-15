@@ -22,7 +22,6 @@ export class FoodChain extends SingleTaskChain{
   super('Food');
   this.mobDefense=mobDefense;this.mlg=mlg;
   this._isTryingToEat=false;
-  this._requestFillup=false;
   this._needsFood=false;
   this._eating=false;
   this.cachedFoodScore=0;
@@ -38,12 +37,14 @@ export class FoodChain extends SingleTaskChain{
   // in danger or falling: don't eat now
   if((this.mobDefense&&this.mobDefense.isDoingAcrobatics&&this.mobDefense.isDoingAcrobatics())
    ||(this.mlg&&this.mlg.isFallingOhNo&&this.mlg.isFallingOhNo(bot))){this.stopEat();return -1;}
-  const {total,best}=this.calculateFood(bot,cfg.food);
-  this.cachedFoodScore=total;this.cachedPerfectFood=best;
+  const {total,best,items}=this.calculateFood(bot,cfg.food);
+  this.cachedFoodScore=total;this.cachedPerfectFood=best;this.cachedFoodItems=items;
   const hasFood=total>0;
-  if(this._requestFillup&&(bot.food|0)>=20)this._requestFillup=false;
-  if(!hasFood)this._requestFillup=false;
-  const want=hasFood&&(this.needsToEat(bot,cfg.food)||this._requestFillup)&&!!best;
+  // Round 9: no fill-up after a meal. AltoClef keeps eating to 20 once a meal started
+  // (_requestFillup); with the 14 threshold that ate a second porkchop at 15-19 and took the
+  // food step's last cooked items (round-8 normal1 looped on [food] for the rest of the run).
+  // Below 14 health needsToEat still says yes at every bar < 20: that is the eat-to-full.
+  const want=hasFood&&this.needsToEat(bot,cfg.food)&&!!best;
   // Soak accounting (round 6): 'due' counts each episode a meal was wanted with food held,
   // so 'eaten 0' reads as never hungry (due 0) or a broken eat path (due > 0, failed > 0).
   const meals=ctx&&ctx.worker&&ctx.worker.meals;
@@ -101,6 +102,12 @@ export class FoodChain extends SingleTaskChain{
   if(foodLevel>=20)return false;
   if(foodLevel<=(f.eatAtHunger??0))return true;
   if(onFireOrWither(bot)||health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
+  // Round 9: above the 14 threshold only low health eats (the critical-health case), and
+  // never the last edible item - that one is the food step's, kept for real hunger.
+  if(f.eatAtHunger!=null&&foodLevel>f.eatAtHunger){
+   if(this.cachedFoodItems!=null&&this.cachedFoodItems<=1)return false;
+   return health<f.alwaysEatWhenBelowHealth;
+  }
   if(foodLevel>f.alwaysEatWhenBelowHunger){
    if(health<f.alwaysEatWhenBelowHealth)return true; // 7f: eat to full, return at health >= 14
   }else return true; // half hunger or worse
@@ -122,7 +129,6 @@ export class FoodChain extends SingleTaskChain{
  isTryingToEat(){return this._isTryingToEat;}
  startEat(bot,food){
   this._isTryingToEat=true;
-  this._requestFillup=true;
   if(this._eating||Date.now()<(this._retryAt||0))return;
   this._eating=true;
   const m=this._meals,w=this._worker;
@@ -134,9 +140,13 @@ export class FoodChain extends SingleTaskChain{
    // whole meal is bounded by the watchdog.
    try{
     const stuck=new Promise((_,rej)=>{watchdog=setTimeout(()=>rej(Error('meal stuck '+this.watchdogMs/1000+' s (equip or consume never settled)')),this.watchdogMs);if(watchdog.unref)watchdog.unref();});
+    const bar0=bot.food|0;
     const r=await Promise.race([eatMeal(bot,food.name,{worker:w,...this.mealOpts}),stuck]);
     if(!r.ok&&r.reason!=='Food is already full')throw Error(r.reason);
-    if(r.ok&&w&&w.log)try{w.log('Food: ate '+food.name+' (bar '+(bot.food|0)+')');}catch{}
+    // Round 9: the bar before and after - round 8's `ate cooked_porkchop (bar 20)` printed
+    // only the bar after the meal and read as a meal eaten at a full bar.
+    if(r.ok&&m)m.ok=(m.ok||0)+1;
+    if(r.ok&&w&&w.log)try{w.log('Food: ate '+food.name+' (bar '+bar0+' -> '+(bot.food|0)+')');}catch{}
    }
    catch(e){
     this._retryAt=Date.now()+EAT_RETRY_MS;
@@ -152,13 +162,12 @@ export class FoodChain extends SingleTaskChain{
   // mineflayer's consume is one-shot, so there is no input hold to release (Java releases
   // right click and unpauses interaction here).
   this._isTryingToEat=false;
-  this._requestFillup=false;
  }
  // FoodChain.calculateFood: pick the best-fitting food and total the food units available.
  calculateFood(bot,f){
   f=f||chainConfig(null).food;
   const foods=bot.registry&&bot.registry.foodsByName;
-  let bestFood=null,bestScore=-Infinity,total=0;
+  let bestFood=null,bestScore=-Infinity,total=0,items=0;
   const health=bot.health??20,hunger=bot.food|0,saturation=bot.saturation??20;
   for(const stack of inventoryItems(bot)){
    const meta=foods&&foods[stack.name];
@@ -182,9 +191,9 @@ export class FoodChain extends SingleTaskChain{
    let score=saturationGoodScore-saturationLossPenalty-hungerLossPenalty-hungerNotFilledPenalty;
    if(stack.name==='rotten_flesh')score-=f.foodPickRottenFleshPenalty;
    if(score>bestScore){bestScore=score;bestFood={name:stack.name,fills:hungerVal};}
-   total+=hungerVal*count;
+   total+=hungerVal*count;items+=count;
   }
-  return {total,best:bestFood};
+  return {total,best:bestFood,items};
  }
 }
 const onFireOrWither=bot=>{

@@ -4,11 +4,11 @@ spec=importlib.util.spec_from_file_location('soak',str(pathlib.Path(__file__).re
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 run={'meals_mark':{'eaten':2,'points':10,'cooked':3,'items':{'cooked_beef':2}}}
 d=m.meals_delta({'meals':{'eaten':5,'points':22,'cooked':7,'items':{'cooked_beef':3,'cooked_chicken':2}}},run)
-assert d=={'eaten':3,'points':12,'cooked':4,'items':{'cooked_beef':1,'cooked_chicken':2},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'last_error':None,'last_deferred':None},d
+assert d=={'eaten':3,'points':12,'cooked':4,'items':{'cooked_beef':1,'cooked_chicken':2},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'ok':0,'last_error':None,'last_deferred':None},d
 d=m.meals_delta({'meals':{'eaten':1,'points':6,'cooked':0,'items':{'bread':1}}},run) # dashboard restarted
 assert d['eaten']==1 and d['points']==6 and d['cooked']==0,d
 d=m.meals_delta({},{} )
-assert d=={'eaten':0,'points':0,'cooked':0,'items':{},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'last_error':None,'last_deferred':None},d
+assert d=={'eaten':0,'points':0,'cooked':0,'items':{},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'ok':0,'last_error':None,'last_deferred':None},d
 # Round 6: due/failed (FoodChain) say whether 'eaten 0' is a full bar or a broken eat path.
 d=m.meals_delta({'meals':{'eaten':0,'due':3,'failed':2,'lastError':'consume timed out'}},{'meals_mark':{'due':1,'failed':0}})
 assert d['due']==2 and d['failed']==2 and d['last_error']=='consume timed out',d
@@ -111,3 +111,10 @@ assert m.bot_deaths({},{'bot_deaths_mark':7})==0
 # Monotonic: an earlier higher count is never lowered by a later read.
 assert m.death_tally({'deaths':3},None,'','')['deaths']==3
 print('soak death metric ok')
+# Round 9: round-8 normal1 ate twice (FoodChain logs) with the consume wrap counting nothing;
+# the FoodChain's own 'ok' count makes that 'ate 2', and attempts at a bar > 14 are never 'never attempted'.
+assert m.meals_delta({'meals':{'ok':5}},{'meals_mark':{'ok':3}})['ok']==2
+assert m.food_verdict({'meals':{'eaten':0,'ok':2,'due':2,'attempts':2},'food_level':{'food_min':16},'edible_peak':9})=='ate 2'
+v=m.food_verdict({'meals':{'eaten':0,'due':2,'failed':0,'attempts':2},'food_level':{'food_min':16},'edible_peak':9})
+assert v=='attempted 2, no meal recorded (due 2, failed 0, food min 16)',v
+print('round 9 food verdict ok')

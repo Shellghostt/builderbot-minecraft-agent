@@ -7,7 +7,7 @@ import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import {jobSchema,validateBlueprint} from './schema.js';
 import {installMovementFix,installWeatherFix} from './compat.js';
-import {eatMeal,guardEquip} from './eating.js';
+import {eatMeal,guardEquip,afterInject} from './eating.js';
 import {creeperSwell} from './creeper.js';
 import {yawToward} from './heading.js';
 import {craftConfirmedRetry as craftConfirmed} from './crafting.js';
@@ -763,8 +763,14 @@ export class Worker extends EventEmitter {
  // FoodChain, the fight's disengage-eat) goes through bot.consume; a respawn's full bar or
  // an effect is not a meal. The soak diffs these counters per run (M4 food, measured).
  trackMeals(bot){
-  const consume=bot.consume&&bot.consume.bind(bot);
-  if(consume)bot.consume=(...args)=>{this._consumeAt=Date.now();this._consumeItem=bot.heldItem&&bot.heldItem.name||null;return consume(...args);};
+  // Round 9: bot.consume exists only after mineflayer's 'inject_allowed' (afterInject); the
+  // wrap used to run before it and counted no meal live (eaten 0 on every soak run).
+  afterInject(bot,'consume',()=>{
+   if(bot.consume.__tracked)return;
+   const consume=bot.consume.bind(bot);
+   bot.consume=(...args)=>{this._consumeAt=Date.now();this._consumeItem=bot.heldItem&&bot.heldItem.name||null;return consume(...args);};
+   bot.consume.__tracked=true;
+  });
   let last=null;
   bot.on('health',()=>{
    const food=bot.food;

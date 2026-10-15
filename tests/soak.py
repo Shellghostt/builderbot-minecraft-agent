@@ -148,6 +148,7 @@ def meals_delta(state,run):
             'due':max(0,now.get('due',0)-mark.get('due',0)),'failed':max(0,now.get('failed',0)-mark.get('failed',0)),
             'no_food':max(0,now.get('noFood',0)-mark.get('noFood',0)),
             'attempts':max(0,now.get('attempts',0)-mark.get('attempts',0)),'deferred':max(0,now.get('deferred',0)-mark.get('deferred',0)),
+            'ok':max(0,now.get('ok',0)-mark.get('ok',0)),
             'last_error':now.get('lastError') if now.get('failed',0)>mark.get('failed',0) else None,
             'last_deferred':now.get('lastDeferred') if now.get('deferred',0)>mark.get('deferred',0) else None}
 # FoodChain eats at a bar of 14 or less with food held (round 8; AltoClef's 10 left the bar
@@ -176,17 +177,21 @@ def food_verdict(run):
     low=lv.get('food_min')
     tail=' (due '+str(due)+', failed '+str(failed)+', food min '+str(low)+')'
     reason=meals.get('last_error') or 'no reason recorded'
-    eaten=meals.get('eaten',0)
+    # Round 9: 'ok' is the FoodChain's own count of meals that showed a bar rise or a shrunk
+    # stack. Round 8's normal1 logged two `Food: ate` lines and read `never attempted (due 2)`:
+    # the consume wrap counted nothing live, and the verdict ignored attempts at a bar > 14.
+    eaten=max(meals.get('eaten',0),meals.get('ok',0))
     if eaten>0:
         return 'ate '+str(eaten)+('' if not failed else ' ('+str(failed)+' failed'+(': '+meals['last_error'] if meals.get('last_error') else '')+')')
     if failed:return 'attempted and failed: '+reason+tail
     never='EAT FAILED: never attempted'+(' (last deferred: '+meals['last_deferred']+')' if meals.get('last_deferred') else '')+tail
+    if attempts and attempts>failed:
+        return 'attempted '+str(attempts)+', no meal recorded'+tail
     if low is None or low>FOOD_EAT_AT:
         return 'not hungry enough (food min '+str(low)+')' if due==0 else never
     held=lv.get('food_min_held')
     if meals.get('no_food',0) or not run.get('edible_peak') or ('food_min_held' in lv and (held is None or held>FOOD_EAT_AT)):
         return 'no food held (food min '+str(low)+')'
-    if attempts:return 'attempted and failed: the food bar never rose'+tail
     return never
 # Deaths (round 5): the run count is the max of three independent sources, so no single
 # blind spot can hide one - round 4 recorded 1 death where the server log has 4:
