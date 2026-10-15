@@ -1,0 +1,9 @@
+# Cloud session round 10 (code only) - DRAFT, Claude, 2026-10-15
+
+Same rules as `docs/CLOUD_TASK.md`. Read the newest sections of `docs/TEST_REPORTS.md` (round-9 results) first. (Live-result tasks will be added when Cursor's round-9 report lands.)
+
+## Efficiency: play like a real player (observed live by the user during the round-9 soak)
+1. **Don't stand and stare at a working furnace.** While smelting iron, the bot stood looking at the furnace with exposed coal all around it. A furnace works on its own: load it (input + fuel), then do other useful work nearby (mine visible coal/ore, gather logs, collect drops, craft) and come back when the output is ready (`8 items x 10 s` per smelt cycle; check the output slot on return or when passing within reach). Implement this as "parallel" work in the ladder/smelt job: a smelt job that loads the furnace, hands control back with a "collect at T" reminder, and a later collect step. Keep safety (stay within ~24 blocks, never leave it at night).
+2. **Batch, don't ping-pong.** On the food step it killed one animal, picked up the meat, placed a furnace, cooked, broke the furnace, then walked to the next animal right next to it and repeated. A player would kill all nearby animals first (within ~24 blocks, up to the meat target), collect all drops, then cook everything in one furnace run, and keep the furnace placed (or carried) while more cooking is likely. Apply the same batching idea generally: gather everything of a kind in range before switching tasks; reuse an already-placed furnace/table within range instead of placing and breaking one each time.
+3. **Opportunistic pickups.** When walking or mining, mine valuable exposed blocks in easy reach that the ladder will need soon (coal ore, iron ore, logs when low), without derailing the current step (time cap per detour, skip at night or with hostiles near).
+Unit-test the scheduling decisions (fake clock + fake furnace).
