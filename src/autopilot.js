@@ -133,6 +133,13 @@ export function armourToWear(c){
 // Coal for the torches: exposed or nearby coal first (a hillside seam, a cave wall - ctx.coalNear
 // from a block scan), the band staircase only when none is in reach.
 function coalJob(c,ctx,count){
+ // Habit 7: charcoal when coal digs keep failing (ctx.coalOff): smelt held logs (a furnace held
+ // or near), keeping 2 for planks; short of logs, gather a few.
+ if(ctx.coalOff){
+  const logs=ctx.logsTotal||0,furnace=c('furnace')>=1||!!ctx.worldFurnace;
+  if(furnace&&logs>=3)return {type:'smelt',item:ctx.heldLog||'oak_log',count:Math.min(count,logs-2,48)};
+  if(furnace)return {type:'gather',block:'log',count:Math.max(4,count+2),radius:32,searchIfMissing:true,belowFoots:true};
+ }
  if(ctx.coalNear)return {type:'gather',block:'coal_ore',count,radius:32,bandTop:IRON_TOP};
  return {type:'gather',block:'coal_ore',count,radius:32,searchIfMissing:true,targetY:IRON_Y,bandTop:IRON_TOP};
 }
@@ -328,6 +335,17 @@ export function furnaceWork(run,counts,ctx){
  if(ctx.logsTotal<4&&ctx.logNear)return {type:'gather',block:'log',count:2,radius:r,belowFoots:true};
  if(ctx.dropsNear)return {type:'collect',radius:r};
  return null;
+}
+// Round 10, habit 7: torches as soon as coal and sticks exist (any step after the wood kit),
+// keeping one coal for the furnace, up to TORCHES; and TORCHES_HOME torches beside the home bed
+// (a lit base: monsters near a bed refuse the sleep), once per home.
+export const TORCHES_HOME=2;
+export function torchJob(counts,ctx){
+ const c=countFactory(counts);
+ const fuel=c('coal')+c('charcoal');
+ if(c('torch')>=TORCHES||fuel<2||c('stick')<1)return null;
+ const n=Math.min(fuel-1,c('stick'),Math.ceil((TORCHES-c('torch'))/4));
+ return n>=1?{type:'craft',item:'torch',count:Math.min(TORCHES-c('torch'),4*n)}:null;
 }
 // Round 10 (efficiency 3): opportunistic pickups between jobs. Exposed coal, iron or diamond
 // ore (or a log when wood is low) within PICKUP_RADIUS that the ladder will need soon is mined
@@ -626,6 +644,8 @@ export const DUSK_COBBLE_JOBS=3,DUSK_COBBLE_STOP=1200;
 export const BED_OFF_MS=10*60000;
 // A failed diamond trip (lava in the way, nothing in the strip) waits this long before the next.
 export const DIAMOND_OFF_MS=20*60000;
+// Habit 7: after two failed coal digs, coal comes from smelting logs this long.
+export const COAL_OFF_MS=10*60000;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
@@ -885,6 +905,8 @@ export class Autopilot{
    if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
    if(step==='diamond-rung')this.diamondOffUntil=Date.now()+DIAMOND_OFF_MS;
    if(step==='inventory')this.invOffUntil=Date.now()+INV_OFF_MS; // a full chest, no spot: later
+   // Habit 7: a coal dig that failed twice: charcoal from logs for COAL_OFF_MS instead.
+   if(this.current.spec?.type==='gather'&&this.current.spec.block==='coal_ore'&&(this.coalFails=(this.coalFails||0)+1)>=2){this.coalFails=0;this.coalOffUntil=Date.now()+COAL_OFF_MS;this.log('Autopilot: no coal found twice; charcoal from logs for '+COAL_OFF_MS/60000+' min');}
    // Round 9: a food step that failed 3 times is set aside, not blocked - the blocked
    // state's explore-and-retry looped [food] for the rest of round-8 normal1.
    if(step==='food'&&this.failures.food>=3){this.failures.food=0;this.deferFood('failed 3 times');}
@@ -893,6 +915,7 @@ export class Autopilot{
    else if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
    else this.state='retry: '+step+' ('+this.failures[step]+'/3)';
   }else{
+   if(this.current.spec?.type==='gather'&&this.current.spec.block==='coal_ore')this.coalFails=0;
    this.failures[this.currentStep]=0;
    this.coolUntil=0;
    this.state='step done: '+this.currentStep;
@@ -1036,7 +1059,7 @@ export class Autopilot{
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,animalsClose:animals?animals.close:0,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
-   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,coalOff:Date.now()<(this.coalOffUntil||0),bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
@@ -1063,6 +1086,13 @@ export class Autopilot{
   if(Date.now()>=(this.invOffUntil||0)){
    const inv=inventoryJob(counts,{...ctx,slotsFull:this.worker.slotsFull?this.worker.slotsFull():ctx.slotsFull,...this.homeCtx(b)});
    if(inv&&!(inv.type==='craft'&&choice.job?.type==='craft')){this.submit('inventory',inv);return;}
+  }
+  // Habit 7: light. Torches from held coal and sticks; a lit base.
+  if(choice.step!=='wood'&&!QUICK_JOBS.has(choice.job?.type)){
+   const torch=torchJob(counts,ctx);
+   if(torch&&!(choice.job?.type==='craft'&&choice.job.item==='torch')){this.submit('light',torch);return;}
+   const lamp=this.homeLightJob(b,counts);
+   if(lamp){this.submit('light',lamp);return;}
   }
   // Wool by day whatever the step (bug B): the wood kit's sword is enough for a sheep. A
   // quick local job (a craft, an equip, a smelt, a meal) goes first: it takes seconds.
@@ -1104,6 +1134,28 @@ export class Autopilot{
   if(choice.step==='iron'&&isDiamondJob(choice.job)){this.submit('diamond-rung',choice.job);return;}
   if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
+ }
+ // Habit 7: TORCHES_HOME torches on the ground beside the home bed while the bot is there.
+ homeLightJob(b,counts){
+  const h=this.home,me=b.entity&&b.entity.position;
+  if(!h||!me||(counts.torch||0)<4||me.distanceTo(new Vec3(h.x+0.5,h.y,h.z+0.5))>6)return null;
+  const key=h.x+','+h.y+','+h.z;
+  if(!this.homeLit||this.homeLit.key!==key)this.homeLit={key,n:0,tries:0};
+  if(this.homeLit.n>=TORCHES_HOME||this.homeLit.tries>=TORCHES_HOME+2)return null;
+  const home=b.blockAt(new Vec3(h.x,h.y,h.z));
+  if(!home||!BED.test(home.name||''))return null;
+  let lit=0;
+  for(const [dx,dz] of [[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,-2],[2,-2],[-2,2]]){
+   const p=new Vec3(h.x+dx,h.y,h.z+dz),top=b.blockAt(p),ground=b.blockAt(p.offset(0,-1,0));
+   if(top&&/torch/.test(top.name||'')){lit++;continue;}
+   if(lit>=TORCHES_HOME)break;
+   if(top&&top.boundingBox==='empty'&&top.name!=='water'&&ground?.boundingBox==='block'&&!(this.homeLit.bad||[]).includes(p.x+','+p.z)){
+    this.homeLit.tries++;(this.homeLit.bad||(this.homeLit.bad=[])).push(p.x+','+p.z);
+    return {type:'place',block:'torch',position:{x:p.x,y:p.y,z:p.z}};
+   }
+  }
+  this.homeLit.n=lit;
+  return null;
  }
  // Home distances and the chest's spot for inventoryJob. A remembered chest that is gone
  // (broken, or the soak reset the world) is forgotten when its cell is loaded and not a chest.

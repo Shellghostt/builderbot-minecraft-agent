@@ -147,6 +147,18 @@ export const STAIR_TURNS=6;
 // how many such wall digs one job may make.
 const WALL_ORE=/^(deepslate_)?(coal|iron|diamond|copper|gold|redstone|lapis|emerald)_ore$/;
 export const WALL_PICKUPS=16;
+// Habit 7: tunnel torch spacing, and where the torch goes: the right-hand wall at feet height
+// (right of dir: x=-dir.z, z=dir.x), else the floor under the feet.
+export const TORCH_EVERY=7;
+export function torchSpot(blockAt,feet,dir){
+ const solid=bl=>!!bl&&bl.boundingBox==='block';
+ if(dir){
+  const r={x:-(dir.z||0)||0,z:(dir.x||0)||0},wall={x:feet.x+r.x,y:feet.y,z:feet.z+r.z};
+  if(solid(blockAt(wall.x,wall.y,wall.z)))return {against:wall,face:{x:-r.x||0,y:0,z:-r.z||0},side:'right'};
+ }
+ const ground={x:feet.x,y:feet.y-1,z:feet.z};
+ return solid(blockAt(ground.x,ground.y,ground.z))?{against:ground,face:{x:0,y:1,z:0},side:'floor'}:null;
+}
 const FILL_ITEMS=['cobblestone','cobbled_deepslate','dirt','netherrack','stone','deepslate','andesite','diorite','granite','tuff'];
 export function planTunnelStep(b,job,dir,dy){
  const here=b.entity.position.floored(),at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
@@ -2138,7 +2150,7 @@ export class Worker extends EventEmitter {
   const step=await this.tunnelStep(job,token,dir,-1,true,opts.natural);
   dir=step.dir;const next=step.next;
   job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
-  if(steps%6===5)await this.placeTorch(token);
+  if(steps%TORCH_EVERY===TORCH_EVERY-1)await this.placeTorch(token,dir);
   const nowY=b.entity.position.floored().y;
   if(nowY>=lastY){if(++stalls>=2)throw Error('Staircase stalled at '+b.entity.position.floored());}
   else{stalls=0;lastY=nowY;}
@@ -2198,7 +2210,7 @@ export class Worker extends EventEmitter {
    const step=await this.tunnelStep(job,token,dir,0,false,undefined);
    dir=step.dir;const next=step.next;
    job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
-   if(steps%8===7)await this.placeTorch(token);
+   if(steps%TORCH_EVERY===TORCH_EVERY-1)await this.placeTorch(token,dir);
    const now=b.entity.position.floored();
    if(now.x===last.x&&now.z===last.z){if(++stalls>=2)throw Error('Strip mine stalled at '+now);}
    else{stalls=0;last=now;}
@@ -2331,14 +2343,17 @@ export class Worker extends EventEmitter {
    if(loose||(watchAbove&&isGravity(b.blockAt(top.offset(0,1,0))))||solidNow.some(isGravity))await sleep(TUNNEL_FALL_MS);
   }
  }
- async placeTorch(token){
+ // Habit 7: a torch every TORCH_EVERY tunnel steps, on the right-hand wall of the way in (so
+ // the torches are on the left on the way back - the way out is known); the floor when that
+ // wall is open.
+ async placeTorch(token,dir=null){
   const b=this.bot;
   if(!this.count('torch'))return;
   try{
-   const ground=b.blockAt(b.entity.position.floored().offset(0,-1,0));
-   if(ground?.boundingBox!=='block')return;
+   const feet=b.entity.position.floored(),plan=torchSpot((x,y,z)=>b.blockAt(new Vec3(x,y,z)),feet,dir);
+   if(!plan)return;
    await b.equip(b.inventory.items().find(i=>i.name==='torch'),'hand');
-   await b.placeBlock(ground,new Vec3(0,1,0));
+   await b.placeBlock(b.blockAt(new Vec3(plan.against.x,plan.against.y,plan.against.z)),new Vec3(plan.face.x,plan.face.y,plan.face.z));
   }catch{}
  }
  // Walk back up a recorded tunnel; every point is clear air by construction.
