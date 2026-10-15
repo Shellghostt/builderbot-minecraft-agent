@@ -169,19 +169,32 @@ test('grazeDirection prefers a loaded plains column over peaks',()=>{
 });
 test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield before the rest',()=>{
  const valid=r=>{assert.equal(jobSchema.safeParse(r.job).success,true,JSON.stringify(r.job));return r;};
- // Stone kit done, fed: a short ore dig (pickaxe 3 + sword 2 + shield 1), staircase to y=32.
+ // Round 7: a spare stone pickaxe first (cobble and sticks held), so the dig never wears the
+ // last one out.
  let r=valid(plan(counts({...STONE,_edible:8})));
- assert.equal(r.step,'iron');assert.equal(r.job.type,'gather');assert.equal(r.job.block,'iron_ore');
- assert.equal(r.job.count,6);assert.equal(r.job.targetY,32);assert.equal(r.job.searchIfMissing,true);
- r=valid(plan(counts({...STONE,_edible:8,raw_iron:4})));
- assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,2,'only the missing ore');
- // Ore in hand: smelt it (logs are fuel at 1.5 items each beyond the planks reserve).
- r=valid(plan(counts({...STONE,_edible:8,raw_iron:6})));
+ assert.equal(r.step,'iron');assert.deepEqual([r.job.type,r.job.item],['craft','stone_pickaxe']);
+ // Stone kit done, fed, spare held: a short ore dig (pickaxe 3 + sword 2 + shield 1) in the
+ // band near the surface (enter at 64, never below 16), smelting in the tunnel from 3 raw.
+ const fed={...STONE,_edible:8,stone_pickaxe:2};
+ r=valid(plan(counts(fed)));
+ assert.equal(r.job.type,'gather');assert.equal(r.job.block,'iron_ore');
+ assert.equal(r.job.count,6);assert.equal(r.job.targetY,16);assert.equal(r.job.bandTop,64);assert.equal(r.job.smeltAt,3);assert.equal(r.job.searchIfMissing,true);
+ r=valid(plan(counts({...fed,raw_iron:2})));
+ assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,4,'only the missing ore');
+ // 3+ raw iron in hand (the kiln could not run): smelt it before the next dig.
+ r=valid(plan(counts({...fed,raw_iron:4})));
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['smelt','raw_iron',4]);
+ r=valid(plan(counts({...fed,raw_iron:6})));
  assert.equal(r.job.type,'smelt');assert.equal(r.job.item,'raw_iron');assert.equal(r.job.count,6);
- // No wood to spare and no coal: one coal ore smelts 8.
- r=valid(plan(counts({...STONE,oak_log:0,oak_planks:8,_edible:8,raw_iron:6})));
- assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,1);assert.equal(r.job.targetY,32);
- r=valid(plan(counts({...STONE,oak_log:0,oak_planks:8,_edible:8,raw_iron:6,coal:1})));
+ // The pickaxe as soon as its 3 ingots are held, before the sword's ore is even dug.
+ r=valid(plan(counts({...fed,iron_ingot:3})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','iron_pickaxe']);
+ r=valid(plan(counts({...fed,iron_ingot:1,iron_pickaxe:1})));
+ assert.deepEqual([r.job.type,r.job.block,r.job.count],['gather','iron_ore',2],'the sword\'s 2 + the shield\'s 1, less the ingot held');
+ // No wood to spare and no coal: one coal ore smelts 8 (entering the band from the top too).
+ r=valid(plan(counts({...fed,oak_log:0,oak_planks:8,raw_iron:6})));
+ assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,1);assert.equal(r.job.targetY,32);assert.equal(r.job.bandTop,64);
+ r=valid(plan(counts({...fed,oak_log:0,oak_planks:8,raw_iron:6,coal:1})));
  assert.equal(r.job.type,'smelt');
  // Ingots: iron pickaxe first, then the sword, then the shield.
  let have={...STONE,_edible:8,iron_ingot:6};
@@ -204,10 +217,15 @@ test('M5: the iron step digs 6 ore, smelts, crafts pickaxe -> sword -> shield be
  r=valid(plan(counts(have)));
  assert.equal(r.job.type,'gather');assert.equal(r.job.block,'coal_ore');assert.equal(r.job.count,16);
  have={...have,coal:16};
+ r=valid(plan(counts({...have,stone_pickaxe:1})));
+ assert.deepEqual([r.job.type,r.job.item],['craft','stone_pickaxe'],'one stone pickaxe: the spare comes first');
+ have={...have,stone_pickaxe:2};
  r=valid(plan(counts(have)));
- assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,30);assert.equal(r.job.targetY,32);
+ assert.equal(r.job.block,'iron_ore');assert.equal(r.job.count,6,'the remaining 30 ore in batches of 6');assert.equal(r.job.targetY,16);
  r=valid(plan(counts({...have,raw_iron:30})));
  assert.equal(r.job.type,'smelt');assert.equal(r.job.count,30);
+ r=valid(plan(counts({...have,raw_iron:2,iron_ingot:12})));
+ assert.deepEqual([r.job.block,r.job.count],['iron_ore',6],'2 raw: below the smelt batch, dig on');
  have={...have,iron_ingot:30};
  // Bow: string from spiders is hunted first.
  r=valid(plan(counts(have)));

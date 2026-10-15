@@ -23,7 +23,7 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS} from './move-safety.js';
-import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
+import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
@@ -42,6 +42,19 @@ function guardDiagonals(movement){
 }
 // Blocks a gather job may descend for: they live underground when no exposure is in range.
 const UNDERGROUND=/(_ore$|^deepslate|^stone$|^cobblestone$|^tuff$)/;
+// Round 7 (normal3 staircased to y=19 and was returned by the operator): an ore gather with a
+// band (targetY = the band's floor, bandTop = its top) enters the band from the top in legs:
+// the first staircase stops at bandTop (or DESCENT_LEG below the bot, if that is higher in
+// the band), then DESCENT_LEG at a time, never below the floor. Each stop rescans radius 32.
+export const DESCENT_LEG=32;
+export function descentTarget(spec,y){
+ if(spec.bandTop==null)return spec.targetY;
+ return Math.max(spec.targetY,Math.min(spec.bandTop,Math.floor(y)-DESCENT_LEG));
+}
+// Kiln: smelting inside an ore gather. KILN_WAIT_MS caps the final wait for the last batch.
+export const KILN_ITEM_MS=10000,KILN_WAIT_MS=45000;
+// A band gather walks up to this much further for ore it can swing at without digging to it.
+export const BURIED_ORE_PENALTY=8;
 // Stone-family gathers without a depth: exposed blocks near the bot first, else dig down.
 const STONE_FAMILY=/^(stone|cobblestone|deepslate|cobbled_deepslate|tuff|andesite|granite|diorite)$/;
 // Terrain a surface dig-down may cut through: never a log (a tree, or a player's build).
@@ -1517,7 +1530,8 @@ export class Worker extends EventEmitter {
    if(!dropName)throw Error('Unsupported drop type; use logs, stone/cobblestone, or simple ores');
    if(s.block==='stone')job.dropName='cobblestone';else job.dropName=dropName;
   }
-  const count_=job.dropName==='log'?logSum:()=>this.count(job.dropName);
+  // Raw ore loaded into this gather's kiln still counts as gathered (kilnIn).
+  const count_=job.dropName==='log'?logSum:()=>this.count(job.dropName)+(job.kilnIn||0);
   if(job.startDrop===undefined)job.startDrop=count_();this.save();
   let failures=0;
   if(job.searches===undefined)job.searches=0;
@@ -1536,6 +1550,7 @@ export class Worker extends EventEmitter {
    let lastScan=0,lastCount=null;
    while(count_()-job.startDrop<s.count){
     this.check(token);if(b.inventory.emptySlotCount()<2)throw Error('Inventory nearly full; deposit items first');
+    if(s.smeltAt)await this.kilnTick(job,token);
     // One rescan per second at most while nothing is being collected.
     const have=count_();
     if(have===lastCount){const wait=lastScan+GATHER_RESCAN_MS-Date.now();if(wait>0){await sleep(wait);this.check(token);}}
@@ -1575,6 +1590,10 @@ export class Worker extends EventEmitter {
      targets.sort((a,c)=>(a.position.distanceTo(b.entity.position)+Math.abs(a.position.y-b.entity.position.y)*2)-(c.position.distanceTo(b.entity.position)+Math.abs(c.position.y-b.entity.position.y)*2));
     }
     if(s.surface&&job.surfaceY!==undefined)targets=targets.filter(t=>t.position.y>=job.surfaceY-4);
+    // A band gather: nothing below the band's floor; exposed ore (a cave wall, the tunnel)
+    // first - each buried block costs a dig path (round 7: prefer the nearest exposed ore).
+    // (the exposure bonus is in the column choice below).
+    if(s.bandTop!=null&&s.targetY!=null)targets=targets.filter(t=>t.position.y>=s.targetY);
     // Stone step (hard runs: dirt hill under a canopy): exposed stone near the bot, else dig
     // down where it stands by the safe staircase instead of walking at buried stone.
     if(!anyLog&&s.targetY==null&&STONE_FAMILY.test(s.block)&&targets.length){
@@ -1605,8 +1624,9 @@ export class Worker extends EventEmitter {
      }
      const targetY=s.targetY??(s.block.includes('diamond')?-58:48);
      if(UNDERGROUND.test(s.block)&&b.entity.position.y>targetY&&job.descents<3){
-      job.descents++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${targetY}`);
-      await this.staircase(job,token,targetY);
+      const legY=s.targetY!=null?descentTarget(s,b.entity.position.y):targetY;
+      job.descents++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${legY}`);
+      await this.staircase(job,token,legY);
       job.anchor=b.entity.position.floored();this.save();continue;
      }
      if(s.strip&&b.entity.position.y<=targetY&&!job.stripped){
@@ -1639,7 +1659,8 @@ export class Worker extends EventEmitter {
      if(job.badColumns.includes(ck))continue; // one unreachable trunk must not abort the whole job
      const d=Math.min(...col.map(t=>t.position.distanceTo(b.entity.position)));
      const base=Math.min(...col.map(t=>t.position.y));
-     const penalty=(s.surface&&job.surfaceY!==undefined&&base<job.surfaceY-1)?6:0;
+     const penalty=(s.surface&&job.surfaceY!==undefined&&base<job.surfaceY-1)?6:0
+      +(s.bandTop!=null&&!col.some(t=>isExposed(at3,t.position))?BURIED_ORE_PENALTY:0);
      if(d+penalty<bestDist){bestDist=d+penalty;bestCol=col;}
     }
     if(!bestCol){
@@ -1650,8 +1671,9 @@ export class Worker extends EventEmitter {
       // at y=159 instead of digging to targetY.
       if(s.targetY!=null&&UNDERGROUND.test(s.block)&&b.entity.position.y>s.targetY&&job.descents<3){
        job.descents++;
-       this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${s.targetY}`);
-       await this.staircase(job,token,s.targetY);
+       const legY=descentTarget(s,b.entity.position.y);
+       this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${legY}`);
+       await this.staircase(job,token,legY);
        job.anchor=b.entity.position.floored();this.save();continue;
       }
       throw Error('Cannot gather safely: nearby trunks could not be reached');
@@ -1732,10 +1754,67 @@ export class Worker extends EventEmitter {
    // A reflex or user stop owns the pathfinder now: skip the tunnel climb and the restore,
    // so they cannot fight the new owner's navigation. The resumed job climbs after gathering.
    if(token===this.epoch){
+    // The kiln comes back (with its ingots) before the climb, also when the gather failed.
+    if(job.kiln){try{await this.kilnTick(job,token,true);}catch(e){this.log('Gather: kiln at '+job.kiln.x+','+job.kiln.y+','+job.kiln.z+' not collected: '+e.message);}}
     if(job.tunnel?.length){try{await this.climbTunnel(job,token);if(this.strandedTunnel?.job===job.id)this.strandedTunnel=null;}catch(e){this.log('Could not climb back up the tunnel: '+e.message);}}
     b.pathfinder.setMovements(previous);
    }
    this.surfaceFloor=null;
+  }
+ }
+ // Round 7 kiln (normal1 ended with 30 raw iron unsmelted: the ladder smelted only after the
+ // whole 30-ore gather). An ore gather with smeltAt places the held furnace in its tunnel once
+ // that much raw ore is held, loads it and keeps mining. When the batch should be done and
+ // the bot is within 16, the output is taken and the furnace reloaded; at the end of the
+ // gather (final) the last batch is waited for (KILN_WAIT_MS at most), the leftovers come
+ // back and so does the furnace. A kiln that cannot start (no furnace, no fuel, no spot) is
+ // off for this job - the ladder's smelt job is still there.
+ async kilnTick(job,token,final=false){
+  const b=this.bot,s=job.spec,raw=s.block==='gold_ore'?'raw_gold':s.block==='copper_ore'?'raw_copper':'raw_iron';
+  const k=job.kiln;
+  if(!k){
+   if(final||job.kilnOff||this.count(raw)<s.smeltAt)return;
+   const off=reason=>{job.kilnOff=reason;this.log('Gather: no kiln ('+reason+'); smelting after the gather');};
+   if(!this.count('furnace'))return off('no furnace held');
+   try{await this.fuelPlan(this.count(raw));}catch(e){return off(e.message);}
+   let at;
+   try{at=await this.placeBlockNear(token,'furnace');}catch(e){this.check(token);return off('could not place the furnace: '+e.message);}
+   job.kiln={x:at.x,y:at.y,z:at.z,loaded:0,readyAt:0,taken:0};this.save();
+   this.log('Gather: kiln at '+at.x+','+at.y+','+at.z+'; smelting '+raw+' while mining');
+  }
+  const kiln=job.kiln,at=new Vec3(kiln.x,kiln.y,kiln.z);
+  if(!final&&kiln.loaded&&(Date.now()<kiln.readyAt||b.entity.position.distanceTo(at)>16))return;
+  if(!final&&!kiln.loaded&&this.count(raw)<s.smeltAt)return;
+  await this.walk(at,token,2);this.check(token);
+  const block=b.blockAt(at);
+  if(block?.name!=='furnace'){job.kiln=null;throw Error('the furnace is gone');}
+  const furnace=await b.openFurnace(block);
+  try{
+   const out=()=>furnace.outputItem()?.count||0;
+   if(final&&kiln.loaded){
+    const until=Date.now()+Math.min(KILN_WAIT_MS,Math.max(0,kiln.readyAt-Date.now())+2000);
+    while(furnace.inputItem&&furnace.inputItem()&&Date.now()<until){await sleep(1000);this.check(token);}
+   }
+   const n=out();if(n){await furnace.takeOutput();kiln.taken+=n;}
+   if(final||!this.count(raw)){
+    try{const left=furnace.inputItem&&furnace.inputItem();if(left){await furnace.takeInput();job.kilnIn=Math.max(0,(job.kilnIn||0)-(left.count||0));}}catch{}
+    try{if(furnace.fuelItem&&furnace.fuelItem())await furnace.takeFuel();}catch{}
+    kiln.loaded=0;
+   }else if(!(furnace.inputItem&&furnace.inputItem())){
+    // Empty: a fresh batch with fresh fuel (old fuel out first: a mixed slot refuses).
+    try{if(furnace.fuelItem&&furnace.fuelItem())await furnace.takeFuel();}catch{}
+    const count=Math.min(64,this.count(raw)),fuel=await this.fuelPlan(count);
+    await furnace.putInput(b.registry.itemsByName[raw].id,null,count);
+    job.kilnIn=(job.kilnIn||0)+count;
+    await furnace.putFuel(fuel.id,null,fuel.count);
+    kiln.loaded=count;kiln.readyAt=Date.now()+count*KILN_ITEM_MS+1000;
+    this.log('Gather: kiln loaded with '+count+' '+raw+' ('+kiln.taken+' ingots taken so far)');
+   }
+  }finally{try{await b.closeWindow(furnace);}catch{}}
+  this.save();
+  if(final){
+   job.kiln=null;
+   try{await this.pickUp(at,'furnace',token);}catch(e){this.log('Left the furnace at '+at+': '+e.message);}
   }
  }
  // Failure bookkeeping for one gather target, counted per block and per column. The old
