@@ -1108,3 +1108,138 @@ Changed expectations:
   pickaxe held, and `Tool left the inventory: stone_pickaxe ... broke` followed by a re-craft.
   The kiln's furnace pick-up after each gather is new live behaviour: check the furnace is
   back in the inventory, or the `Left the furnace at ...` line.
+
+## Cloud session round 8 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_8.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **414 passed, 0 failed** (392 at the start
+of the round, plus 22 new). `tests/soak_metrics_check.py` passes. One commit per task on
+`main` (`b25a867`, `2502082`, `c554ab6`, `78aeb66`, `3119fee`). All five tasks were done. The
+diagnoses come from the code, the round-7 TEST_REPORTS text and mineflayer 4.39's sources.
+
+1. **The bot never ate** (`b25a867`, cases in `eating`, `meals`).
+   - Why: there were two causes.
+     - FoodChain is the only eater (the 250 ms reflex auto-eat is retired). It ate only at
+       a bar of 10 or less (AltoClef). At 11-14 it ate only on a perfect fit or below 14
+       health, so the bar sat at 14-16 all run.
+     - When a meal did start, nothing bounded it. mineflayer's `clickWindow` on an open
+       crafting window waits for `updateSlot:0` with no timeout. An equip during a craft
+       could hang `eatMeal`, and FoodChain's `_eating` then stayed true for the session:
+       every later meal was a silent no-op (`due 1, failed 0`, no reason).
+   - Fixes:
+     - `eatAtHunger: 14`: with food held, the bot eats at a bar of 14 or less.
+     - A 12 s watchdog per meal. `eatMeal` bounds its equip at 4 s and waits up to 2 s for
+       an open window to close.
+     - Meals defer, with the reason recorded once per episode, while a window is open,
+       Mob Defense is active (a fresh cache only, `isActive()`), a fight job runs, the eat
+       job eats, or the bot is in bed. A critical meal (`needsToEatCritical`) still goes
+       through a fight.
+     - Worker gate: the Food chain's eat side effect now runs under every survival hold.
+       The one exception is a shelter still placing its walls. Before, a *queued* shelter or
+       sleep job switched eating off for the whole job ahead of it.
+   - Counters and logs: `meals.attempts`, `deferred` and `lastDeferred` are new. Logs:
+     `Food: ate <item> (bar N)` and `Food: meal failed - <reason>`.
+   - Soak verdicts: `ate N`, `not hungry enough (food min N)`, `no food held`,
+     `attempted and failed: <reason> (...)`, or `EAT FAILED: never attempted (last deferred:
+     <reason>) (...)`. `FOOD_EAT_AT` is 14. The summary adds `food_attempts` and
+     `food_deferred`.
+2. **Creeper death while crafting** (`2502082`, new `tests/craft-interrupt.test.js`).
+   - Mob Defense already preempted a running craft: the runner's `worker.stop` paused it, and
+     the table walk's `navigate` throws on the epoch.
+   - Three holes remained:
+     - `craftConfirmed` awaited `windowOpen` and every click and sync with no `check()` and
+       no timeout. They now go through `interruptible`: it polls `check()` every 100 ms and
+       gives up after 5 s. The finally still closes the window.
+     - The crafting window stayed open while the survival tree acted, so its equips (pillar
+       blocks, sword) clicked the table's slots. The runner now closes any open window when a
+       non-user tree holds control. Log: `Runner: closed the open crafting window for Mob
+       Defense`.
+     - The gate silenced Mob Defense entirely while an eat, sleep or shelter job ran (or one
+       was queued with nothing running). A creeper within 6, or fusing within 10
+       (`creeperThreat`), now overrides that hold. Only a sealed shelter or a bot already in
+       bed keeps it. Log: `Reflex: creeper at D overrides the X hold`.
+3. **Iron armour, torches, bed** (`c554ab6`, new `tests/iron-rung.test.js`, M5 test rewritten).
+   - The old order put torches last and the bed behind a bow and 32 arrows, so neither was
+     reached. After the iron core (pickaxe, sword, shield), `ironRung` now runs:
+     1. A worn weapon's replacement, if one is needed.
+     2. Coal for 16 torches. With coal in reach (`coalNear`, a block scan within 32) it is a
+        plain gather that prefers exposed seams, with no staircase. Otherwise it uses the
+        band staircase.
+     3. Sticks, then 16 torches.
+     4. 13 ingots for the iron helmet and chestplate: spare stone pickaxe, band dig in
+        batches of 6, smelt from 3. Legs and boots are crafted while their ingots are held.
+     5. An `equip` job whenever a held piece beats its slot. It goes out once per new set of
+        pieces (`lastEquip`), so it cannot loop.
+     6. A bed when wool is cheap (`bedJob`, shared with the dusk bed prep). These jobs run
+        as `bed-rung`: a failure sets the bed aside for 10 min and never charges the iron
+        step.
+   - `counts()` now includes worn armour (slots 5-8) and the off hand (45) as
+     `_equipped_<name>`. Before, an equipped chestplate or an off-hand shield read as missing
+     and was crafted again.
+   - Night: a bed held or near still means sleep. A sleep that failed tonight
+     (`sleepFailedTonight`) falls back to the shelter instead of retrying the refused sleep.
+   - The iron step's `done` now needs 16 torches, not 8 (the IRON test fixture changed with
+     it).
+4. **Toward diamonds** (`78aeb66`, cases in `iron-rung`).
+   - After the bed, `diamondPickJob` sends `{gather diamond_ore x(3-held), targetY -58,
+     bandTop -54, strip}`. It needs the iron pickaxe and 8+ torches. Sticks come first,
+     then the diamond pickaxe at 3 diamonds.
+   - The existing staircase does the safety work: lava/water checks, no straight-down digs,
+     bedrock refused, a torch every 6 steps. It takes one leg to -54, then -58. No ore below
+     -58 is a target. The strip mine at -58 places a torch every 8. `conserveTool` never
+     picks stone for diamond ore.
+   - It runs as `diamond-rung`: a failed trip waits 20 min and the rest of the iron step goes
+     on. The later `diamonds` step uses the same gather. AGENTS.md's ladder summary follows
+     the new order.
+5. **Soak reporting** (`3119fee`).
+   - `state()` gains `equipment` (worn armour and the off hand). `inventory_counts` sums
+     stacks: the old dict kept only the last stack of an item.
+   - Samples add `armour`, `armour_worn`, `torches`, `bed`, `diamonds` and `diamond_pick`.
+   - Runs report `armour_peak`, `armour_worn_peak`/`_at`, `torch_peak`, `bed_at`,
+     `diamond_peak` and `diamond_pick_at`. The summary adds the same lists and
+     `armour_runs` (2+ pieces worn).
+
+### Files
+
+`src/chains/{foodChain,mobDefenseChain,settings}.js`, `src/eating.js`, `src/crafting.js`,
+`src/tasks/runner.js`, `src/worker.js`, `src/autopilot.js`; `tests/soak.py`,
+`tests/soak_metrics_check.py`; `AGENTS.md` (ladder line). New tests: `craft-interrupt`,
+`iron-rung` (`.test.js`); new cases in `eating`, `meals`, `autopilot`.
+
+Changed expectations:
+- `meals`: at 15 nothing is due, at 14 a meal is due (was 13 and 12).
+- `soak_metrics_check`: the verdict wordings above.
+- `autopilot` M5: torches and core armour come before the coal-16 and rest digs. The diamond
+  trip comes after the bed. The legs and boots ride along when affordable. `IRON` holds 16
+  torches. The diamonds-step gather carries `bandTop -54` and no `searchIfMissing`.
+
+### Needs live verification
+
+- **Food:** `Food: ate cooked_... (bar 14)` lines and `bar 14..20: ate N` on the normal runs.
+  If it still reads `EAT FAILED: never attempted`, the `last deferred` reason names the
+  blocker. A `meal stuck 12 s` reason means the equip or consume still never settled. Then
+  check what the hand was doing (a window open, or a `Runner: closed the open ... window`
+  line just before).
+- **Creeper vs craft:** on a creeper approach during a craft, expect `Runner: closed the
+  open crafting window for Mob Defense` and `Reflex: preempted by Mob Defense`. No
+  `blown up by Creeper` with a craft running. `Crafting click on slot N timed out` lines
+  would mean the 5 s cap is too tight on Via. It never was in the unit fakes.
+- **Rung:** coal gathers without `targetY` when a seam is near. Expect `craft torch x16`,
+  `craft iron_helmet`, `craft iron_chestplate`, then an `equip` job and `armour_worn 2` in
+  the samples. A `bed-rung` hunt or shear appears when sheep are near. A failed sheep hunt
+  must not show `iron failed N times`.
+- **Night with a bed:** `Autopilot [night] {"type":"sleep"}`. After a refused sleep, a
+  `shelter` the same night.
+- **Diamonds:** only on long runs (20-min soaks rarely get past the armour).
+  - `Digging a staircase down to y=-54`, then `-58`, then `Digging a strip mine`, with
+    torches placed.
+  - `Tunnel stopped: lava ...` ends the trip safely (`diamond-rung` waits 20 min).
+  - The staircase from the surface to -54 runs ~120 blocks sideways. A climb back that long
+    may hit `Navigation timed out`.
+
+### Known gaps (not changed)
+
+- The `home` step's `done` is always false, so the full `diamonds` step after it is never
+  reached. Only the rung's diamond pickaxe is. Reordering is a ladder-design call.
+- Iron `done` still needs a bow and 32 arrows (spider and chicken hunts), so the `bed` and
+  `home` steps stay unreachable on most runs. The rung's bed covers the bed.
