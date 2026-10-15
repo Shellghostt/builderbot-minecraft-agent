@@ -417,3 +417,9 @@ Each normal run placed a kiln: `Gather: kiln at 200,150,44` (normal1, loaded 3),
 Two stone pickaxes broke and were replaced: `1 uses left, broke` at 10:31Z, recrafted at 10:31:54Z (normal1, during the kiln), and again at 10:41Z, recrafted at 10:42Z (normal2). The other `Tool left the inventory: stone_pickaxe` lines still had uses left. No iron pickaxe break.
 
 No second soak.
+
+## 2026-10-15 18:25–18:43 IST — integration (`72e5329`)
+
+`git pull --rebase` was already at `72e5329`. Unit tests (`tests/*.test.js` except `resources.test.js`): **423 passed, 0 failed** (the cloud note said 414; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
+
+`python tests/integration.py`, exit 0, 1062 s. `All in-game integration tests passed`. The reflex-pause gather paused (`Reflex: preempted by Mob Defense`) and then completed. A4 escaped the lava trench at 18.8 hp, at [1656, -59, 1654].
