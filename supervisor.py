@@ -76,6 +76,8 @@ def main():
     if CONFIG['server']['host']=='127.0.0.1' and CONFIG['server']['port']==25569:ports.append(25569)
     for port in ports:
         if not available(port):raise RuntimeError(f'Port {port} is already in use; no existing service was stopped')
+    for name in ('data','logs','temp'):
+        (ROOT/name).mkdir(parents=True,exist_ok=True)
     (ROOT/'data/supervisor-token').write_text(token)
     (ROOT/'data/model-token').write_text(model_token)
     api=ThreadingHTTPServer(('127.0.0.1',PORT),Handler)

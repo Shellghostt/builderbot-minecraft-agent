@@ -1,6 +1,7 @@
 param([switch]$NoBrowser)
 $ErrorActionPreference='Stop'
 $agentRoot=$PSScriptRoot
+New-Item -ItemType Directory -Force -Path "$agentRoot\logs","$agentRoot\data","$agentRoot\temp" | Out-Null
 $supervisorUrl='http://127.0.0.1:8766'
 function Get-AgentStatus {
     if (!(Test-Path -LiteralPath "$agentRoot\data\supervisor-token")) {return $null}
