@@ -360,3 +360,9 @@ No `sunset - finishing the stone kit` or `dusk - finishing` line. hard2 crafted 
 The counter matches the server log on both deaths. hard2: counter 1, log 1, window 0, `slain by Spider` at (129, 138, -2), job none. hard3: counter 1, window 1, log 1, `shot by Skeleton` at (135, 125, 36) during a gather. The other four runs are 0 on all three sources.
 
 No second soak.
+
+## 2026-10-15 15:14–15:34 IST — integration (`2ea2321`)
+
+`git pull --rebase` was already at `2ea2321`. Unit tests (`tests/*.test.js` except `resources.test.js`): **401 passed, 0 failed** (the cloud note said 392; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
+
+`python tests/integration.py`, exit 0, 1186 s. `All in-game integration tests passed`. The reflex-pause gather paused (`Reflex: preempted by Mob Defense`) and then completed. A4 escaped the lava trench at 18.8 hp, at [1650, -60, 1648].
