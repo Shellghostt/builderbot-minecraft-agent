@@ -11,7 +11,20 @@ import {NIGHT_START,NIGHT_END} from './daytime.js';
 export const SUNSET=12000,DUSK_PREP=10000;
 // Night job window: the shelter goes up from sunset; a bed only works from NIGHT_START.
 export const shelterDue=tod=>tod!=null&&tod>=SUNSET&&tod<=NIGHT_END;
-export const darkNow=tod=>tod!=null&&tod>=SUNSET; // the shelter holds from sunset until the clock wraps to 0
+export const darkNow=tod=>tod!=null&&tod>=SUNSET; // night jobs and new pillars: from sunset until the clock wraps to 0
+// Round 7 hard3: sealed at sunset, the box came down the moment the clock wrapped to 0 and a
+// skeleton shot the bot 3 blocks away during the next gather. At 0 the sun is barely up, the
+// night's mobs are all still standing, and under a dark-forest canopy they never burn. A
+// refuge (sealed shelter, holding pillar) is left only once the morning is light
+// (MORNING_SAFE) and nothing hostile is within REFUGE_CLEAR; from MORNING_LATE a hostile
+// beyond REFUGE_WALL no longer holds it (a shaded skeleton can stand there all day).
+export const MORNING_SAFE=1000,MORNING_LATE=3000,REFUGE_CLEAR=16,REFUGE_WALL=6;
+export const stillNight=tod=>tod!=null&&(tod>=SUNSET||tod<MORNING_SAFE);
+export function leaveRefuge(tod,nearest=Infinity){
+ if(tod==null)return true; // no clock: nothing to wait for
+ if(stillNight(tod))return false;
+ return nearest>(tod<MORNING_LATE?REFUGE_CLEAR:REFUGE_WALL);
+}
 export const nightJobFor=(tod,bedNear)=>bedNear?(tod!=null&&tod>=NIGHT_START&&tod<=NIGHT_END?{type:'sleep'}:null):(shelterDue(tod)?{type:'shelter'}:null);
 const solid=b=>!!b&&b.boundingBox==='block';
 const fluid=b=>!!b&&/^(water|lava|bubble_column)$/.test(b.name||'');

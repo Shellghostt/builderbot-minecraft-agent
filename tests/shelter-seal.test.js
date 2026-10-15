@@ -65,7 +65,7 @@ test('in a stone tunnel the shelter needs 2 blocks, not 26: it seals at once wit
  assert.equal(w.shelterNeed(new Vec3(0,-60,0)),3);
  const job={spec:{type:'shelter'}};
  // tod wraps to morning after the first guard tick so the job ends.
- const realGuard=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=100;return realGuard.apply(this,a);};
+ const realGuard=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=1500;return realGuard.apply(this,a);};
  await w.shelter(job,0);
  assert.deepEqual(walks,[],'no dirt walk: 5 spare cobble cover the 3 open cells');
  assert.equal(placed.length,3);
@@ -97,7 +97,7 @@ test('short on blocks, reachable dirt is dug and the box seals (reserved cobble 
  const world=flat();
  const spots=Array.from({length:30},(_,i)=>({x:-8+(i%16),y:-61,z:5+Math.floor(i/16)}));
  const {w,logs,inv}=shelterWorker(world,{items:[{name:'cobblestone',count:19}],reserve:14,spots});
- const realGuard=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=100;return realGuard.apply(this,a);};
+ const realGuard=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=1500;return realGuard.apply(this,a);};
  w.removeShelter=async()=>{};
  await w.shelter({spec:{type:'shelter'}},0);
  assert.ok(logs.some(m=>/^Shelter: sealed/.test(m)));
@@ -193,7 +193,7 @@ function serverPlace(world,bot,inv,placed){
   world.set(t.x,t.y,t.z,item.name);item.count--;placed.push(k(t.x,t.y,t.z));
  };
 }
-const morningAfterGuard=w=>{const g=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=100;return g.apply(this,a);};w.removeShelter=async()=>{};};
+const morningAfterGuard=w=>{const g=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=1500;return g.apply(this,a);};w.removeShelter=async()=>{};};
 test('round 7: an off-centre bot sneaks back to the middle before sealing, so no ring cell overlaps it',async()=>{
  const world=flat();
  const {w,bot,placed,logs,inv}=shelterWorker(world);
@@ -230,4 +230,58 @@ test('round 7: a mushroom in a ring cell is dug out (a notch), then the cell is 
  assert.deepEqual(dug.sort(),['brown_mushroom','poppy']);
  assert.ok(logs.some(m=>/^Shelter: sealed/.test(m)));
  assert.equal(world.blockAt(-1,-60,1).name,'cobblestone');
+});
+// ---- round 7: leaving the shelter -------------------------------------------------------
+// hard3 sealed at sunset and was shot by a skeleton 3 blocks from the box during a gather
+// right after the clock wrapped to 0: the box came down at the wrap.
+import {leaveRefuge,stillNight,MORNING_SAFE,MORNING_LATE} from '../src/night.js';
+test('round 7: leaveRefuge - light morning and clear only; a shaded archer stops holding it late',()=>{
+ assert.equal(stillNight(12000),true);assert.equal(stillNight(23999),true);assert.equal(stillNight(0),true);assert.equal(stillNight(MORNING_SAFE),false);
+ assert.equal(leaveRefuge(0),false,'the wrap to 0 is not morning');
+ assert.equal(leaveRefuge(MORNING_SAFE-1),false);
+ assert.equal(leaveRefuge(MORNING_SAFE),true,'light and nothing near');
+ assert.equal(leaveRefuge(1500,10),false,'a hostile within 16');
+ assert.equal(leaveRefuge(MORNING_LATE,10),true,'late: only a hostile at the wall holds it');
+ assert.equal(leaveRefuge(MORNING_LATE,5),false);
+ assert.equal(leaveRefuge(13000),false,'evening');
+});
+test('round 7: the sealed shelter holds through the wrap to 0 and opens only once the morning is light and clear',async()=>{
+ const world=flat();
+ const {w,bot,logs}=shelterWorker(world);
+ const removed=[];w.removeShelter=async()=>{removed.push(bot.time.timeOfDay);};
+ // the clock: 23900 -> 100 (wrap) -> 600 -> 1100 with a skeleton 5 away -> 1400 clear
+ const ticks=[23900,100,600,1100,1400];let i=0;
+ w.guardShelter=async function(){
+  const tod=ticks[Math.min(i++,ticks.length-1)];bot.time.timeOfDay=tod;
+  bot.entities={};
+  if(tod===1100)bot.entities[9]={type:'hostile',name:'skeleton',isValid:true,position:new Vec3(5.5,-60,0.5)};
+ };
+ await w.shelter({spec:{type:'shelter'}},0);
+ assert.deepEqual(removed,[1400],'opened at 1400, not at the wrap (100), at 600 or with the skeleton near (1100)');
+ assert.ok(logs.some(m=>/^Shelter: dawn \(tod 100\); staying sealed/.test(m)));
+ assert.ok(logs.some(m=>/^Shelter: morning \(tod 1400, nearest hostile none\); opening up/.test(m)));
+});
+test('round 7: the dawn hold never outlives the job deadline (a timed-out job would leave the box up)',async()=>{
+ const world=flat();
+ const {w,bot,logs}=shelterWorker(world);
+ const removed=[];w.removeShelter=async()=>{removed.push(bot.time.timeOfDay);};
+ let n=0;
+ w.guardShelter=async function(){
+  bot.time.timeOfDay=200; // a long dark dawn
+  if(++n===3)w.deadline=Date.now()+30000; // the 13-minute limit is close
+ };
+ await w.shelter({spec:{type:'shelter'}},0);
+ assert.equal(removed.length,1);assert.equal(n,3);
+});
+test('round 7: a shelter resumed at dawn with its box up re-seals and holds instead of tearing it down',async()=>{
+ const world=flat();
+ const {w,bot}=shelterWorker(world,{tod:300});
+ const removed=[];w.removeShelter=async()=>{removed.push(bot.time.timeOfDay);};
+ const job={spec:{type:'shelter'},placed:[{x:1,y:-60,z:0}]};
+ let n=0;w.guardShelter=async function(){bot.time.timeOfDay=++n<3?400:1200;};
+ await w.shelter(job,0);
+ assert.deepEqual(removed,[1200]);
+ const done={spec:{type:'shelter'},placed:[{x:1,y:-60,z:0}]};bot.time.timeOfDay=2000;removed.length=0;
+ await w.shelter(done,0);
+ assert.deepEqual(removed,[2000],'resumed in a light morning: just take it down');
 });

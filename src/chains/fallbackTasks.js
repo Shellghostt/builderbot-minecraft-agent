@@ -17,7 +17,7 @@ import {dist,onFire,inGame} from './settings.js';
 import {getHostiles,distanceTo,bestWeapon,attackCooldown,hasItemName,inventoryItems,withinRange,huntBlocked} from './combatPolicy.js';
 import {NATURAL_DIG,isGravity} from '../digDown.js';
 import {Vec3} from 'vec3';
-import {fleeHeading,darkNow} from '../night.js';
+import {fleeHeading,darkNow,leaveRefuge} from '../night.js';
 import {pickCtx} from '../tasks/movement/move.js';
 
 const setControl=(bot,name,value)=>{try{bot.setControlState(name,value);}catch{}};
@@ -620,7 +620,9 @@ export class NightPillarTask extends Task{
  resumeCopy(){const q=new NightPillarTask(this.height,{hold:this.hold});Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince,ringTries:this.ringTries,ringLogged:this.ringLogged});return q;}
  isFinished(bot,ctx){
   if(this.failed)return true;
-  if(!darkNow(dayTicks(bot)))return true; // morning: the undead burn
+  // Morning: down once it is light and clear (round 7: not at the wrap to 0 - the night's
+  // mobs are still standing, and shaded ones never burn).
+  if(!darkNow(dayTicks(bot))&&(this.phase!=='perch'||leaveRefuge(dayTicks(bot),nearestHostile(bot,ctx))))return true;
   return !this.hold&&this.phase==='perch'&&this.quietSince!=null&&this.now()-this.quietSince>=15;
  }
  _top(bot){
@@ -732,6 +734,7 @@ export class NightPillarTask extends Task{
  onStop(bot){forget(bot,'jump','forward','sprint','sneak');this._lower(bot);}
  isEqual(o){return o===this;}
 }
+const nearestHostile=(bot,ctx)=>getHostiles(bot,ctx).reduce((m,h)=>Math.min(m,distanceTo(h,bot)),Infinity);
 const solidAt=(bot,x,y,z)=>{const b=bot.blockAt&&bot.blockAt(new Vec3(x,y,z));return !!b&&b.boundingBox==='block';};
 const lookAtEntity=(bot,e)=>{
  const me=bot.entity.position,dx=e.position.x-me.x,dz=e.position.z-me.z,dy=(e.position.y+(e.height||1.8)*0.8)-(me.y+1.62);

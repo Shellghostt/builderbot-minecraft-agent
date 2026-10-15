@@ -28,7 +28,7 @@ import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './pl
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
 import {installToolWear,watchToolLoss} from './toolWear.js';
-import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
+import {darkNow,stillNight,leaveRefuge,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
 import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -89,7 +89,7 @@ const WORLD_CHAIN='Misc World Survival Chain';
 // reason and the night pillar takes over (round 5 hard1/hard2: 11 min re-walking one
 // unreachable dirt block, cancelled by the soak bell, never sealed).
 const SHELTER_ITEMS=['cobblestone','dirt','cobbled_deepslate','netherrack'];
-export const SHELTER_DIG_MS=45000,SHELTER_SEAL_MS=30000,NIGHT_PILLAR_MS=13*60000;
+export const SHELTER_DIG_MS=45000,SHELTER_SEAL_MS=30000,NIGHT_PILLAR_MS=13*60000,SHELTER_EXIT_MARGIN_MS=60000;
 // Natural plants that fill a shell cell but are not replaceable: a placement into them is
 // refused, so the seal digs them out first (a dark-forest floor is full of mushrooms).
 export const SHELTER_NOTCH=/^(.*_mushroom|.*_sapling|.*_fungus|.*_roots|dandelion|poppy|blue_orchid|allium|azure_bluet|.*_tulip|oxeye_daisy|cornflower|lily_of_the_valley|wither_rose|torchflower|pink_petals|wildflowers|leaf_litter|sweet_berry_bush|sugar_cane|bush|firefly_bush|short_dry_grass|tall_dry_grass|moss_carpet|cocoa|lily_pad)$/;
@@ -887,9 +887,10 @@ export class Worker extends EventEmitter {
   const b=this.bot;
   this.check(token);
   if(!darkNow(dayTicks(b))){
-   // Resumed after dawn with a box still standing: take it down (the night was survived).
-   if(job.placed&&job.placed.length)await this.removeShelter(job,token);
-   return;
+   // Resumed after dawn with a box still standing: take it down once the morning is safe
+   // (the night was survived); before that, re-seal and hold it.
+   if(!(job.placed&&job.placed.length))return;
+   if(this.shelterExitSafe()){await this.removeShelter(job,token);return;}
   }
   // Every shelter block counts (a mix of cobble and dirt is fine); cobble the autopilot's
   // unfinished stone kit still needs (cobbleReserve) is spent only as the last resort.
@@ -920,13 +921,29 @@ export class Worker extends EventEmitter {
   this.log('Shelter: sealed at '+origin+' ('+job.placed.length+' blocks placed)');
   this.shelterSealed=true;this.shelterSpot={x:origin.x,y:origin.y,z:origin.z};this.nightPillar=null;
   try{
-   while(darkNow(dayTicks(b))){
+   while(!this.shelterExitSafe()){
     await sleep(250);this.check(token);
     await this.guardShelter(job,token,origin);
+    const tod=dayTicks(b);
+    if(!darkNow(tod)&&!job.dawnLogged){job.dawnLogged=true;this.update(job,required.length,'Dawn: waiting for a safe morning (sealed)');this.log('Shelter: dawn (tod '+tod+'); staying sealed until the morning is light and clear');}
    }
   }finally{this.shelterSealed=false;}
+  this.log('Shelter: morning (tod '+dayTicks(b)+', nearest hostile '+(Number.isFinite(this.nearestHostile())?this.nearestHostile().toFixed(1):'none')+'); opening up');
   this.shelterSpot=null;
   await this.removeShelter(job,token);
+ }
+ // The sealed box opens once the morning is light and clear (night.js leaveRefuge), or when
+ // the job's own deadline is SHELTER_EXIT_MARGIN_MS away (a timed-out job leaves the box up).
+ shelterExitSafe(){
+  if(Number.isFinite(this.deadline)&&this.deadline-Date.now()<SHELTER_EXIT_MARGIN_MS)return true;
+  return leaveRefuge(dayTicks(this.bot),this.nearestHostile());
+ }
+ nearestHostile(){
+  const b=this.bot,me=b.entity&&b.entity.position;
+  if(!me)return Infinity;
+  let best=Infinity;
+  for(const e of Object.values(b.entities||{}))if(e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.isValid!==false)best=Math.min(best,e.position.distanceTo(me));
+  return best;
  }
  // Shelter blocks held beyond the stone kit's cobble reserve (all of them with reserve=true).
  shelterStock(reserve=false){return SHELTER_ITEMS.reduce((a,n)=>a+this.count(n),0)-(reserve?0:Math.min(this.count('cobblestone'),this.cobbleReserve||0));}

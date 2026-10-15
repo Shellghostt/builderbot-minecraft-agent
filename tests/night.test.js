@@ -293,8 +293,15 @@ test('NightPillarTask climbs by placing under the feet at the apex, then shields
  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]])assert.equal(world.blockAt(dx,-58,dz).name,'cobblestone',dx+','+dz);
  assert.ok(calls.some(c=>c[0]==='shield-up'),'shield toward the skeleton');
  assert.equal(t.isFinished(bot),false);
+ // Round 7: the wrap to 0 is not morning - the skeleton (9 away) is still standing.
  bot.time.timeOfDay=500;
- assert.equal(t.isFinished(bot),true,'morning ends the perch');
+ assert.equal(t.isFinished(bot),false,'dawn: not light yet');
+ bot.time.timeOfDay=1500;
+ assert.equal(t.isFinished(bot),false,'light, but a skeleton within 16');
+ bot.time.timeOfDay=3500;
+ assert.equal(t.isFinished(bot),true,'late morning: a skeleton 9 away (shaded) no longer holds the perch');
+ delete bot.entities[10];bot.time.timeOfDay=1500;
+ assert.equal(t.isFinished(bot),true,'light and clear ends the perch');
 });
 test('round 7: the perched bot keeps its 3x3 deck, sneaks back to the middle, and falls only off the deck',()=>{
  const world=makeWorld();
