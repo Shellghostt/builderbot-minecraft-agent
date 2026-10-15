@@ -53,7 +53,7 @@ assert sm['food_runs']==1 and sm['eaten']==[2,0] and sm['cooked']==[3,0] and sm[
 assert sm['food_due']==[2,0] and sm['food_failed']==[0,0] and sm['food_min']==[10,None] and sm['food_max']==[20,None] and sm['food_verdict']==['ate 2',None],sm
 assert sm['food_attempts']==[0,0] and sm['food_deferred']==[0,0],sm
 # Iron columns (round 3): normal runs are long enough to reach the iron step now.
-assert m.NORMAL_SECONDS==1200 and m.HARD_SECONDS==1250
+assert m.NORMAL_SECONDS==2400 and m.HARD_SECONDS==1250 # round 9: normal runs measure the rung after the iron pickaxe
 assert m.iron_sample({'raw_iron':4,'iron_ingot':2,'iron_pickaxe':1})=={'iron_ore':4,'ingots':2,'iron_pick':1}
 assert m.iron_sample({})=={'iron_ore':0,'ingots':0,'iron_pick':0}
 samples=[{'t':30,'iron_ore':0,'ingots':0,'iron_pick':0},{'t':900,'iron_ore':6,'ingots':0,'iron_pick':0},
@@ -118,3 +118,12 @@ assert m.food_verdict({'meals':{'eaten':0,'ok':2,'due':2,'attempts':2},'food_lev
 v=m.food_verdict({'meals':{'eaten':0,'due':2,'failed':0,'attempts':2},'food_level':{'food_min':16},'edible_peak':9})
 assert v=='attempted 2, no meal recorded (due 2, failed 0, food min 16)',v
 print('round 9 food verdict ok')
+# Round 9: the rung table prints one column per rung, '-' for never.
+t=m.rung_table([{'index':'normal1a1','wood_at':60,'first':{'stone_pick':211,'furnace':301},'iron_pick_at':1020,'torch_peak':16,
+                 'armour_worn_peak':2,'armour_worn_at':1500,'bed_at':None,'diamond_peak':0,'diamond_pick_at':None,'food_verdict':'ate 3','deaths':0},
+                {'index':'hard2a2'}]).split('\n')
+assert t[0].split(' | ')[0].strip()=='run' and 'armour worn' in t[0] and 'diamond pick' in t[0],t[0]
+cells=[c.strip() for c in t[1].split(' | ')]
+assert cells==['normal1a1','60','211','301','1020','16','2 at 1500','-','0','-','ate 3','0'],cells
+assert [c.strip() for c in t[2].split(' | ')]==['hard2a2','-','-','-','-','0','0','-','0','-','-','0'],t[2]
+print('round 9 rung table ok')

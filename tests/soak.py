@@ -1,5 +1,5 @@
 """Autopilot soak on a normal-terrain world (agent-soak-world, seed 12345): 3 normal runs of
-20 minutes (NORMAL_SECONDS, frozen daylight) and 3 hard runs of ~21 minutes (HARD_SECONDS,
+40 minutes (NORMAL_SECONDS, frozen daylight) and 3 hard runs of ~21 minutes (HARD_SECONDS,
 natural time from dawn).
 Every run is made fair and reproducible by resetting the same five things at its start:
 dawn (time set 0), clear weather, an empty inventory, the bot teleported to the world's
@@ -226,9 +226,11 @@ def run_log(run):
     text=(ROOT/'logs/test-server.log').read_text(encoding='utf-8',errors='replace')
     return text[run.get('logstart',0):]
 # Normal runs ended at 600 s still on the food step (soak 2026-10-14 18:44), so the iron step
-# was never measured: 1200 s from the frozen-day start leaves it room. Hard runs stay 1250 s
+# was never measured: 1200 s from the frozen-day start left it room. Round 9: the iron pickaxe
+# lands at 15-20 min, right at the 1200 s bell, so the rung after it (torches, worn armour,
+# bed, diamonds) could never be measured - normal runs are 2400 s. Hard runs stay 1250 s
 # (dawn to past the first night).
-NORMAL_SECONDS=1200
+NORMAL_SECONDS=2400
 HARD_SECONDS=1250
 IRON_KEYS=('iron_ore','ingots','iron_pick')
 def iron_sample(inv):
@@ -564,6 +566,24 @@ def summarise(runs):
             'interventions':sum(len(r['interventions']) for r in runs),
             'median':{k:_median([(r.get('achieved') or {}).get(k,0) for r in runs]) for k in keys},
             'peak_median':{k:_median([(r.get('peaks') or {}).get(k,{}).get('max',0) for r in runs]) for k in peak_keys}}
+# Round 9: one row per run, one column per ladder rung (first sample seconds, or the peak),
+# so the iron rung's torches / worn armour / bed / diamonds read at a glance.
+RUNG_COLUMNS=('run','wood','stone pick','furnace','iron pick','torches','armour worn','bed','diamonds','diamond pick','food','deaths')
+def rung_rows(runs):
+    def at(v):return '-' if v is None else str(v)
+    rows=[]
+    for r in runs:
+        first=r.get('first') or {}
+        rows.append((str(r.get('index')),at(r.get('wood_at')),at(first.get('stone_pick',r.get('stone_at'))),at(first.get('furnace')),
+                     at(r.get('iron_pick_at')),str(r.get('torch_peak',0)),
+                     str(r.get('armour_worn_peak',0))+('' if r.get('armour_worn_at') is None else ' at '+str(r.get('armour_worn_at'))),
+                     at(r.get('bed_at')),str(r.get('diamond_peak',0)),at(r.get('diamond_pick_at')),
+                     str(r.get('food_verdict') or '-'),str(r.get('deaths') or 0)))
+    return rows
+def rung_table(runs):
+    rows=[RUNG_COLUMNS]+rung_rows(runs)
+    widths=[max(len(row[i]) for row in rows) for i in range(len(RUNG_COLUMNS))]
+    return '\n'.join(' | '.join(c.ljust(widths[i]) for i,c in enumerate(row)).rstrip() for row in rows)
 def save_results(payload):
     stamp=time.strftime('%Y%m%d-%H%M%S')
     (ROOT/'data'/f'soak-results-{stamp}.json').write_text(json.dumps(payload,indent=2),encoding='utf-8')
@@ -830,7 +850,8 @@ def main():
                 attempts[label]+=1
                 # GLM_CONTINUE item 3: hard runs span 20+ minutes so dusk/night happen and
                 # the bed/shelter first night is measured with natural spawning. Normal runs
-                # keep the frozen day and run 1200 s so the iron step is reached.
+                # keep the frozen day and run NORMAL_SECONDS (2400) so the rung after the
+                # iron pickaxe is measured too.
                 r=run_one(label+str(done[label]+1)+'a'+str(attempts[label]),anchor,seconds=HARD_SECONDS if label=='hard' else NORMAL_SECONDS)
                 runs.append(r)
                 if r.get('invalid'):
@@ -860,6 +881,7 @@ def main():
     if payload:
         print('SOAK DONE','(clean)' if clean else '(with errors)')
         print('SUMMARY '+json.dumps(payload['summary'],indent=1),flush=True)
+        print('RUNGS (seconds from the run start; - = never)\n'+rung_table([r for r in runs if not r.get('invalid')]),flush=True)
         for r in runs:
             print(f"run {r['index']}: wood={r.get('wood')} stone={r.get('stone')} iron={r.get('iron')} achieved={json.dumps(r.get('achieved',{}))}",flush=True)
 if __name__=='__main__':main()
