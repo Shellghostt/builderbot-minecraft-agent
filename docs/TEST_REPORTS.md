@@ -374,3 +374,46 @@ No second soak.
 `4_creeper` (lane): ttk 7.4 s, hits 5, `damage_taken=0`, end health 20, killed, no crater at the spawn, the midpoint, or the bot start.
 
 `4b_creeper_roofed`: ttk 7.4 s, hits 3, `damage_taken=0`, end health 20, killed, no crater. Both creepers stayed at 0 damage.
+
+## 2026-10-15 15:40–17:49 IST — dual soak (`03edc95`, bot code `2ea2321`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 7712 s. `SOAK DONE (clean)`, promoted to `data/soak-results.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [142, 131, 31], normal [310, 131, 30].
+
+| Run | Stone pick | Furnace | Iron pick | Ore / ingots peak | End raw / ingots | Bar | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 241 | 301, held | 903, held | 3 / 1 | 0 / 0 | 14..20 EAT FAILED | 0 |
+| normal2a2 | 181 | 241, gone at the bell | 1204, held | 2 / 5 | 1 / 0 | 15..20 EAT FAILED | 0 |
+| normal3a3 | 241 | 331, gone at the bell | 993, held | 3 / 1 | 3 / 0 | 16..20 EAT FAILED | 0 |
+| hard1a1 | 211 | 331, held | — | 0 / 0 | 0 / 0 | 20..20 never hungry | 0 |
+| hard2a2 | 602 | 602, held | — | 0 / 0 | 0 / 0 | 20..20 never hungry | 0 |
+| hard3a3 | 331, gone | never | — | 0 / 0 | 0 / 0 | 20..20 never hungry | 1 |
+
+`iron_runs` 3. All three iron pickaxes were still held at the bell, with an iron sword. Eaten is 0 on every run.
+
+### Food
+
+The bot did not eat. All three normal runs held cooked food (9, 10, 8) and printed `EAT FAILED` with `failed 0` and no reason: `bar 14..20: EAT FAILED (due 1, failed 0, food min 14)`, `bar 15..20: EAT FAILED (due 2, failed 0, food min 15)`, `bar 16..20: EAT FAILED (due 1, failed 0, food min 16)`. `food_no_food` is 0. The hard runs were `never hungry (food min 20)`.
+
+### Night
+
+No `Could not seal`, no night pillar, no overhang ring, and no `knocked off`.
+
+- hard1, 11:25Z: sealed in 6 s at (142, 124, 30), 11 blocks. `Shelter: dawn (tod 9); staying sealed`, then `Shelter: morning (tod 1029, nearest hostile 16.0); opening up` at 11:35Z. It stayed in until morning.
+- hard2, 11:46Z: sealed in 11 s at (150, 134, 25), 17 blocks. Dawn hold at tod 4, opened at tod 1004 (nearest hostile 16.2). It stayed in until morning.
+- hard3 died before its sunset shelter. After the respawn it sealed in 30 s at (89, 128, -33), 8 blocks, and the dawn line at 12:17Z (tod 16) was still holding when the bell ended the run. No morning opening on that run.
+
+### Deaths
+
+One death, and the counter matches. hard3, 12:05Z, (138, 123, 39): `blown up by Creeper`, during a craft. counter 1, window 1, log 1. The death log's killer field is empty; the cause string names the creeper. The other five runs are 0 on all three sources.
+
+### Hard kit
+
+hard1's furnace craft was at 11:20Z (331 s), after the pickaxe at 211 s, and both were held at the bell. hard2 logged `dusk - cobble for the stone kit first (3)` at 11:44Z, then `dusk - finishing the stone kit first` through the pickaxe, sword, axe and shovel, and `sunset - finishing the stone kit first (furnace)` at 11:46:21Z, ten seconds before the shelter. Both were held. hard3 crafted the pickaxe at 331 s and never a furnace; the creeper wiped the kit.
+
+### Iron and stone pickaxes
+
+Each normal run placed a kiln: `Gather: kiln at 200,150,44` (normal1, loaded 3), `kiln at 185,126,-115` (normal2, then `loaded with 2 raw_iron (3 ingots taken so far)`), and two kilns on normal3 (`132,139,-48` and `117,128,-56`). The end inventories still show 0 ingots. normal1 had smelted everything it held (0 raw). normal2 had 1 raw left, normal3 had 3.
+
+Two stone pickaxes broke and were replaced: `1 uses left, broke` at 10:31Z, recrafted at 10:31:54Z (normal1, during the kiln), and again at 10:41Z, recrafted at 10:42Z (normal2). The other `Tool left the inventory: stone_pickaxe` lines still had uses left. No iron pickaxe break.
+
+No second soak.
