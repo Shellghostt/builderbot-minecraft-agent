@@ -1930,9 +1930,22 @@ export class Worker extends EventEmitter {
   try{
    for(let i=tunnel.length-1;i>=0;i--){
     this.check(token);
-    const point=tunnel[i];
+    const point=tunnel[i],goal=new goals.GoalBlock(point.x,point.y,point.z);
     // A diagonal 1-up step is 1.41 away, so the skip threshold must stay below that.
-    if(b.entity.position.floored().distanceTo(new Vec3(point.x,point.y,point.z))>0.9)await this.navigate(new goals.GoalBlock(point.x,point.y,point.z),token,10);
+    if(b.entity.position.floored().distanceTo(new Vec3(point.x,point.y,point.z))<=0.9)continue;
+    try{await this.navigate(goal,token,10);}
+    catch(e){
+     this.check(token);
+     // Round 5 (144,124,53): 'No path to the goal!' / 'Navigation timed out' on the way up.
+     // A step that gravel, sand or a placed block refilled cannot be walked with digging off.
+     // Retry it with the explore movements (natural blocks only, dirt/cobble scaffold);
+     // a step that still fails is skipped for the next one up - only the top must hold.
+     this.log('Tunnel climb: step '+point.x+','+point.y+','+point.z+' failed ('+String(e.message).slice(0,60)+'); digging through natural fill');
+     b.pathfinder.setMovements(this.exploreMovements());
+     try{await this.navigate(goal,token,10);}
+     catch(e2){this.check(token);if(i===0)throw e2;}
+     finally{if(token===this.epoch)b.pathfinder.setMovements(this.movements);}
+    }
    }
   }finally{if(token===this.epoch)b.pathfinder.setMovements(previous);}
  }

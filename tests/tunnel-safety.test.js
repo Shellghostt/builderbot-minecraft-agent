@@ -170,3 +170,27 @@ test('a tunnel step clears snow blocks bare-handed but still refuses stone witho
  for(const y of [129,130,131])assert.ok(air(w,new Vec3(1,y,0)));
  await assert.rejects(worker.digTunnelStep({},0,new Vec3(1,124,0),true,snowy),/needs a suitable tool in the inventory for stone/);
 });
+// Round 6, task 7: two climbs out of a tunnel at (144,124,53) failed with 'No path to the
+// goal!' / 'Navigation timed out'. A refilled step is retried with the digging (natural
+// blocks only) movements, a step that still fails is skipped, and only the top must hold.
+test('climbTunnel retries a blocked step with the explore movements and skips one that still fails',async()=>{
+ const moves=[],navs=[],logs=[];
+ const normal={id:'normal'},explore={id:'explore'};
+ const bot={entity:{position:new Vec3(0.5,-70,0.5)},pathfinder:{movements:normal,setMovements(m){this.movements=m;moves.push(m.id);}}};
+ const blocked=new Set(['1,-69,0','2,-68,0']),hard=new Set(['2,-68,0']);
+ const w=Object.assign(Object.create(Worker.prototype),{bot,epoch:0,movements:normal,check(){},log:m=>logs.push(m),exploreMovements:()=>explore,
+  navigate:async(goal,token)=>{
+   const key=goal.x+','+goal.y+','+goal.z;navs.push(key+'@'+bot.pathfinder.movements.id);
+   if(blocked.has(key)&&(bot.pathfinder.movements===normal||hard.has(key)))throw Error('No path to the goal!');
+   bot.entity.position=new Vec3(goal.x+0.5,goal.y,goal.z+0.5);
+  }});
+ const tunnel=[{x:3,y:-67,z:0},{x:2,y:-68,z:0},{x:1,y:-69,z:0}];
+ await w.climbTunnel({tunnel},0);
+ assert.deepEqual(navs,['1,-69,0@normal','1,-69,0@explore','2,-68,0@normal','2,-68,0@explore','3,-67,0@normal']);
+ assert.equal(bot.entity.position.y,-67,'reached the top');
+ assert.equal(bot.pathfinder.movements,normal,'movements restored');
+ assert.equal(logs.length,2);
+ // The top itself unreachable even by digging: the climb fails (the caller logs it).
+ hard.add('3,-67,0');blocked.add('3,-67,0');bot.entity.position=new Vec3(0.5,-70,0.5);
+ await assert.rejects(w.climbTunnel({tunnel},0),/No path to the goal/);
+});
