@@ -1,6 +1,16 @@
-# Cloud session round 10 (code only) - DRAFT, Claude, 2026-10-15
+# Cloud session round 10 (code only) - FINAL ROUND on the credit, Claude, 2026-10-16
 
-Same rules as `docs/CLOUD_TASK.md`. Read the newest sections of `docs/TEST_REPORTS.md` (round-9 results) first. (Live-result tasks will be added when Cursor's round-9 report lands.)
+Same rules as `docs/CLOUD_TASK.md`. Read the newest sections of `docs/TEST_REPORTS.md` (round-9 results) first. 
+
+## Round 9 live results (best yet)
+Integration green, both creepers 0 damage. **Iron pickaxe 3/3 normal runs at 361-512 s**, torches 16-19, iron armour worn (normal1 full set at 632 s; normal2/3 helmet+chestplate), meals now eaten and counted, food step no longer blocks. 1 death in 6 runs.
+
+## Fix first (bugs from round 9)
+A. **Diamond staircase drops the bot.** normal2 `fell from a high place` at (444,13,10) on the diamond rung (lost the iron pick, sword, tools); normal3 on `diamond-rung` (targetY -58) took falls 18.4 -> 12.4 -> 3.5 hp and the operator pulled it back from y=20. Find where the descent falls (stepping off a ledge into a cave/ravine opening? digging the block under the feet? a staircase step onto air?) and make the deep descent never drop more than 1 block: check the 2 cells below every step, place a block over cave openings, stop and route around ravines. Diamonds stayed 0 in both diamond-rung runs.
+B. **No bed in any run** (no `[night] sleep`): the bed step never produced wool/bed. Find why (no sheep found? the step gated behind something?) - also listed as habit 5 below.
+C. Minor: 3 of 7 meals started above bar 14 (`17 -> 20`, then a `19 -> 20` fill-up 13 s later; `16 -> 20` during the falls). Only the critical-health path may eat above 14.
+D. Hard runs: furnace 1/3, stone 2/3, wood as late as 543 s (`searching further afield`). Lower priority than A-B.
+
 
 ## Efficiency: play like a real player (observed live by the user during the round-9 soak)
 1. **Don't stand and stare at a working furnace.** While smelting iron, the bot stood looking at the furnace with exposed coal all around it. A furnace works on its own: load it (input + fuel), then do other useful work nearby (mine visible coal/ore, gather logs, collect drops, craft) and come back when the output is ready (`8 items x 10 s` per smelt cycle; check the output slot on return or when passing within reach). Implement this as "parallel" work in the ladder/smelt job: a smelt job that loads the furnace, hands control back with a "collect at T" reminder, and a later collect step. Keep safety (stay within ~24 blocks, never leave it at night).
