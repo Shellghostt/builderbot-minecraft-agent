@@ -1352,3 +1352,190 @@ Changed expectations:
   diagonals, the pod needs the full feet ring (4 more blocks).
 - **Pillar:** the new failure line says why a climb fails (rise, clicks, item, support).
   Retries should now be spaced 3, 6, 12 ... s apart.
+
+## Cloud session round 10 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_10.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test --test-timeout=60000`: **500 passed, 0 failed** (429 at the
+start of the round, plus 71 new). `tests/soak_metrics_check.py` passes. One commit per task on
+`main`, 16 in all. Everything in the brief was done: the fix-first bugs A-D, efficiency 1-3,
+and habits 4-12. The diagnoses come from the code and the round-9 TEST_REPORTS text. There were
+no dashboard logs in the sandbox.
+
+### Fix first
+
+- **A. The diamond staircase dropped the bot** (`ea112fd`, new `tests/descent-safety.test.js`).
+  - Cause: the ore staircase and the strip mine never looked under the next step. Only the
+    natural stone dig-down checked its floor. A cave or ravine opening under a step dropped the
+    bot (normal2 died at y=13; normal3 fell 18.4 -> 3.5 hp).
+  - Second cause: `descendToReach`'s drop guard read `!x?.boundingBox==='block'`, which is always
+    false, so deep drops were never refused.
+  - Fix: `digDown.stepFooting` looks two cells under every step:
+    - solid floor: ok;
+    - a hole up to 2 deep: filled with a held block;
+    - a deep opening, lava under the floor, or sand/gravel over a hollow: the tunnel turns
+      (straight on, then the two sides, never back, 6 turns per job);
+    - no safe way on: the tunnel stops where the bot stands.
+  - `Worker.tunnelStep` also stops the tunnel if the bot still ends up below its step. An ore
+    descent stopped this way hands back to the gather (`descendLeg`). Lava still fails the trip.
+  - Logs: `Tunnel: cave opening under ...; turning north`, `Tunnel: filled a hole under ...`,
+    `Gather: descent stopped at y=N (...); searching from here`.
+- **B. No bed in any run** (`da5885e`, new `tests/bed-wool.test.js`).
+  - Cause: the rung asked for a bed only when a sheep was already within 32 at that moment, then
+    moved on to diamonds. The dusk bed prep (tod 9000-12000) never runs on the frozen-day normal
+    runs.
+  - Fix, `woolJob`: by day, once the wood kit is held, a sheep within 24 is hunted or sheared at
+    any step, as `bed-rung`. It waits for quick jobs (craft, equip, smelt, eat).
+  - `bedJob` with 3 wool and no wood: a short log gather pays the planks.
+  - No sheep: the rung takes 3 graze search legs, then sets the bed aside for 10 min.
+  - A failed bed job (including its planks or logs) never charges the iron step.
+- **C. Meals above bar 14** (`0a16704`, `meals` test changed).
+  - Above 14 a meal now goes only to:
+    - health under 10 (the low-health stop) with the bar under 18 (regeneration needs 18);
+    - or health under 6 at any bar.
+  - The round-9 `19 -> 20` fill-up and the `16 -> 20` at 12.4 hp are now no meal.
+- **D. Hard-run wood** (`3d41c9a`, cases in `gather-blacklist`).
+  - A gather that may still search leaves a grove after 5 refused columns or 10 refused blocks.
+    It was 8/24: hard1 spent ~7 min refusing 24 canopy blocks.
+  - Each search leg heads for the nearest log seen within 96 beyond the worked radius, instead of
+    a fixed east/north/west/south. Log: `Gather: search leg N <dir> toward logs at x,y,z`.
+  - Furnace and stone on the hard runs ride on the earlier wood. Nothing else changed for them.
+
+### Efficiency (`tests/furnace-parallel.test.js`)
+
+1. **Don't watch the furnace** (`16130c6`).
+   - `smelt leave:true` loads the furnace, records `worker.furnaceRun` (readyAt = count x 10 s)
+     and ends. `smelt take:true` later waits only for what is left, takes the output and picks a
+     furnace it placed back up.
+   - A ladder smelt of 2+ items is left to work. Meanwhile `furnaceWork` picks side jobs within
+     16 of the furnace: coal, iron, torches, logs when low, drops. At most 4 per batch.
+   - It goes back for the take when the batch is ready, from dusk (tod 10800), with a hostile
+     within 16, or when it is more than 8 from the furnace.
+2. **Batch, don't ping-pong** (`289ba51`).
+   - The food step keeps hunting while animals of that kind are within 24 and fewer than 6
+     edible items are held, then cooks the whole stack in one run.
+   - The take keeps the furnace standing (`keepFurnace`) while raw meat or animals remain. The
+     next batch reuses it and its leftover fuel.
+   - `ownFurnaces` makes sure the last take still picks the furnace up.
+3. **Opportunistic pickups** (`36be925`).
+   - Tunnels: ore in the side walls of the feet and head cells is mined as the tunnel passes. Never
+     the floor or ceiling, never next to a fluid, never with a hostile within 8. 16 per job.
+   - Between jobs: exposed diamond, iron, coal (or a log when wood is low) within 6 is a short
+     radius-6 gather as a `pickup` step. Once a minute at most, never at night or near a hostile.
+
+### Habits
+
+4. **Use the night** (`e45ca20`, new `tests/night-mine.test.js`).
+   - In the sealed box, once a night (tod 12600-21500), with a stone+ pickaxe, 4+ blocks and 16+
+     health, `nightMine` runs for up to 4 min. Config `nightMine:false` turns it off.
+   - The box's interior is the bot's own column, so it first sinks a checked 2-deep sump through
+     the floor. The staircase from the sump's bottom then cuts only the support row: the walls,
+     ring and roof are never opened (asserted in the test).
+   - The dig is 6 stairs plus a 12-block strip, with wall pickups. It turns back on the time
+     budget, at tod 21500, under 14 health, or when the tunnel breaks into a cave it did not dig.
+   - Home is the tunnel, then the pathfinder's own 1x1 tower back into the cell (it refills the
+     floor). Mob Defense is live while the bot is out of the box.
+5. **Bed and spawn point** (`e1259f3`).
+   - The first bed the bot places and sleeps in becomes home (the spawn point). A bed placed away
+     from home is picked up in the morning.
+   - At night a home bed within 64 is walked back to: `{type:'sleep',position:home}`.
+6. **Home base and inventory** (`889c66a`, new `tests/inventory.test.js`).
+   - Home is the bed, or the first table left standing. The home chest's position is now
+     remembered.
+   - What the bot keeps (`surplus()`): 32 dirt, a stack of cobble, 16 seeds, 2 saplings. Gravel,
+     andesite/diorite/granite/tuff, rotten flesh and flowers count as junk.
+   - Over 75% full with home within 48: deposit into the home chest, or place or craft a chest
+     beside home. Passing within 8 of the chest also deposits (16+ extra).
+   - Full and far from home: drop junk. Dropped junk is ignored by the sweeps for 10 min.
+   - New fields: `deposit keep:N` and a `drop` job. Hotbar order is not managed, since equip pulls
+     an item from any slot.
+7. **Light and mark mines** (`de3a62e`, new `tests/light.test.js`).
+   - Torches are crafted as soon as 2+ coal and a stick are held (one coal stays for the furnace).
+   - Tunnels get a torch every 7 steps on the right-hand wall (the floor when that wall is open).
+   - Two torches go beside the home bed.
+   - Two failed coal digs switch to charcoal from logs for 10 min.
+8. **Diamonds the safe way** (`d6fd796`, new `tests/branch-mine.test.js`).
+   - The trip now goes to y -53, not -58, and `strip:true` is a branch mine: a 24-block main
+     tunnel with 6-block branches left and right every 3. Branches never turn; they end at
+     anything unsafe.
+   - Torches every 7, and it stops when the count is in.
+   - `plugLava`: lava touching the bot's cells is replaced with a held block.
+   - The obtain/howto diamond target stays -58.
+9. **Water bucket** (`800c465`, new `tests/water-bucket.test.js`).
+   - After the torches the rung crafts a bucket (3 ingots, carried by the armour dig) and fills it
+     at a still source within 24.
+   - A `water_bucket` counts as the iron step's bucket. The MLG fall chain and the fire douse
+     already used it.
+10. **Health** (`c5ad8c9`, new `tests/health.test.js`).
+    - Hurt (under 14) with the bar under 18: a top-up only with food that fits under 20.
+    - Deep digs (target depth, branch mine) wait for 16 health: an eat first if the bar is under
+      18, then up to 90 s of waiting.
+11. **Food security** (`c09a37c`, new `tests/farm.test.js`).
+    - Crop gathers count the produce and take only ripe crops. A grass gather counts seeds.
+      `use wheat_seeds` on farmland plants the crop.
+    - Near a home with water within 8, `farmJob` does seeds from grass, a wooden hoe, then 4 plots
+      tilled, planted and harvested.
+    - The food step crafts hay into wheat, gathers hay bales within 32, and breeds a pair when
+      their food is held (5 min per kind).
+12. **Mobs to leave alone** (`9d0179d`, new `tests/mob-etiquette.test.js`).
+    - `leaveAlone`: a calm enderman (not screaming, metadata 17) and a daylight spider (sky light
+      12+) are dropped from `getHostiles` unless within 2. Mob Defense and the shelter guard no
+      longer provoke them.
+    - Already in place: a creeper is never meleed, and a witch is backed away from.
+
+### Decide order (autopilot, a day tick with nothing running)
+
+1. The furnace run.
+2. A blocked step's explore.
+3. Inventory.
+4. Light (torches, the lit base).
+5. The farm.
+6. Wool.
+7. Pickups.
+8. Heal-first.
+9. The step's own job.
+
+Steps 4-7 wait for the step's quick jobs (craft, equip, smelt, eat). Each side activity has its
+own step name (`furnace`, `inventory`, `light`, `farm`, `bed-rung`, `pickup`, `heal`), so its
+failures never block a ladder step. Each has its own set-aside timer.
+
+### Changed expectations
+
+- `meals`: health 12 at bar 16 is no meal now (bug C).
+- `autopilot` M5 and `iron-rung`: the bucket comes right after the torches. The diamond gather is
+  `targetY -53, bandTop -53`.
+- `tunnel-safety` stub: gained `tunnelStep`.
+
+### Needs live verification
+
+- **A:** expect `Tunnel: ... turning` / `filled a hole` lines on the diamond and iron descents,
+  and no `fell from a high place`.
+- **B:** `[bed-rung] {"type":"hunt","entity":"sheep"...}` early in the runs, `craft white_bed`,
+  `Home set to the bed ... (spawn point)` on hard nights, and `bed_at` in RUNGS.
+- **1-2:** `Smelt: furnace at ... loaded with N ...; back for ...`, then side jobs as
+  `[furnace]`, then `Smelt: took N ...`. If the take finds the furnace emptied early, the 15 s
+  grace is too short.
+- **4:** `Night mine: down from the shelter ...` / `back in the shelter (...)`. The pathfinder's
+  1x1 tower back into the cell is the untested part: a `could not climb back into` line means
+  the bot is still 2 below the floor. The box still stands above it, and the morning exit then
+  has to path out.
+- **6:** `[inventory] {"type":"deposit",...,"keep":32}` once the inventory fills near home.
+- **8:** `Digging a branch mine`, `Tunnel: mined diamond_ore in the wall`, `Tunnel: plugged
+  lava`. The climb back from -53 is long, so `Navigation timed out` on it is possible.
+- **9:** `[iron] {"type":"use","item":"bucket",...}`. Water must be within 24 of where the rung
+  runs.
+- **12:** no `Reflex: ... enderman` lines with a calm enderman near.
+
+### Left / known gaps
+
+- Not done:
+  - turning blocking lava into obsidian with the water bucket (tunnels plug it with a block
+    instead);
+  - steering the bot's gaze off an enderman's head;
+  - hotbar sorting;
+  - looting village chests for bread.
+- The home step's `done` is still always false. Iron `done` still needs a bow and 32 arrows, so
+  the later `bed`/`home` steps stay unreachable (the rung's bed and the habits cover them).
+- The hard runs' furnace (D) was not changed directly. If the earlier wood does not lift it, the
+  dusk kit timing is the next lever.
+- Farming needs water within 8 of home. The bot never carries water to make a farm.
