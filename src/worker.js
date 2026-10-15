@@ -8,6 +8,7 @@ import {EventEmitter} from 'node:events';
 import {jobSchema,validateBlueprint} from './schema.js';
 import {installMovementFix,installWeatherFix} from './compat.js';
 import {eatMeal,guardEquip} from './eating.js';
+import {yawToward} from './heading.js';
 import {craftConfirmedRetry as craftConfirmed} from './crafting.js';
 import {survey} from './observe.js';
 import {dayTicks,isNight} from './daytime.js';
@@ -89,6 +90,9 @@ const WORLD_CHAIN='Misc World Survival Chain';
 // unreachable dirt block, cancelled by the soak bell, never sealed).
 const SHELTER_ITEMS=['cobblestone','dirt','cobbled_deepslate','netherrack'];
 export const SHELTER_DIG_MS=45000,SHELTER_SEAL_MS=30000,NIGHT_PILLAR_MS=13*60000;
+// Natural plants that fill a shell cell but are not replaceable: a placement into them is
+// refused, so the seal digs them out first (a dark-forest floor is full of mushrooms).
+export const SHELTER_NOTCH=/^(.*_mushroom|.*_sapling|.*_fungus|.*_roots|dandelion|poppy|blue_orchid|allium|azure_bluet|.*_tulip|oxeye_daisy|cornflower|lily_of_the_valley|wither_rose|torchflower|pink_petals|wildflowers|leaf_litter|sweet_berry_bush|sugar_cane|bush|firefly_bush|short_dry_grass|tall_dry_grass|moss_carpet|cocoa|lily_pad)$/;
 const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message));
 export class Worker extends EventEmitter {
  constructor(root,config){
@@ -909,6 +913,7 @@ export class Worker extends EventEmitter {
   if(!job.shell)job.shell=required.concat(support).filter(c=>at(c.x,c.y,c.z)?.boundingBox!=='block');
   if(!job.placed)job.placed=[];
   this.update(job,0,'Sealing the shelter at '+origin);
+  await this.centreInCell(origin,token);
   try{await this.sealShelter(job,token,origin,Date.now()+SHELTER_SEAL_MS);}
   catch(e){this.check(token);this.shelterFallback(job,e.message);}
   this.save();this.update(job,required.length,'Waiting for morning (sealed)');
@@ -997,15 +1002,25 @@ export class Worker extends EventEmitter {
     if(at(cell.x,cell.y,cell.z)?.boundingBox==='block')continue;
     const occupant=this.cellOccupant(cell);
     if(occupant){if(occupant.type==='hostile')await this.shelterStrike(occupant,token);continue;}
+    // Round 7 hard2: `2 open cells, first at 158,154,-8` - a feet/head pair on one side. A
+    // bot off its cell centre overlaps the neighbour column and the server refuses those
+    // placements: step back to the centre first.
+    if(hitsBot(b.entity.position,cell.x,cell.y,cell.z)&&!(await this.centreInCell(origin,token)))continue;
     await this.placeShelterBlock(job,cell,token);
    }
    if(pass)await sleep(250);
   }
   const left=shellGaps(at,required);
+  if(left.length)this.log('Shelter: open cells '+left.map(c=>c.x+','+c.y+','+c.z+'='+(at(c.x,c.y,c.z)?.name||'unloaded')).join(' ').slice(0,200)+' (bot at '+b.entity.position.x.toFixed(2)+','+b.entity.position.z.toFixed(2)+')');
   if(left.length)throw Error('Could not seal the shelter'+(Date.now()>=deadline?' in '+Math.round(SHELTER_SEAL_MS/1000)+' s':'')+': '+left.length+' open cells, first at '+left[0].x+','+left[0].y+','+left[0].z);
  }
  async placeShelterBlock(job,cell,token){
   const b=this.bot,point=new Vec3(cell.x,cell.y,cell.z);
+  // Dig a notch: a mushroom or flower in the cell refuses the placement.
+  const inCell=b.blockAt(point);
+  if(inCell&&SHELTER_NOTCH.test(inCell.name||'')){
+   try{if(!b.canDigBlock||b.canDigBlock(inCell)){await b.dig(inCell);await sleep(80);}}catch(e){this.check(token);}
+  }
   for(const direction of [new Vec3(0,-1,0),new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1),new Vec3(0,1,0)]){
    const neighbor=b.blockAt(point.minus(direction));
    if(neighbor?.boundingBox!=='block')continue;
@@ -1016,6 +1031,26 @@ export class Worker extends EventEmitter {
    if(b.blockAt(point)?.boundingBox==='block'){job.placed.push({x:cell.x,y:cell.y,z:cell.z});return true;}
   }
   return false;
+ }
+ // Sneak back to the middle of `origin`'s cell (the box's feet and head ring must not
+ // overlap the bot). True when within 0.2 of the centre.
+ async centreInCell(origin,token,ms=1500){
+  const b=this.bot,cx=origin.x+0.5,cz=origin.z+0.5;
+  const off=()=>Math.hypot(b.entity.position.x-cx,b.entity.position.z-cz);
+  if(off()<=0.2)return true;
+  if(typeof b.setControlState!=='function')return false;
+  const end=Date.now()+ms;
+  try{
+   b.setControlState('sneak',true);
+   while(off()>0.12&&Date.now()<end){
+    this.check(token);
+    const p=b.entity.position;
+    try{await b.look(yawToward(cx-p.x,cz-p.z),0,true);}catch{}
+    b.setControlState('forward',true);
+    await sleep(50);
+   }
+  }finally{try{b.setControlState('forward',false);b.setControlState('sneak',false);}catch{}}
+  return off()<=0.2;
  }
  // One swing at a mob inside the box or at a gap: best weapon, full charge, no movement.
  async shelterStrike(entity,token){

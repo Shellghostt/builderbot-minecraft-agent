@@ -196,7 +196,8 @@ export class MobDefenseChain extends SingleTaskChain{
    if(p.stopped)p=this._pillar=p.resumeCopy();
    return p;
   }
-  if(p&&p.failed)this._pillarRetryAt=this.now()+10;
+  // A holding pillar knocked off re-climbs sooner: it is the whole night's refuge.
+  if(p&&p.failed)this._pillarRetryAt=this.now()+(p.hold?3:10);
   this._pillar=null;
   if(this.now()<(this._pillarRetryAt||0))return null;
   const e=bot.entity,w=ctx&&ctx.worker;

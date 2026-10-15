@@ -22,7 +22,7 @@ function makeWorld(fill){
  fill(set);
  const blockAt=(x,y,z)=>{
   const name=cells.get(k(x,y,z))||'air';
-  return {name,position:new Vec3(x,y,z),boundingBox:/^(air|water|lava)$/.test(name)?'empty':'block'};
+  return {name,position:new Vec3(x,y,z),boundingBox:/^(air|water|lava|.*_mushroom|poppy)$/.test(name)?'empty':'block'};
  };
  return {cells,set,blockAt,at:p=>blockAt(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))};
 }
@@ -149,6 +149,10 @@ test('Mob Defense starts the holding pillar once the shelter failed, and the per
  assert.equal(t.resumeCopy().hold,true);
  const crowdPillar=new NightPillarTask(3);crowdPillar.phase='perch';crowdPillar.quietSince=crowdPillar.now()-60;
  assert.equal(crowdPillar.isFinished(bot),true,'the crowd pillar still comes down when quiet');
+ // Round 7: a holding pillar that is knocked off re-climbs after 3 s (a crowd pillar: 10 s).
+ t.failed=true;const now=m2.now();
+ m2.priority(bot,ctx);
+ assert.ok(m2._pillarRetryAt-now<=3.1&&m2._pillarRetryAt-now>=2.9,'hold retry '+(m2._pillarRetryAt-now));
 });
 test('the ladder does not resend a shelter that failed short of blocks; it holds for morning',()=>{
  const root=fs.mkdtempSync(path.join(process.env.TEMP||os.tmpdir(),'shelter-ap-'));
@@ -175,4 +179,55 @@ test('the shell math: flat ground needs 25 (the grass floor is there)',()=>{
  const {w}=shelterWorker(world);
  assert.equal(w.shelterNeed(new Vec3(0,-60,0)),25);
  assert.equal(shellGaps(world.blockAt,shelterShell({x:0,y:-60,z:0}).required).length,25,'the floor is grass already');
+});
+// ---- round 7: the last open cells --------------------------------------------------------
+// hard2: `Could not seal the shelter: 2 open cells, first at 158,154,-8` - a feet/head pair
+// on one side. The server refuses a placement that overlaps the player, and a bot standing
+// off its cell centre overlaps the neighbour column.
+function serverPlace(world,bot,inv,placed){
+ return async(ref,face)=>{
+  const t=ref.position.plus(face),p=bot.entity.position;
+  if(t.x<p.x+0.3&&t.x+1>p.x-0.3&&t.z<p.z+0.3&&t.z+1>p.z-0.3&&t.y<p.y+1.8&&t.y+1>p.y)throw Error('placement inside the player');
+  if(world.blockAt(t.x,t.y,t.z).name!=='air')throw Error('not replaceable: '+world.blockAt(t.x,t.y,t.z).name);
+  const item=inv.find(i=>i.name===bot.heldItem?.name&&i.count>0);
+  world.set(t.x,t.y,t.z,item.name);item.count--;placed.push(k(t.x,t.y,t.z));
+ };
+}
+const morningAfterGuard=w=>{const g=w.guardShelter;w.guardShelter=async function(...a){this.bot.time.timeOfDay=100;return g.apply(this,a);};w.removeShelter=async()=>{};};
+test('round 7: an off-centre bot sneaks back to the middle before sealing, so no ring cell overlaps it',async()=>{
+ const world=flat();
+ const {w,bot,placed,logs,inv}=shelterWorker(world);
+ bot.placeBlock=serverPlace(world,bot,inv,placed);
+ bot.entity.position=new Vec3(0.85,-60,0.5); // overlaps x=1 (feet and head ring cells)
+ const controls=[];
+ bot.look=async yaw=>{bot._yaw=yaw;};
+ bot.setControlState=(n,v)=>{controls.push([n,v]);if(n==='forward'&&v){const p=bot.entity.position;bot.entity.position=new Vec3(p.x-Math.sin(bot._yaw)*0.2,p.y,p.z-Math.cos(bot._yaw)*0.2);}};
+ morningAfterGuard(w);
+ await w.shelter({spec:{type:'shelter'}},0);
+ assert.ok(logs.some(m=>/^Shelter: sealed at .* \(25 blocks placed\)/.test(m)),logs.join('\n'));
+ assert.ok(Math.abs(bot.entity.position.x-0.5)<=0.2,'centred: '+bot.entity.position.x);
+ assert.ok(controls.some(([n,v])=>n==='sneak'&&v)&&controls.at(-1)[1]===false,'sneaked, then released');
+});
+test('round 7: without the centring the same seal leaves exactly the feet/head pair open',async()=>{
+ const world=flat(),c=clock();
+ try{
+  const {w,bot,placed,logs,inv}=shelterWorker(world);
+  bot.placeBlock=serverPlace(world,bot,inv,placed);
+  bot.entity.position=new Vec3(0.85,-60,0.5);
+  w.centreInCell=async()=>{c.spend(1500);return false;};
+  await assert.rejects(w.shelter({spec:{type:'shelter'}},0),/Could not seal the shelter.*2 open cells, first at 1,-60,0/);
+  assert.ok(logs.some(m=>/^Shelter: open cells 1,-60,0=air 1,-59,0=air \(bot at 0\.85,0\.50\)/.test(m)),logs.join('\n'));
+ }finally{c.restore();}
+});
+test('round 7: a mushroom in a ring cell is dug out (a notch), then the cell is filled',async()=>{
+ const world=flat();
+ world.set(-1,-60,1,'brown_mushroom');world.set(1,-60,-1,'poppy');
+ const {w,bot,placed,logs,inv}=shelterWorker(world);
+ bot.placeBlock=serverPlace(world,bot,inv,placed);
+ const dug=[];const dig=bot.dig;bot.dig=async bl=>{dug.push(bl.name);world.set(bl.position.x,bl.position.y,bl.position.z,'air');};
+ morningAfterGuard(w);
+ await w.shelter({spec:{type:'shelter'}},0);
+ assert.deepEqual(dug.sort(),['brown_mushroom','poppy']);
+ assert.ok(logs.some(m=>/^Shelter: sealed/.test(m)));
+ assert.equal(world.blockAt(-1,-60,1).name,'cobblestone');
 });

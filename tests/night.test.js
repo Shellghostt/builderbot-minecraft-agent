@@ -287,11 +287,49 @@ test('NightPillarTask climbs by placing under the feet at the apex, then shields
  bot.entity.position=new Vec3(0.5,-57,0.5);
  t.onTick(bot);
  assert.equal(t.phase,'perch');
- t.onTick(bot);
+ // Round 7: the overhang ring goes down first (4 sides against the top, then 4 corners).
+ for(let i=0;i<12&&!calls.some(c=>c[0]==='shield-up');i++){t.ringAt=-1e9;t.onTick(bot);}
+ assert.equal(calls.filter(c=>c[0]==='place').length,3+8,'column + ring');
+ for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]])assert.equal(world.blockAt(dx,-58,dz).name,'cobblestone',dx+','+dz);
  assert.ok(calls.some(c=>c[0]==='shield-up'),'shield toward the skeleton');
  assert.equal(t.isFinished(bot),false);
  bot.time.timeOfDay=500;
  assert.equal(t.isFinished(bot),true,'morning ends the perch');
+});
+test('round 7: the perched bot keeps its 3x3 deck, sneaks back to the middle, and falls only off the deck',()=>{
+ const world=makeWorld();
+ for(let y=-60;y<=-58;y++)world.set(0,y,0,'cobblestone');
+ const {bot,calls}=nightBot(world,{});
+ const t=new NightPillarTask(3,{hold:true});t.phase='perch';t.base={x:0,y:-60,z:0};
+ bot.entity.position=new Vec3(0.5,-57,0.5);
+ for(let i=0;i<12;i++){t.ringAt=-1e9;t.onTick(bot);}
+ assert.ok(calls.some(c=>c[0]==='control'&&c[1]==='sneak'&&c[2]===true),'sneaking on the deck');
+ assert.equal(world.blockAt(1,-58,1).name,'cobblestone','corners anchor on the sides');
+ // Knocked onto the ring: still perched, walking back to the centre.
+ calls.length=0;bot.entity.position=new Vec3(1.6,-57,0.5);
+ t.onTick(bot);
+ assert.equal(t.failed,false);
+ assert.ok(calls.some(c=>c[0]==='control'&&c[1]==='forward'&&c[2]===true));
+ const look=calls.find(c=>c[0]==='look');assert.ok(Math.abs(look[1]-Math.PI/2)<0.2,'facing -x, back to the middle');
+ // Off the deck (two cells out): knocked off.
+ bot.entity.position=new Vec3(2.5,-57,0.5);
+ t.onTick(bot);
+ assert.equal(t.failed,true);
+});
+test('round 7: a ring cell that refuses three clicks is skipped; the spider at the top is still hit',()=>{
+ const world=makeWorld();
+ for(let y=-60;y<=-58;y++)world.set(0,y,0,'cobblestone');
+ const {bot,calls}=nightBot(world,{hostiles:[{name:'spider',position:[1.2,-57.2,0.5]}]});
+ bot.placeBlock=async(ref,face)=>{calls.push(['place',k(ref.position.x,ref.position.y,ref.position.z)]);};
+ const t=new NightPillarTask(3,{hold:true});t.phase='perch';t.base={x:0,y:-60,z:0};
+ bot.entity.position=new Vec3(0.5,-57,0.5);
+ bot.inventory.items().push({name:'stone_sword',count:1,slot:40});
+ t.onTick(bot);
+ assert.ok(calls.some(c=>c[0]==='equip'&&c[1]==='stone_sword'),'the climber comes first');
+ delete bot.entities[10];
+ for(let i=0;i<40;i++){t.ringAt=-1e9;t._equipAt=-1e9;t.onTick(bot);}
+ assert.equal(calls.filter(c=>c[0]==='place').length,4*3,'4 sides x 3 tries; corners have no anchor');
+ assert.ok(Object.values(t.ringTries).every(n=>n<=3));
 });
 test('the flee heading leaves the crowd, skirts water and never sprints into a lake',()=>{
  const me={x:0.5,y:-60,z:0.5};

@@ -589,6 +589,13 @@ export class ShelterTask extends Task{
 // shield goes up toward archers. Only a mob that reaches the top (a climbing spider) is hit.
 // The climb is the combat pillar's (hold jump, look down, place on the block under the feet
 // at the apex) and gives up after 5 s or when knocked off the column.
+// Round 7 (hard2 knocked off four times, then killed by a spider - spiders climb): once
+// perched the bot lays an overhang ring around the column top - the 4 side cells, then the 4
+// corners, each one block out at the top block's level. A spider climbing any face of the
+// column meets the ring's underside and cannot climb past it; the bot stands on a 3x3 deck
+// (harder to knock off), sneaks back to the middle when pushed, and hits anything that still
+// reaches the top.
+export const RING=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const PILLAR_ITEMS=[/^cobblestone$/,/^cobbled_deepslate$/,/^netherrack$/,/^dirt$/,/_planks$/];
 export const pillarBlocks=bot=>{
  const items=inventoryItems(bot);
@@ -605,11 +612,12 @@ export class NightPillarTask extends Task{
   super('NightPillarTask');this.height=height;this.hold=hold;this.phase='climb';this.base=null;this.t0=null;
   this.clickAt=-1e9;this.clickY=null;this.failed=false;this.quietSince=null;this._shield=false;
   this._lastAttack=-1e9;this._equipAt=-1e9;this.now=()=>Date.now()/1000;
+  this.ringTries={};this.ringAt=-1e9;this.ringLogged=false;
  }
  _log(ctx,m){const c=pickCtx(this,ctx),w=c&&c.worker;if(w&&w.log)try{w.log(m);}catch{}}
  // A runner teardown (a higher band took over for a moment) stops this instance for good:
  // the chain adopts a fresh one that keeps the column, the phase and the quiet clock.
- resumeCopy(){const q=new NightPillarTask(this.height,{hold:this.hold});Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince});return q;}
+ resumeCopy(){const q=new NightPillarTask(this.height,{hold:this.hold});Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince,ringTries:this.ringTries,ringLogged:this.ringLogged});return q;}
  isFinished(bot,ctx){
   if(this.failed)return true;
   if(!darkNow(dayTicks(bot)))return true; // morning: the undead burn
@@ -626,7 +634,8 @@ export class NightPillarTask extends Task{
    this.base={x:Math.floor(e.position.x),y:Math.floor(e.position.y),z:Math.floor(e.position.z)};this.t0=now;
    this._log(ctx,'Night: caught outside in a crowd; pillar-up '+this.height+' at '+this.base.x+','+this.base.y+','+this.base.z);
   }
-  const off=Math.floor(e.position.x)!==this.base.x||Math.floor(e.position.z)!==this.base.z;
+  const cx=Math.floor(e.position.x)-this.base.x,cz=Math.floor(e.position.z)-this.base.z;
+  const off=cx!==0||cz!==0;
   if(this.phase==='climb'){
    const top=this._top(bot);
    if(top>=this.height&&e.position.y>=this.base.y+this.height-0.01){
@@ -655,9 +664,12 @@ export class NightPillarTask extends Task{
    }
    return null;
   }
-  // perch
-  if(off||e.position.y<this.base.y+this.height-0.5){this.failed=true;this._log(ctx,'Night: knocked off the pillar');return null;}
-  forget(bot,'forward','back','left','right','sprint','jump');
+  // perch: the 3x3 deck (column top plus the ring) is still the perch
+  const top=this.base.y+this.height-1;
+  const deck=!off||(Math.abs(cx)<=1&&Math.abs(cz)<=1&&solidAt(bot,this.base.x+cx,top,this.base.z+cz));
+  if(!deck||e.position.y<this.base.y+this.height-0.5){this.failed=true;forget(bot,'forward','sneak');this._log(ctx,'Night: knocked off the pillar');return null;}
+  forget(bot,'back','left','right','sprint','jump');
+  setControl(bot,'sneak',true); // never walk off the edge
   const hostiles=getHostiles(bot,ctx).filter(h=>withinRange(h,bot,16)).sort((a,b)=>distanceTo(a,bot)-distanceTo(b,bot));
   if(!hostiles.length){if(this.quietSince==null)this.quietSince=now;}else this.quietSince=null;
   // Something on top with us (a spider climbs): hit it with the best weapon.
@@ -666,10 +678,21 @@ export class NightPillarTask extends Task{
    this._lower(bot);
    const weapon=bestWeapon(bot,{allowPickaxe:true});
    if(weapon&&(!bot.heldItem||bot.heldItem.name!==weapon.name)){if(now-this._equipAt>=0.5){this._equipAt=now;equipSafe(bot,weapon,'hand');}return null;}
+   forget(bot,'forward');
    lookAtEntity(bot,climber);
    if(now-this._lastAttack>=attackCooldown(weapon&&weapon.name)){this._lastAttack=now;const a=bot.attack(climber);a&&a.catch&&a.catch(()=>{});}
    return null;
   }
+  // Pushed onto the ring: sneak back to the middle of the deck.
+  if(off){
+   this._lower(bot);
+   const dx=this.base.x+0.5-e.position.x,dz=this.base.z+0.5-e.position.z;
+   try{const p=bot.look(yawToward(dx,dz),0,true);p&&p.catch&&p.catch(()=>{});}catch{}
+   setControl(bot,'forward',true);
+   return null;
+  }
+  forget(bot,'forward');
+  if(this._ring(bot,ctx,now))return null;
   const archer=hostiles.find(h=>/^(skeleton|stray|bogged|pillager)$/.test(h.name||''));
   const shield=bot.inventory&&bot.inventory.slots&&bot.inventory.slots[45]&&bot.inventory.slots[45].name==='shield';
   if(archer&&shield){
@@ -678,10 +701,38 @@ export class NightPillarTask extends Task{
   }else this._lower(bot);
   return null;
  }
+ // One ring placement per 0.3 s, against the column top (sides) or a placed side (corners);
+ // a cell that refuses three clicks is skipped. True while a click is in flight.
+ _ring(bot,ctx,now){
+  const y=this.base.y+this.height-1;
+  let open=0,placed=0;
+  for(const [dx,dz] of RING){
+   const x=this.base.x+dx,z=this.base.z+dz,key=dx+','+dz;
+   if(solidAt(bot,x,y,z)){placed++;continue;}
+   if((this.ringTries[key]||0)>=3)continue;
+   open++;
+   if(now-this.ringAt<0.3)return true;
+   const refs=dx&&dz?[[x-dx,z],[x,z-dz]]:[[this.base.x,this.base.z]];
+   const ref=refs.map(([rx,rz])=>bot.blockAt&&bot.blockAt(new Vec3(rx,y,rz))).find(b=>b&&b.boundingBox==='block');
+   if(!ref)continue;
+   const blocks=pillarBlocks(bot);
+   if(!blocks)return false;
+   if(!bot.heldItem||!PILLAR_ITEMS.some(re=>re.test(bot.heldItem.name))){
+    if(now-this._equipAt>=0.5){this._equipAt=now;equipSafe(bot,blocks.item,'hand');}
+    return true;
+   }
+   this.ringAt=now;this.ringTries[key]=(this.ringTries[key]||0)+1;
+   try{const p=bot.placeBlock(ref,new Vec3(x-ref.position.x,0,z-ref.position.z));p&&p.catch&&p.catch(()=>{});}catch{}
+   return true;
+  }
+  if(!open&&!this.ringLogged){this.ringLogged=true;this._log(ctx,'Night: overhang ring '+placed+'/'+RING.length+' around the pillar top (spiders cannot climb past it)');}
+  return false;
+ }
  _lower(bot){if(!this._shield)return;this._shield=false;try{const p=bot.deactivateItem();p&&p.catch&&p.catch(()=>{});}catch{}}
- onStop(bot){forget(bot,'jump','forward','sprint');this._lower(bot);}
+ onStop(bot){forget(bot,'jump','forward','sprint','sneak');this._lower(bot);}
  isEqual(o){return o===this;}
 }
+const solidAt=(bot,x,y,z)=>{const b=bot.blockAt&&bot.blockAt(new Vec3(x,y,z));return !!b&&b.boundingBox==='block';};
 const lookAtEntity=(bot,e)=>{
  const me=bot.entity.position,dx=e.position.x-me.x,dz=e.position.z-me.z,dy=(e.position.y+(e.height||1.8)*0.8)-(me.y+1.62);
  try{const p=bot.look(yawToward(dx,dz),Math.atan2(dy,Math.hypot(dx,dz)),true);p&&p.catch&&p.catch(()=>{});}catch{}
