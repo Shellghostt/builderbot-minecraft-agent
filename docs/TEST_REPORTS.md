@@ -431,3 +431,36 @@ No second soak.
 `4_creeper` (lane): ttk 7.2 s, hits 5, `damage_taken=0`, end health 20, killed, no crater at the spawn, the midpoint, or the bot start.
 
 `4b_creeper_roofed`: ttk 8.4 s, hits 4, `damage_taken=0`, end health 20, killed, no crater. Both creepers stayed at 0 damage.
+
+## 2026-10-15 18:49–20:57 IST — dual soak (`ab6c239`, bot code `72e5329`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 7672 s. `SOAK DONE (clean)`, promoted to `data/soak-results.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [142, 131, 31], normal [310, 131, 30]. No iron pickaxe, no torches, no worn armour, no bed, and no diamond step on any run. Deaths are 0 on every run, and counter, window, and log all agree.
+
+| Run | Food verdict | Iron pick | Torches | Armour worn | Bed | Diamonds | Night |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | `bar 16..20: EAT FAILED: never attempted (due 2, failed 0, food min 16)` | — | 0 | 0 | — | 0 | day at the bell |
+| normal2a2 | `bar 5..20: no food held (food min 5)` | — | 0 | 0 | — | 0 | day |
+| normal3a3 | `bar 6..20: no food held (food min 6)` | — | 0 | 0 | — | 0 | day |
+| hard1a1 | `bar 20..20: not hungry enough (food min 20)` | — | 0 | 0 | — | 0 | shelter, stayed sealed |
+| hard2a2 | `bar 20..20: not hungry enough (food min 20)` | — | 0 | 0 | — | 0 | pillar, perched at the bell |
+| hard3a3 | `bar 20..20: not hungry enough (food min 20)` | — | 0 | 0 | — | 0 | shelter, still sealed at the bell |
+
+Stone pickaxes: normal1 211 s, normal2 180 s, normal3 271 s, hard1 391 s, hard3 180 s. hard2 never made one. Furnaces: normal1 301 s, normal2 271 s, hard1 482 s, hard3 542 s. normal3 and hard2 never made one. Eaten is 0 on every run.
+
+### Food
+
+The bot did not eat at a bar of 14. The sampled bar on normal1 never went below 16, and the verdict says the two due meals were never attempted. The dashboard did log `Food: ate cooked_porkchop (bar 20)` twice, at 13:33Z and 13:38Z, while the bar the soak recorded was already 16–20. normal2 and normal3 dropped to 5 and 6 with nothing held. No `Food: meal failed` line and no deferred reason in the log.
+
+### Creepers and crafts
+
+No creeper interrupted a craft. No `blown up by Creeper`, no `Runner: closed the open crafting window`, and no `Reflex: creeper ... overrides`. One craft, at 15:12Z, was paused by the world-survival chain, not by Mob Defense.
+
+### Night
+
+No bed and no `[night] sleep`.
+
+- hard1, 14:33Z: a night pillar started, then the shelter sealed 16 s later at (132, 144, -4), 22 blocks. `Shelter: dawn (tod 15); staying sealed` at 14:43Z, which is the end of the run. No morning opening.
+- hard2 never gathered a log. At 14:55Z: `Short of shelter blocks: 10 held, 14 needed at (140, 128, 31); night pillar instead`. The pillar then failed `timed out at 0/3` about every 3 s until 15:04Z, when it perched and placed `overhang ring 8/8`. The run ended on that perch. It did not reach morning.
+- hard3, 15:16Z: sealed in 9 s at (134, 124, 31), 11 blocks. Dawn hold at 15:26Z (tod 2) was still up when the bell ended the run.
+
+No second soak.
