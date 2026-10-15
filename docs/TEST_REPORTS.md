@@ -472,3 +472,11 @@ No second soak.
 `python -u tests/integration.py`, model off. Exit 0, 1068 s. `All in-game integration tests passed`.
 
 `Reflex paused the gather: Reflex: preempted by Mob Defense`. `PASS: A4 escaped the lava trench (hp 19.8, at [1652, -59, 1650])`. Eat at health 9 raised food from 2 to 14. Sleep used the bed until morning.
+
+## 2026-10-15 21:45–21:50 IST — combat (`b705b8f`, bot code `649790b`)
+
+`python -u tests/combat_integration.py`, model off, same services. Exit 0, 306 s. `All combat acceptance tests passed`. No second run.
+
+`4_creeper` (lane): ttk 7.4 s, hits 5, `damage_taken=0`, end health 20, killed, no crater at the spawn, the midpoint, or the bot start.
+
+`4b_creeper_roofed`: ttk 5.2 s, hits 2, `damage_taken=0`, end health 20, killed, no crater. Both creepers stayed at 0 damage.
