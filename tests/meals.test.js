@@ -52,3 +52,38 @@ test('smelting food counts as cooked; smelting iron does not',async()=>{
   assert.equal(w.meals.cooked,food?2:0,item);
  }
 });
+// Round 6: eaten 0 on every round-5 run. FoodChain now counts each episode a meal was due
+// (food held, needsToEat) and each failed eat, so the soak can tell a full bar from a broken
+// eat path.
+import {FoodChain} from '../src/chains/foodChain.js';
+function chainBot(food,{equipThrows=false}={}){
+ const items=[{name:'cooked_beef',count:8,slot:36}];
+ const bot={entity:{position:{x:0,y:0,z:0},metadata:[0]},health:20,food,foodSaturation:0,
+  inventory:{items:()=>items},registry:{foodsByName:{cooked_beef:{foodPoints:8,saturation:12.8}}},
+  equip:async()=>{if(equipThrows)throw Error('equip refused');},consume:async()=>{bot.food=Math.min(20,bot.food+8);}};
+ return bot;
+}
+const settle=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
+test('FoodChain: a full-ish bar is no meal due; at 12 (beef fits) one episode is due and eaten',async()=>{
+ const meals={eaten:0,due:0,failed:0};
+ const chain=new FoodChain(),ctx={worker:{meals}};
+ const bot=chainBot(13);
+ for(let i=0;i<5;i++)chain.priority(bot,ctx);
+ assert.equal(meals.due,0,'13 with beef (8) held: nothing due - eaten 0 means never hungry');
+ bot.food=12;
+ for(let i=0;i<5;i++)chain.priority(bot,ctx); // repeated ticks of one episode count once
+ assert.equal(meals.due,1);
+ await settle();
+ assert.equal(bot.food,20,'the chain ate');
+ chain.priority(bot,ctx);
+ assert.equal(meals.failed,0);
+});
+test('FoodChain: a failing eat is counted with its reason',async()=>{
+ const meals={eaten:0,due:0,failed:0};
+ const chain=new FoodChain(),ctx={worker:{meals}};
+ const bot=chainBot(9,{equipThrows:true});
+ chain.priority(bot,ctx);await settle();
+ assert.equal(meals.due,1);
+ assert.equal(meals.failed,1);
+ assert.equal(meals.lastError,'equip refused');
+});

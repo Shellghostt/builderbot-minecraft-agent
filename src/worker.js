@@ -93,7 +93,7 @@ export class Worker extends EventEmitter {
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
   this.reflexEnabled=config.reflexes!==false;this.reflexBusy=false;this.reflexStopping=false;this.userStopped=false;this.deathResume=false;this.eating=false;
   this.runSettled=null;this.controlToken=null;this.lastDeath=null;this.combat=combat; // reflex-side ownership token (see reflexes.js)
-  this.meals={eaten:0,points:0,cooked:0,items:{}}; // food accounting for the soak (trackMeals, smelt)
+  this.meals={eaten:0,points:0,cooked:0,items:{},due:0,failed:0,lastError:null}; // food accounting for the soak (trackMeals, smelt, FoodChain due/failed)
   this.autopilot=new Autopilot(this,root);
   this.loopWatch=createLoopWatch({log:m=>this.log(m)}); // LOOP_SLOW / LOOP_STALL lines (round 5)
   // Phase 7A: the AltoClef task runner owns survival behaviour (mob defense, food, world

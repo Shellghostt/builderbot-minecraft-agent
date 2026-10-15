@@ -134,7 +134,29 @@ def meals_delta(state,run):
     if now.get('eaten',0)<mark.get('eaten',0):mark={}
     items={k:v-(mark.get('items') or {}).get(k,0) for k,v in (now.get('items') or {}).items()}
     return {'eaten':now.get('eaten',0)-mark.get('eaten',0),'points':now.get('points',0)-mark.get('points',0),
-            'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0}}
+            'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0},
+            'due':max(0,now.get('due',0)-mark.get('due',0)),'failed':max(0,now.get('failed',0)-mark.get('failed',0)),
+            'last_error':now.get('lastError') if now.get('failed',0)>mark.get('failed',0) else None}
+# FoodChain (AltoClef defaults) always eats at food <= 10; at 11..14 only when the best food
+# held fills the bar exactly (cooked beef at 12), and below 14 health at any food < 20.
+FOOD_EAT_AT=10
+def food_level(samples):
+    # Round 6: 'eaten 0' on all six round-5 runs could mean a broken eat path or a bar that
+    # never got low in 20 min. The samples' food bar (and saturation) says which.
+    food=[s['food'] for s in samples if isinstance(s.get('food'),(int,float))]
+    sat=[s['sat'] for s in samples if isinstance(s.get('sat'),(int,float))]
+    return {'food_min':min(food) if food else None,'food_max':max(food) if food else None,'sat_min':min(sat) if sat else None}
+def food_verdict(run):
+    # ate | never hungry (no meal was due) | no food held | EAT FAILED (a meal was due, food
+    # was held, nothing was eaten). Due comes from the bot itself: a dip to 12 and the meal
+    # that answers it fit between two 30 s samples.
+    meals=run.get('meals') or {};lv=run.get('food_level') or {}
+    if meals.get('eaten',0)>0:return 'ate'
+    low=lv.get('food_min')
+    if meals.get('due',0)==0 and meals.get('failed',0)==0:
+        if low is None or low>FOOD_EAT_AT:return 'never hungry (food min '+str(low)+')'
+        if not run.get('edible_peak'):return 'no food held (food min '+str(low)+')'
+    return 'EAT FAILED (due '+str(meals.get('due',0))+', failed '+str(meals.get('failed',0))+(', '+meals['last_error'] if meals.get('last_error') else '')+', food min '+str(low)+')'
 # Deaths (round 5): the run count is the max of three independent sources, so no single
 # blind spot can hide one - round 4 recorded 1 death where the server log has 4:
 # - the bot's own counter (state['deaths'], +1 per mineflayer 'death' event, session-wide);
@@ -318,6 +340,7 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
             deaths=max(deaths,new_deaths);run['deaths']=deaths
             ap=o['autopilot']
             sample={'t':round(time.time()-start),'pos':[round(o['position'][k],1) for k in ('x','y','z')],'hp':round(o['health'],1),'food':o['food'],
+                    'sat':None if o.get('saturation') is None else round(o['saturation'],1),
                     'step':ap.get('step'),'apstate':ap.get('state'),
                     'logs':sum(v for k,v in inv.items() if k.endswith('_log')),
                     'planks':sum(v for k,v in inv.items() if k.endswith('_planks')),
@@ -420,6 +443,8 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
         meals=run['meals']=meals_delta(state,run)
         run['food']=peak_food>=1 or run['achieved']['edible_food']>=1 or meals['eaten']>=1 or meals['cooked']>=1
         run['edible_peak']=peak_food
+        run['food_level']=food_level(run['samples'])
+        run['food_verdict']=food_verdict(run)
         run['tod_end']=o.get('timeOfDay')
         run['final_state']=o['autopilot']
         events=' | '.join(e['message'] for e in state['events'][:100])
@@ -445,7 +470,8 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
         time.sleep(2)
     except Exception as e:run['errors'].append('end cancel: '+str(e)[:120])
     print(f"--- run {index}: wood={'YES' if run.get('wood') else 'no'} stone={'YES' if run.get('stone') else 'no'} "
-          f"food={'YES' if run.get('food') else 'no'} (peak {run.get('edible_peak',0)}, eaten {(run.get('meals') or {}).get('eaten',0)}, cooked {(run.get('meals') or {}).get('cooked',0)}) "
+          f"food={'YES' if run.get('food') else 'no'} (peak {run.get('edible_peak',0)}, eaten {(run.get('meals') or {}).get('eaten',0)}, cooked {(run.get('meals') or {}).get('cooked',0)}, "
+          f"bar {(run.get('food_level') or {}).get('food_min')}..{(run.get('food_level') or {}).get('food_max')}: {run.get('food_verdict')}) "
           f"iron={'YES' if run.get('iron') else 'no'} (ore {run.get('iron_ore_peak',0)}, ingots {run.get('ingots_peak',0)}, pick at {run.get('iron_pick_at')}) "
           f"deaths={run['deaths']} resumes={run['resumes']} interventions={len(run['interventions'])} errors={len(run['errors'])}",flush=True)
     return run
@@ -465,6 +491,9 @@ def summarise(runs):
             'edible_peak':[r.get('edible_peak',0) for r in runs],'edible_end':[(r.get('achieved') or {}).get('edible_food',0) for r in runs],
             'eaten':[(r.get('meals') or {}).get('eaten',0) for r in runs],'food_points':[(r.get('meals') or {}).get('points',0) for r in runs],
             'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],
+            'food_due':[(r.get('meals') or {}).get('due',0) for r in runs],'food_failed':[(r.get('meals') or {}).get('failed',0) for r in runs],
+            'food_min':[(r.get('food_level') or {}).get('food_min') for r in runs],'food_max':[(r.get('food_level') or {}).get('food_max') for r in runs],
+            'food_verdict':[r.get('food_verdict') for r in runs],
             'tod_end':[r.get('tod_end') for r in runs],
             'wood_at':[r.get('wood_at') for r in runs],'stone_at':[r.get('stone_at') for r in runs],
             'deaths':sum((r.get('deaths') or 0) for r in runs),'resumes':sum((r.get('resumes') or 0) for r in runs),

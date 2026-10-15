@@ -35,9 +35,14 @@ export class FoodChain extends SingleTaskChain{
   const hasFood=total>0;
   if(this._requestFillup&&(bot.food|0)>=20)this._requestFillup=false;
   if(!hasFood)this._requestFillup=false;
-  if(hasFood&&(this.needsToEat(bot,cfg.food)||this._requestFillup)&&best){
-   this.startEat(bot,best);
-  }else this.stopEat();
+  const want=hasFood&&(this.needsToEat(bot,cfg.food)||this._requestFillup)&&!!best;
+  // Soak accounting (round 6): 'due' counts each episode a meal was wanted with food held,
+  // so 'eaten 0' reads as never hungry (due 0) or a broken eat path (due > 0, failed > 0).
+  const meals=ctx&&ctx.worker&&ctx.worker.meals;
+  if(want&&!this._wanted&&meals)meals.due=(meals.due||0)+1;
+  this._wanted=want;this._meals=meals||null;
+  if(want)this.startEat(bot,best);
+  else this.stopEat();
   if(this._needsFood||total<cfg.minimumFoodAllowed){
    this._needsFood=total<cfg.foodUnitsToCollect;
    if(total<cfg.foodUnitsToCollect){
@@ -84,10 +89,10 @@ export class FoodChain extends SingleTaskChain{
    // shelter at 8.3 hp). Equip the real stack.
    try{
     const real=inventoryItems(bot).find(i=>i.name===food.name);
-    if(!real)return;
+    if(!real)throw Error('no '+food.name+' stack in the inventory');
     await bot.equip(real,'hand');await bot.consume();
    }
-   catch{}
+   catch(e){const m=this._meals;if(m){m.failed=(m.failed||0)+1;m.lastError=String(e&&e.message||e).slice(0,120);}}
    finally{this._eating=false;}
   })();
  }
