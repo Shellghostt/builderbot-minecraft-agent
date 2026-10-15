@@ -4,11 +4,11 @@ spec=importlib.util.spec_from_file_location('soak',str(pathlib.Path(__file__).re
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 run={'meals_mark':{'eaten':2,'points':10,'cooked':3,'items':{'cooked_beef':2}}}
 d=m.meals_delta({'meals':{'eaten':5,'points':22,'cooked':7,'items':{'cooked_beef':3,'cooked_chicken':2}}},run)
-assert d=={'eaten':3,'points':12,'cooked':4,'items':{'cooked_beef':1,'cooked_chicken':2},'due':0,'failed':0,'no_food':0,'last_error':None},d
+assert d=={'eaten':3,'points':12,'cooked':4,'items':{'cooked_beef':1,'cooked_chicken':2},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'last_error':None,'last_deferred':None},d
 d=m.meals_delta({'meals':{'eaten':1,'points':6,'cooked':0,'items':{'bread':1}}},run) # dashboard restarted
 assert d['eaten']==1 and d['points']==6 and d['cooked']==0,d
 d=m.meals_delta({},{} )
-assert d=={'eaten':0,'points':0,'cooked':0,'items':{},'due':0,'failed':0,'no_food':0,'last_error':None},d
+assert d=={'eaten':0,'points':0,'cooked':0,'items':{},'due':0,'failed':0,'no_food':0,'attempts':0,'deferred':0,'last_error':None,'last_deferred':None},d
 # Round 6: due/failed (FoodChain) say whether 'eaten 0' is a full bar or a broken eat path.
 d=m.meals_delta({'meals':{'eaten':0,'due':3,'failed':2,'lastError':'consume timed out'}},{'meals_mark':{'due':1,'failed':0}})
 assert d['due']==2 and d['failed']==2 and d['last_error']=='consume timed out',d
@@ -16,31 +16,42 @@ assert m.meals_delta({'meals':{'failed':1,'lastError':'old'}},{'meals_mark':{'fa
 lv=m.food_level([{'food':20,'sat':5.0},{'food':13,'sat':0.0},{'food':17},{'hp':20}])
 assert lv=={'food_min':13,'food_max':20,'sat_min':0.0,'food_min_held':None},lv
 assert m.food_level([])=={'food_min':None,'food_max':None,'sat_min':None,'food_min_held':None}
-lv={'food_min':13,'food_max':20,'sat_min':0.0}
-assert m.food_verdict({'meals':{'eaten':1},'food_level':lv})=='ate'
-assert m.food_verdict({'meals':{'eaten':0,'due':0},'food_level':lv,'edible_peak':8})=='never hungry (food min 13)'
-v=m.food_verdict({'meals':{'eaten':0,'due':2,'failed':2,'last_error':'no cooked_beef stack in the inventory'},'food_level':{'food_min':9},'edible_peak':8})
-assert v.startswith('EAT FAILED (due 2, failed 2, no cooked_beef stack'),v
+lv={'food_min':15,'food_max':20,'sat_min':0.0}
+assert m.food_verdict({'meals':{'eaten':1},'food_level':lv})=='ate 1'
+assert m.food_verdict({'meals':{'eaten':0,'due':0},'food_level':lv,'edible_peak':8})=='not hungry enough (food min 15)'
+# Round 8: the eat threshold is 14 - a bar of 13 with food held and nothing due is the chain never asking.
+assert m.FOOD_EAT_AT==14
+assert m.food_verdict({'meals':{'eaten':0,'due':0},'food_level':{'food_min':13},'edible_peak':8}).startswith('EAT FAILED: never attempted')
+v=m.food_verdict({'meals':{'eaten':0,'due':2,'failed':2,'attempts':2,'last_error':'no cooked_beef stack in the inventory'},'food_level':{'food_min':9},'edible_peak':8})
+assert v.startswith('attempted and failed: no cooked_beef stack'),v
 assert m.food_verdict({'meals':{'eaten':0},'food_level':{'food_min':6},'edible_peak':0})=='no food held (food min 6)'
-assert m.food_verdict({'meals':{'eaten':0},'food_level':{'food_min':8},'edible_peak':7}).startswith('EAT FAILED'),'hungry, food held, never due: the chain never asked'
+assert m.food_verdict({'meals':{'eaten':0},'food_level':{'food_min':8},'edible_peak':7}).startswith('EAT FAILED: never attempted'),'hungry, food held, never due: the chain never asked'
 # Round 7: normal2 fell to 5 with `due 1, failed 0` and no food held at the low (cooked 0).
 lv7=m.food_level([{'food':16,'food_items':2},{'food':9,'food_items':0},{'food':5,'food_items':0}])
 assert lv7['food_min']==5 and lv7['food_min_held']==16,lv7
 assert m.food_verdict({'meals':{'eaten':0,'due':1,'failed':0},'food_level':lv7,'edible_peak':2})=='no food held (food min 5)'
 assert m.food_verdict({'meals':{'eaten':0,'due':1,'failed':0,'no_food':1},'food_level':{'food_min':5},'edible_peak':2})=='no food held (food min 5)'
 assert m.meals_delta({'meals':{'noFood':3}},{'meals_mark':{'noFood':1}})['no_food']==2
-# food held at the low and the meal failed: still EAT FAILED with the reason
+# food held at the low and the meal failed: attempted and failed, with the reason
 lv8=m.food_level([{'food':8,'food_items':4}])
 v=m.food_verdict({'meals':{'eaten':0,'due':3,'failed':4,'last_error':'Promise timed out. (2 tries)'},'food_level':lv8,'edible_peak':4})
-assert v.startswith('EAT FAILED (due 3, failed 4, Promise timed out.'),v
+assert v.startswith('attempted and failed: Promise timed out. (2 tries) (due 3, failed 4'),v
 v=m.food_verdict({'meals':{'eaten':0,'due':3,'failed':4,'last_error':'x'},'food_level':{'food_min':15},'edible_peak':4})
-assert v.startswith('EAT FAILED'),'a failed meal is never "never hungry"'
-assert m.food_verdict({'meals':{'eaten':2,'failed':1,'last_error':'x'},'food_level':lv8})=='ate (1 failed: x)'
+assert v.startswith('attempted and failed'),'a failed meal is never "not hungry enough"'
+assert m.food_verdict({'meals':{'eaten':2,'failed':1,'last_error':'x'},'food_level':lv8})=='ate 2 (1 failed: x)'
+# Round 7's live line: bar 14, due 1, failed 0, food held -> never attempted, with the deferral reason when there is one.
+v=m.food_verdict({'meals':{'eaten':0,'due':1,'failed':0,'attempts':0},'food_level':{'food_min':14,'food_min_held':14},'edible_peak':9})
+assert v=='EAT FAILED: never attempted (due 1, failed 0, food min 14)',v
+v=m.food_verdict({'meals':{'eaten':0,'due':1,'failed':0,'attempts':0,'last_deferred':'a window is open'},'food_level':{'food_min':16},'edible_peak':9})
+assert v=='EAT FAILED: never attempted (last deferred: a window is open) (due 1, failed 0, food min 16)',v
+d=m.meals_delta({'meals':{'attempts':4,'deferred':3,'lastDeferred':'mid-fight (Mob Defense active)'}},{'meals_mark':{'attempts':1,'deferred':3}})
+assert d['attempts']==3 and d['deferred']==0 and d['last_deferred'] is None,d
 runs=[{'food':True,'meals':{'eaten':2,'points':12,'cooked':3},'edible_peak':4,'achieved':{'edible_food':1},'interventions':[]},{'interventions':[]}]
-runs[0]['meals'].update(due=2,failed=0);runs[0]['food_level']={'food_min':10,'food_max':20};runs[0]['food_verdict']='ate'
+runs[0]['meals'].update(due=2,failed=0);runs[0]['food_level']={'food_min':10,'food_max':20};runs[0]['food_verdict']='ate 2'
 sm=m.summarise(runs)
 assert sm['food_runs']==1 and sm['eaten']==[2,0] and sm['cooked']==[3,0] and sm['food_points']==[12,0],sm
-assert sm['food_due']==[2,0] and sm['food_failed']==[0,0] and sm['food_min']==[10,None] and sm['food_max']==[20,None] and sm['food_verdict']==['ate',None],sm
+assert sm['food_due']==[2,0] and sm['food_failed']==[0,0] and sm['food_min']==[10,None] and sm['food_max']==[20,None] and sm['food_verdict']==['ate 2',None],sm
+assert sm['food_attempts']==[0,0] and sm['food_deferred']==[0,0],sm
 # Iron columns (round 3): normal runs are long enough to reach the iron step now.
 assert m.NORMAL_SECONDS==1200 and m.HARD_SECONDS==1250
 assert m.iron_sample({'raw_iron':4,'iron_ingot':2,'iron_pickaxe':1})=={'iron_ore':4,'ingots':2,'iron_pick':1}

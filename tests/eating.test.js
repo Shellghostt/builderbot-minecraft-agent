@@ -79,3 +79,117 @@ test('FoodChain: a failed meal backs off before the next try; no-food hunger is 
  for(let i=0;i<5;i++)chain.priority(b,ctx);
  assert.equal(meals.noFood,1);
 });
+// Round 8: all three normal runs read `bar 14..20: EAT FAILED (due 1, failed 0)` with 8-10
+// cooked food held - a meal became due and was never attempted. FoodChain ate only at 10
+// (AltoClef), and one wedged equip (mineflayer's crafting-window click waits for the result
+// slot with no timeout) held `_eating` for the rest of the session.
+const cooked={cooked_beef:{foodPoints:8,saturation:12.8}};
+function chainBot(food,o={}){
+ const b=bot({food,consume:async b=>{b.food=Math.min(20,b.food+8);b.items[0].count--;},...o});
+ Object.assign(b,{entity:{position:{x:0,y:0,z:0},metadata:[0]},registry:{foodsByName:cooked}});
+ return b;
+}
+const fresh=()=>({eaten:0,due:0,attempts:0,failed:0,deferred:0});
+const waitFor=async(fn,ms=2000)=>{for(const end=Date.now()+ms;!fn()&&Date.now()<end;)await sleep(10);};
+test('FoodChain eats at a bar of 14 with food held, not only at 10',async()=>{
+ const meals=fresh(),logs=[];
+ const chain=new FoodChain(),ctx={worker:{meals,log:m=>logs.push(m)}};
+ const b=chainBot(15);
+ chain.priority(b,ctx);await sleep(20);
+ assert.equal(b.consumes,0,'15: not hungry enough');assert.equal(meals.due,0);
+ b.food=14;chain.priority(b,ctx);
+ await waitFor(()=>b.consumes>0&&!chain._eating);
+ assert.equal(meals.due,1);assert.equal(meals.attempts,1);assert.equal(b.food,20);
+ assert.ok(logs.some(l=>/^Food: ate cooked_beef/.test(l)),logs.join('|'));
+});
+test('FoodChain defers a meal while a window is open or Mob Defense is active, and records why',async()=>{
+ const meals=fresh();
+ const md={_cachedLastPriority:-1,_cachedAt:Date.now(),isActive(){return this._cachedLastPriority>=0&&Date.now()-this._cachedAt<1000;}};
+ const chain=new FoodChain({mobDefense:md}),ctx={worker:{meals}};
+ const b=chainBot(12);
+ b.currentWindow={type:'minecraft:crafting'};
+ for(let i=0;i<5;i++)chain.priority(b,ctx);
+ await sleep(20);
+ assert.equal(b.consumes,0,'no meal with the crafting window open');
+ assert.equal(meals.due,1);assert.equal(meals.attempts,0);
+ assert.equal(meals.deferred,1,'one deferral per episode, not per tick');assert.equal(meals.lastDeferred,'a window is open');
+ b.currentWindow=null;md._cachedLastPriority=65;md._cachedAt=Date.now();
+ chain.priority(b,ctx);await sleep(20);
+ assert.equal(b.consumes,0,'no meal mid-fight');
+ assert.equal(meals.deferred,2);assert.match(meals.lastDeferred,/mid-fight/);
+ // a stale cache (the worker gate skipped Mob Defense) is not a fight
+ md._cachedAt=Date.now()-5000;
+ chain.priority(b,ctx);
+ await waitFor(()=>b.consumes>0&&!chain._eating);
+ assert.equal(meals.attempts,1);assert.equal(b.food,20);
+});
+test('FoodChain: a fight job defers the meal unless it is critical; the eat job keeps it',async()=>{
+ const meals=fresh();
+ const jobs=[{status:'running',spec:{type:'fight'}}];
+ const chain=new FoodChain(),ctx={worker:{meals,jobs}};
+ const b=chainBot(12);
+ chain.priority(b,ctx);await sleep(20);
+ assert.equal(b.consumes,0);assert.match(meals.lastDeferred,/fight job/);
+ jobs[0].spec.type='eat';chain.priority(b,ctx);await sleep(20);
+ assert.equal(b.consumes,0);assert.equal(meals.lastDeferred,'the eat job is eating');
+ // critical (AltoClef needsToEatCritical: armour 15+ and food < 3): eats through the fight
+ jobs[0].spec.type='fight';b.food=2;
+ chain.needsToEatCritical=()=>true;
+ chain.priority(b,ctx);
+ await waitFor(()=>b.consumes>0&&!chain._eating);
+ assert.equal(meals.attempts,1);
+});
+test('FoodChain: a meal that never settles is abandoned by the watchdog and the next one runs',async()=>{
+ const meals=fresh(),w={meals,eating:false};
+ const chain=new FoodChain(),ctx={worker:w};
+ chain.watchdogMs=150;chain.mealOpts={equipMs:5000,settleMs:30};
+ const b=chainBot(12);
+ let hang=true;b.equip=async()=>{if(hang)await new Promise(()=>{});};
+ chain.priority(b,ctx);
+ await waitFor(()=>meals.failed>0,1000);
+ assert.equal(meals.failed,1);assert.match(meals.lastError,/^meal stuck/);
+ assert.equal(chain._eating,false,'the flag is released');assert.equal(w.eating,false);
+ hang=false;chain._retryAt=Date.now()-1;
+ chain.priority(b,ctx);
+ await waitFor(()=>b.consumes>0&&!chain._eating);
+ assert.equal(meals.attempts,2);assert.equal(b.food,20);
+});
+test('eatMeal: an equip that hangs throws like a refused one; an open window waits, then refuses',async()=>{
+ const b=bot({consume:async b=>{b.food=16;}});
+ b.equip=()=>new Promise(()=>{});
+ await assert.rejects(eatMeal(b,'cooked_beef',{equipMs:40,settleMs:20}),/equip timed out/);
+ assert.equal(b.consumes,0);
+ const c=bot({consume:async b=>{b.food=16;}});
+ c.currentWindow={type:'minecraft:crafting'};
+ assert.equal((await eatMeal(c,'cooked_beef',{windowMs:40})).reason,'a window is open');
+ assert.equal(c.consumes,0);
+ setTimeout(()=>{c.currentWindow=null;},20);
+ assert.equal((await eatMeal(c,'cooked_beef',{windowMs:500,settleMs:50})).ok,true,'a window that closes in time is fine');
+});
+test('FoodChain never eats in bed',async()=>{
+ const meals=fresh();
+ const chain=new FoodChain(),ctx={worker:{meals}};
+ const b=chainBot(9);b.isSleeping=true;
+ chain.priority(b,ctx);await sleep(20);
+ assert.equal(b.consumes,0);
+});
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {Worker} from '../src/worker.js';
+test('worker gate: a queued shelter job no longer switches eating off (collect band stays off)',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'eat-gate-'));
+ try{
+  const worker=new Worker(root,{limits:{minHealth:10,minFood:6,jobMinutes:5}});
+  worker.log=()=>{};
+  const b=chainBot(12);worker.bot=b;
+  // the autopilot's shelter waits behind a gather; the hold used to stop every chain but World
+  worker.jobs.push({id:'g',spec:{type:'gather',block:'stone',count:6},status:'queued',message:'Queued'});
+  worker.jobs.push({id:'s',spec:{type:'shelter'},status:'queued',message:'Queued'});
+  const food=worker.taskRunner.chains.find(c=>c.name==='Food');
+  assert.ok(worker.survivalHold(),'the queued shelter holds');
+  assert.equal(food.priority(b,worker.taskRunner.ctx),-1,'no collect band under the hold');
+  await waitFor(()=>b.consumes>0&&!worker.eating);
+  assert.equal(b.consumes,1,'but the meal happened');assert.equal(worker.meals.attempts,1);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

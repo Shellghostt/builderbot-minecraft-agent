@@ -64,13 +64,13 @@ function chainBot(food,{equipThrows=false}={}){
  return bot;
 }
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
-test('FoodChain: a full-ish bar is no meal due; at 12 (beef fits) one episode is due and eaten',async()=>{
+test('FoodChain: a full-ish bar is no meal due; at 14 (round 8 threshold) one episode is due and eaten',async()=>{
  const meals={eaten:0,due:0,failed:0};
  const chain=new FoodChain(),ctx={worker:{meals}};
- const bot=chainBot(13);
+ const bot=chainBot(15);
  for(let i=0;i<5;i++)chain.priority(bot,ctx);
- assert.equal(meals.due,0,'13 with beef (8) held: nothing due - eaten 0 means never hungry');
- bot.food=12;
+ assert.equal(meals.due,0,'15 with beef (8) held: nothing due - eaten 0 means not hungry enough');
+ bot.food=14;
  for(let i=0;i<5;i++)chain.priority(bot,ctx); // repeated ticks of one episode count once
  assert.equal(meals.due,1);
  await settle();

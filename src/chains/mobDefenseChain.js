@@ -51,9 +51,12 @@ export class MobDefenseChain extends SingleTaskChain{
  }
  priority(bot,ctx){
   const p=this._priorityInner(bot,ctx);
-  this._cachedLastPriority=p;
+  this._cachedLastPriority=p;this._cachedAt=Date.now();
   return p;
  }
+ // Fighting or fleeing as of this tick. A gate that skipped priority() leaves a stale cache,
+ // which must not read as a fight forever (FoodChain defers meals on it).
+ isActive(){return this._cachedLastPriority>=0&&Date.now()-(this._cachedAt||0)<1000;}
  _priorityInner(bot,ctx){
   if(!inGame(bot))return -1;
   const cfg=chainConfig(ctx);

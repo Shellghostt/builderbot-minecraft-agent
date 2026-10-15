@@ -112,7 +112,7 @@ export class Worker extends EventEmitter {
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
   this.reflexEnabled=config.reflexes!==false;this.reflexBusy=false;this.reflexStopping=false;this.userStopped=false;this.deathResume=false;this.eating=false;
   this.runSettled=null;this.controlToken=null;this.lastDeath=null;this.combat=combat; // reflex-side ownership token (see reflexes.js)
-  this.meals={eaten:0,points:0,cooked:0,items:{},due:0,failed:0,noFood:0,lastError:null}; // food accounting for the soak (trackMeals, smelt, FoodChain due/failed)
+  this.meals={eaten:0,points:0,cooked:0,items:{},due:0,attempts:0,failed:0,deferred:0,noFood:0,lastError:null,lastDeferred:null}; // food accounting for the soak (trackMeals, smelt, FoodChain due/failed)
   this.autopilot=new Autopilot(this,root);
   this.loopWatch=createLoopWatch({log:m=>this.log(m)}); // LOOP_SLOW / LOOP_STALL lines (round 5)
   // Phase 7A: the AltoClef task runner owns survival behaviour (mob defense, food, world
@@ -137,12 +137,16 @@ export class Worker extends EventEmitter {
     // same survival need - sleep/eat/shelter. Queued counts, and so does a preemption-paused
     // one: the chain must stand down so the paused job gets its turn (otherwise the chain
     // holds the night and the job never resumes). World threats (lava, fire, a wall, powder
-    // snow, drowning) still win: a shelter is no place to drown. A sealed shelter lets the
-    // Food chain eat (its eat is a side effect; its collect band stays off) - round 4 hard3
-    // sat in its shelter at 8.3 hp and never ate.
+    // snow, drowning) still win: a shelter is no place to drown. The Food chain still eats
+    // (its eat is a side effect; its collect band stays off) - round 4 hard3 sat in its
+    // shelter at 8.3 hp and never ate. Round 8: under every hold, not just a sealed shelter:
+    // a queued shelter or sleep job holds for the whole gather ahead of it, and that switched
+    // eating off for the run. A shelter still placing its walls is the one exception (dusk
+    // is short); the chain itself defers while asleep or while the eat job eats.
     const hold=chain.name!=='User Tasks'&&self.survivalHold();
     if(hold&&chain.name!==WORLD_CHAIN){
-     if(chain.name==='Food'&&hold.sealed)try{chain.priority(bot,ctx);}catch{}
+     const building=hold.job.status==='running'&&hold.job.spec.type==='shelter'&&!hold.sealed;
+     if(chain.name==='Food'&&!building)try{chain.priority(bot,ctx);}catch{}
      wasActive=false;return -1;
     }
     const p=chain.priority(bot,ctx);

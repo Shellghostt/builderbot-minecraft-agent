@@ -137,10 +137,12 @@ def meals_delta(state,run):
             'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0},
             'due':max(0,now.get('due',0)-mark.get('due',0)),'failed':max(0,now.get('failed',0)-mark.get('failed',0)),
             'no_food':max(0,now.get('noFood',0)-mark.get('noFood',0)),
-            'last_error':now.get('lastError') if now.get('failed',0)>mark.get('failed',0) else None}
-# FoodChain (AltoClef defaults) always eats at food <= 10; at 11..14 only when the best food
-# held fills the bar exactly (cooked beef at 12), and below 14 health at any food < 20.
-FOOD_EAT_AT=10
+            'attempts':max(0,now.get('attempts',0)-mark.get('attempts',0)),'deferred':max(0,now.get('deferred',0)-mark.get('deferred',0)),
+            'last_error':now.get('lastError') if now.get('failed',0)>mark.get('failed',0) else None,
+            'last_deferred':now.get('lastDeferred') if now.get('deferred',0)>mark.get('deferred',0) else None}
+# FoodChain eats at a bar of 14 or less with food held (round 8; AltoClef's 10 left the bar
+# at 11..14 all run), and below 14 health at any bar < 20.
+FOOD_EAT_AT=14
 def food_level(samples):
     # Round 6: 'eaten 0' on all six round-5 runs could mean a broken eat path or a bar that
     # never got low in 20 min. The samples' food bar (and saturation) says which.
@@ -152,24 +154,30 @@ def food_level(samples):
     return {'food_min':min(food) if food else None,'food_max':max(food) if food else None,'sat_min':min(sat) if sat else None,
             'food_min_held':min(held) if held else None}
 def food_verdict(run):
-    # ate | never hungry (no meal was due) | no food held | EAT FAILED (a meal was due, food
-    # was held, nothing was eaten). Due comes from the bot itself: a dip to 12 and the meal
-    # that answers it fit between two 30 s samples. Round 7: hungry only while holding no food
-    # (FoodChain's noFood episodes, or the samples' lowest bar with food held) is "no food
-    # held", not EAT FAILED; a failed meal always reads EAT FAILED with its reason.
+    # Round 8: the verdict says what happened -
+    #   ate N | not hungry enough (no meal was due) | no food held |
+    #   attempted and failed: reason (a meal started and failed) |
+    #   EAT FAILED: never attempted (a meal was due with food held and none started; the
+    #   chain's last deferral reason when it recorded one).
+    # Round 7 read `EAT FAILED (due 1, failed 0)` with 8-10 cooked food held: no attempt at
+    # all, which the old wording could not tell from a failed one.
     meals=run.get('meals') or {};lv=run.get('food_level') or {}
-    due,failed=meals.get('due',0),meals.get('failed',0)
+    due,failed,attempts=meals.get('due',0),meals.get('failed',0),meals.get('attempts')
     low=lv.get('food_min')
-    failed_txt='EAT FAILED (due '+str(due)+', failed '+str(failed)+(', '+meals['last_error'] if meals.get('last_error') else '')+', food min '+str(low)+')'
-    if meals.get('eaten',0)>0:
-        return 'ate' if not failed else 'ate ('+str(failed)+' failed'+(': '+meals['last_error'] if meals.get('last_error') else '')+')'
-    if failed:return failed_txt
+    tail=' (due '+str(due)+', failed '+str(failed)+', food min '+str(low)+')'
+    reason=meals.get('last_error') or 'no reason recorded'
+    eaten=meals.get('eaten',0)
+    if eaten>0:
+        return 'ate '+str(eaten)+('' if not failed else ' ('+str(failed)+' failed'+(': '+meals['last_error'] if meals.get('last_error') else '')+')')
+    if failed:return 'attempted and failed: '+reason+tail
+    never='EAT FAILED: never attempted'+(' (last deferred: '+meals['last_deferred']+')' if meals.get('last_deferred') else '')+tail
     if low is None or low>FOOD_EAT_AT:
-        return 'never hungry (food min '+str(low)+')' if due==0 else failed_txt
+        return 'not hungry enough (food min '+str(low)+')' if due==0 else never
     held=lv.get('food_min_held')
     if meals.get('no_food',0) or not run.get('edible_peak') or ('food_min_held' in lv and (held is None or held>FOOD_EAT_AT)):
         return 'no food held (food min '+str(low)+')'
-    return failed_txt
+    if attempts:return 'attempted and failed: the food bar never rose'+tail
+    return never
 # Deaths (round 5): the run count is the max of three independent sources, so no single
 # blind spot can hide one - round 4 recorded 1 death where the server log has 4:
 # - the bot's own counter (state['deaths'], +1 per mineflayer 'death' event, session-wide);
@@ -506,6 +514,7 @@ def summarise(runs):
             'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],
             'food_due':[(r.get('meals') or {}).get('due',0) for r in runs],'food_failed':[(r.get('meals') or {}).get('failed',0) for r in runs],
             'food_no_food':[(r.get('meals') or {}).get('no_food',0) for r in runs],
+            'food_attempts':[(r.get('meals') or {}).get('attempts',0) for r in runs],'food_deferred':[(r.get('meals') or {}).get('deferred',0) for r in runs],
             'food_min':[(r.get('food_level') or {}).get('food_min') for r in runs],'food_max':[(r.get('food_level') or {}).get('food_max') for r in runs],
             'food_verdict':[r.get('food_verdict') for r in runs],
             'tod_end':[r.get('tod_end') for r in runs],

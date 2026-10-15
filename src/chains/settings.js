@@ -14,6 +14,7 @@ export const CHAIN_DEFAULTS={
  food:{
   alwaysEatWhenWitherOrFireAndHealthBelow:6,
   alwaysEatWhenBelowHunger:10,
+  eatAtHunger:14, // round 8: not AltoClef - eat with food held at a bar of 14 or less
   alwaysEatWhenBelowHealth:14, // 7f: eat to full, return to the task at health >= 14
   alwaysEatWhenBelowHungerAndPerfectFit:15, // 20 - 5 in Java
   prioritizeSaturationWhenBelowHealth:8,

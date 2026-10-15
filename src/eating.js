@@ -11,6 +11,8 @@ import {inventoryItems} from './chains/combatPolicy.js';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 export const EAT_SETTLE_MS=1500; // after consume returns or times out: the bar's health packet
 export const EAT_GUARD_MS=4500; // longest a hand equip waits for a meal in flight
+export const EAT_EQUIP_MS=4000; // round 8: an equip that never settles fails the meal
+export const EAT_WINDOW_MS=2000; // round 8: how long a meal waits for an open window to close
 const countOf=(bot,name)=>inventoryItems(bot).filter(i=>i.name===name).reduce((n,i)=>n+(i.count||1),0);
 async function until(fn,ms){
  const end=Date.now()+ms;
@@ -27,8 +29,13 @@ export function guardEquip(bot){
 }
 // Eat one `name`. Returns {ok, gained, attempts} or {ok:false, reason, attempts}; throws only
 // what equip/check throw (a Stop, a refused equip), so callers keep their own error paths.
-export async function eatMeal(bot,name,{tries=2,settleMs=EAT_SETTLE_MS,worker=null,check=null}={}){
- const equip=bot.__rawEquip||bot.equip.bind(bot);
+export async function eatMeal(bot,name,{tries=2,settleMs=EAT_SETTLE_MS,worker=null,check=null,equipMs=EAT_EQUIP_MS,windowMs=EAT_WINDOW_MS}={}){
+ const raw=bot.__rawEquip||bot.equip.bind(bot);
+ // Round 8: mineflayer's click on a crafting window waits for its result slot with no
+ // timeout, so a hand equip with a window open can hang forever (and an equip that never
+ // settles took the FoodChain's meals with it). Wait briefly for the window, bound the equip.
+ const equip=(item,dest)=>{let t;return Promise.race([raw(item,dest),new Promise((_,rej)=>{t=setTimeout(()=>rej(Error('equip timed out')),equipMs);})]).finally(()=>clearTimeout(t));};
+ if(bot.currentWindow&&!await until(()=>!bot.currentWindow,windowMs))return {ok:false,reason:'a window is open',attempts:0};
  let reason='no '+name+' stack in the inventory';
  for(let attempt=1;attempt<=tries;attempt++){
   const stack=inventoryItems(bot).find(i=>i.name===name);

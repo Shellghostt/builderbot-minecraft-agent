@@ -12,6 +12,10 @@ import {inventoryItems,armorValue} from './combatPolicy.js';
 import {CollectFoodTask} from './fallbackTasks.js';
 import {eatMeal} from '../eating.js';
 export const EAT_RETRY_MS=5000; // a failed meal waits this long before the next try
+// Round 8: a meal still in flight after this is abandoned (counted as failed) so a wedged
+// equip can never hold `_eating` for the rest of the session - round 7 read `due 1, failed 0`
+// with 8-10 cooked food held: no attempt at all after the meal became due.
+export const MEAL_WATCHDOG_MS=12000;
 const UNSAFE=new Set(['spider_eye','poisonous_potato','pufferfish']);
 export class FoodChain extends SingleTaskChain{
  constructor({mobDefense=null,mlg=null}={}){
@@ -23,12 +27,14 @@ export class FoodChain extends SingleTaskChain{
   this._eating=false;
   this.cachedFoodScore=0;
   this.cachedPerfectFood=null;
+  this.watchdogMs=MEAL_WATCHDOG_MS;this.mealOpts={}; // tests shrink these
  }
  priority(bot,ctx){
   const cfg=chainConfig(ctx);
   if(!inGame(bot)||cfg.autoEat===false){this.stopEat();return -1;}
   // do NOT eat while escaping lava (FoodChain.java's lava guard)
   if(bot.entity.isInLava){this.stopEat();return -1;}
+  if(bot.isSleeping){this.stopEat();return -1;}
   // in danger or falling: don't eat now
   if((this.mobDefense&&this.mobDefense.isDoingAcrobatics&&this.mobDefense.isDoingAcrobatics())
    ||(this.mlg&&this.mlg.isFallingOhNo&&this.mlg.isFallingOhNo(bot))){this.stopEat();return -1;}
@@ -48,8 +54,14 @@ export class FoodChain extends SingleTaskChain{
   const starving=!hasFood&&(bot.food|0)<=cfg.food.alwaysEatWhenBelowHunger;
   if(starving&&!this._starving&&meals)meals.noFood=(meals.noFood||0)+1;
   this._starving=starving;
-  if(want)this.startEat(bot,best);
-  else this.stopEat();
+  if(want){
+   // Round 8: eat between job steps, never mid-fight or with a window open (a crafting
+   // table's click waits for the result slot with no timeout in mineflayer, so an equip
+   // there can hang the meal). A deferred meal is recorded with its reason.
+   const why=this.deferReason(bot,ctx);
+   if(why){this._isTryingToEat=false;this.noteDefer(why);}
+   else{this._deferred=null;this.startEat(bot,best);}
+  }else{this._deferred=null;this.stopEat();}
   if(this._needsFood||total<cfg.minimumFoodAllowed){
    this._needsFood=total<cfg.foodUnitsToCollect;
    if(total<cfg.foodUnitsToCollect){
@@ -60,11 +72,34 @@ export class FoodChain extends SingleTaskChain{
   // eating is handled asynchronously (FoodChain.java returns NEGATIVE_INFINITY here)
   return -1;
  }
+ // Why a wanted meal waits: null when it can start now. A critical meal (needsToEatCritical)
+ // goes ahead through a fight, exactly like MobDefense yields to it.
+ deferReason(bot,ctx){
+  if(bot.currentWindow)return 'a window is open';
+  const w=ctx&&ctx.worker;
+  const running=w&&Array.isArray(w.jobs)&&w.jobs.find(j=>j.status==='running');
+  if(running&&running.spec&&running.spec.type==='eat')return 'the eat job is eating';
+  if(this.needsToEatCritical(bot))return null;
+  const md=this.mobDefense;
+  if(md&&md.isActive&&md.isActive())return 'mid-fight (Mob Defense active)';
+  if(running&&running.spec&&running.spec.type==='fight')return 'mid-fight (fight job)';
+  return null;
+ }
+ // One count per deferral episode and reason, not one per 50 ms tick.
+ noteDefer(why){
+  if(this._deferred===why)return;
+  this._deferred=why;
+  const m=this._meals;
+  if(m){m.deferred=(m.deferred||0)+1;m.lastDeferred=why;}
+ }
  // FoodChain.needsToEat: ported with FoodChainConfig defaults (14-health/10-hunger rules).
+ // Round 8: plus `eatAtHunger` (14) - with food held the bot eats at a bar of 14 or less,
+ // the threshold AGENTS.md documents; AltoClef's 10 let the bar sit at 11-14 all run.
  needsToEat(bot,f){
   f=f||chainConfig(null).food;
   const foodLevel=bot.food|0,health=bot.health;
   if(foodLevel>=20)return false;
+  if(foodLevel<=(f.eatAtHunger??0))return true;
   if(onFireOrWither(bot)||health<f.alwaysEatWhenWitherOrFireAndHealthBelow)return true;
   if(foodLevel>f.alwaysEatWhenBelowHunger){
    if(health<f.alwaysEatWhenBelowHealth)return true; // 7f: eat to full, return at health >= 14
@@ -90,16 +125,27 @@ export class FoodChain extends SingleTaskChain{
   this._requestFillup=true;
   if(this._eating||Date.now()<(this._retryAt||0))return;
   this._eating=true;
+  const m=this._meals,w=this._worker;
+  if(m)m.attempts=(m.attempts||0)+1;
+  let watchdog;
   (async()=>{
    // Round 4: equip the real stack (the picked {name,fills} has no slot). Round 7: the meal
-   // is judged by the bar/stack, not by consume's promise (src/eating.js).
-   const m=this._meals;
+   // is judged by the bar/stack, not by consume's promise (src/eating.js). Round 8: the
+   // whole meal is bounded by the watchdog.
    try{
-    const r=await eatMeal(bot,food.name,{worker:this._worker});
+    const stuck=new Promise((_,rej)=>{watchdog=setTimeout(()=>rej(Error('meal stuck '+this.watchdogMs/1000+' s (equip or consume never settled)')),this.watchdogMs);if(watchdog.unref)watchdog.unref();});
+    const r=await Promise.race([eatMeal(bot,food.name,{worker:w,...this.mealOpts}),stuck]);
     if(!r.ok&&r.reason!=='Food is already full')throw Error(r.reason);
+    if(r.ok&&w&&w.log)try{w.log('Food: ate '+food.name+' (bar '+(bot.food|0)+')');}catch{}
    }
-   catch(e){this._retryAt=Date.now()+EAT_RETRY_MS;if(m){m.failed=(m.failed||0)+1;m.lastError=String(e&&e.message||e).slice(0,120);}}
-   finally{this._eating=false;}
+   catch(e){
+    this._retryAt=Date.now()+EAT_RETRY_MS;
+    const msg=String(e&&e.message||e).slice(0,120);
+    if(m){m.failed=(m.failed||0)+1;m.lastError=msg;}
+    if(w&&w.log)try{w.log('Food: meal failed - '+msg);}catch{}
+    if(/^meal stuck/.test(msg)){if(w)w.eating=false;bot.__meal=null;}
+   }
+   finally{clearTimeout(watchdog);this._eating=false;}
   })();
  }
  stopEat(){
