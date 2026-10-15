@@ -7,6 +7,7 @@ import {Worker} from './worker.js';
 import {jobSchema} from './schema.js';
 import {howto} from './howto.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+for(const dir of ['data','logs'])fs.mkdirSync(path.join(root,dir),{recursive:true});
 const config=JSON.parse(fs.readFileSync(path.join(root,'config.json'),'utf8'));
 const worker=new Worker(root,config);worker.on('event',message=>console.log(new Date().toISOString(),message));
 const token=crypto.randomBytes(32).toString('hex');fs.writeFileSync(path.join(root,'data/dashboard-token'),token);

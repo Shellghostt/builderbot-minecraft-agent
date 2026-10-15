@@ -1,4 +1,4 @@
-# Minecraft Agent
+# BuilderBot Minecraft agent
 
 Everything installed for this project lives in this folder. Your existing Crafty servers, Java installation, worlds, Geyser and playit are used only for inspection; their settings and worlds are not changed.
 
