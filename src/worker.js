@@ -67,6 +67,17 @@ export const GATHER_RESCAN_MS=1000;
 // the reach fallbacks (reachUp, descendToReach, canopyDrop) already ran before the throw.
 const UNREACHABLE_BLOCK=/Cannot reach or harvest|Walked onto the target|Fluid (beside|under) target/;
 export const GATHER_BLACKLIST_SECONDS=600;
+// Round 10 (bug D): a search leg aims at the nearest match seen within SEARCH_SCAN beyond the
+// worked area; a searchable gather leaves a grove after SEARCH_REFUSALS [columns, blocks].
+export const SEARCH_SCAN=96,SEARCH_REFUSALS=[5,10];
+export function searchHeading(from,points){
+ let best=null,bd=Infinity;
+ for(const p of points){const d=Math.hypot(p.x+0.5-from.x,p.z+0.5-from.z);if(d<bd){bd=d;best=p;}}
+ if(!best)return null;
+ const dx=best.x+0.5-from.x,dz=best.z+0.5-from.z;
+ const direction=Math.abs(dx)>=Math.abs(dz)?(dx>0?'east':'west'):(dz>0?'south':'north');
+ return {direction,distance:Math.round(bd),target:best.x+','+best.y+','+best.z};
+}
 // Tunnel settle: rounds of re-digging a step while sand/gravel keeps falling into it, and the
 // wait for a falling block to land before the cells are read again.
 export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
@@ -1623,8 +1634,16 @@ export class Worker extends EventEmitter {
    // forgets the old one's refused columns and climbs.
    const searchLeg=async()=>{
     job.searches++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Searching further afield (${job.searches}/3)`);
-    const leg=s.belowFoots?24:Math.max(48,radius);
-    await this.exploreLeg(token,{direction:['east','north','west','south'][job.searches-1],distance:leg,seconds:90+leg*2});
+    let leg=s.belowFoots?24:Math.max(48,radius),direction=['east','north','west','south'][job.searches-1];
+    // Round 10 (bug D, hard1 wood at 543 s): head for the nearest match the bot can see beyond
+    // the area it already worked (within SEARCH_SCAN), not a fixed east/north/west/south.
+    try{
+     const me=b.entity.position,seen=b.findBlocks({matching:match,point:me,maxDistance:SEARCH_SCAN,count:256})
+      .filter(p=>p.distanceTo(pos(job.anchor))>radius&&!this.gatherBlacklisted(job,p)&&(!s.belowFoots||Math.abs(p.y-me.y)<=8));
+     const head=searchHeading(me,seen);
+     if(head){direction=head.direction;leg=Math.max(leg,Math.min(64,head.distance-8));this.log('Gather: search leg '+job.searches+' '+direction+' toward '+(anyLog?'logs':s.block)+' at '+head.target);}
+    }catch(e){this.check(token);}
+    await this.exploreLeg(token,{direction,distance:leg,seconds:90+leg*2});
     job.anchor=b.entity.position.floored();job.badColumns=[];job.climbs=0;this.save();
    };
    let lastScan=0,lastCount=null;
@@ -1920,9 +1939,13 @@ export class Worker extends EventEmitter {
   }
   if(c>=3&&!job.badColumns.includes(ck))job.badColumns.push(ck);
   this.save();
-  if(job.badColumns.length>=8||job.badBlocks.length>=24){
+  // Round 10 (bug D): a gather that may search gives up on a grove sooner (SEARCH_REFUSALS):
+  // round-9 hard1 spent ~7 min refusing 24 canopy blocks before its first search leg.
+  const searchable=job.spec&&job.spec.searchIfMissing&&(job.searches||0)<3;
+  const [cols,blocks]=searchable?SEARCH_REFUSALS:[8,24];
+  if(job.badColumns.length>=cols||job.badBlocks.length>=blocks){
    // Round 9: a harvested grove (run 1's leftovers) is exhausted, not unsafe - look elsewhere.
-   if(job.spec&&job.spec.searchIfMissing&&(job.searches||0)<3){this.log('Gather: '+job.badColumns.length+' columns / '+job.badBlocks.length+' blocks refused here; searching further afield');job.badBlocks=[];job.colFails={};job.blockFails={};return 'search';}
+   if(searchable){this.log('Gather: '+job.badColumns.length+' columns / '+job.badBlocks.length+' blocks refused here; searching further afield');job.badBlocks=[];job.colFails={};job.blockFails={};return 'search';}
    throw Error('Cannot gather safely: '+msg);
   }
  }

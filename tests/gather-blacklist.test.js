@@ -89,3 +89,30 @@ test('a grove with 8 refused columns is exhausted, not unsafe: searchIfMissing l
  await assert.rejects(Worker.prototype.gather.call(g.w,g.job(),0),/Cannot gather safely/);
  }finally{Date.now=real;}
 });
+// Round 10, bug D (round-9 hard1: wood at 543 s, after 24 refused canopy blocks and fixed
+// east/north/west/south legs).
+import {searchHeading,SEARCH_REFUSALS} from '../src/worker.js';
+test('searchHeading: the cardinal toward the nearest unseen match',()=>{
+ assert.equal(searchHeading(new Vec3(0.5,64,0.5),[]),null);
+ const h=searchHeading(new Vec3(0.5,64,0.5),[new Vec3(-60,64,10),new Vec3(5,64,-41),new Vec3(80,64,0)]);
+ assert.deepEqual([h.direction,h.target],['north','5,64,-41']);
+ assert.ok(h.distance>=41&&h.distance<=42);
+});
+test('a searchable gather leaves a refusing grove after 5 columns, and heads for logs it can see',async()=>{
+ const logs=[];for(let i=0;i<6;i++)logs.push([i*2-6,130,3],[i*2-6,131,3]);
+ const real=Date.now;let t=real();Date.now=()=>(t+=2000);
+ try{
+  const f=canopyFake({logs,reachable:()=>true});
+  let digs=0;f.w.bot.dig=async()=>{digs++;throw Error('Digging aborted');};
+  const far=new Vec3(-70,131,4);
+  const near=f.w.bot.findBlocks;
+  f.w.bot.findBlocks=o=>o.maxDistance>32?[...near(),far]:near();
+  const legs=[];f.w.exploreLeg=async(token,o)=>{legs.push([o.direction,o.distance]);f.w.bot.findBlocks=()=>[];};
+  const job={spec:{type:'gather',block:'oak_log',count:2,radius:32,searchIfMissing:true,belowFoots:true}};
+  await assert.rejects(Worker.prototype.gather.call(f.w,job,0),/No matching blocks/);
+  assert.equal(legs[0][0],'west','toward the far log, not the fixed east');
+  assert.ok(legs[0][1]>24&&legs[0][1]<=64,'a leg long enough to reach it: '+legs[0][1]);
+  assert.ok(f.logLines.some(l=>new RegExp(SEARCH_REFUSALS[0]+' columns / \\d+ blocks refused here').test(l)),f.logLines.join('|'));
+  assert.ok(f.logLines.some(l=>/search leg 1 west toward oak_log at -70,131,4/.test(l)));
+ }finally{Date.now=real;}
+});
