@@ -10,6 +10,8 @@ import {SingleTaskChain} from './singleTaskChain.js';
 import {chainConfig,inGame,hasEffect} from './settings.js';
 import {inventoryItems,armorValue} from './combatPolicy.js';
 import {CollectFoodTask} from './fallbackTasks.js';
+import {eatMeal} from '../eating.js';
+export const EAT_RETRY_MS=5000; // a failed meal waits this long before the next try
 const UNSAFE=new Set(['spider_eye','poisonous_potato','pufferfish']);
 export class FoodChain extends SingleTaskChain{
  constructor({mobDefense=null,mlg=null}={}){
@@ -40,7 +42,12 @@ export class FoodChain extends SingleTaskChain{
   // so 'eaten 0' reads as never hungry (due 0) or a broken eat path (due > 0, failed > 0).
   const meals=ctx&&ctx.worker&&ctx.worker.meals;
   if(want&&!this._wanted&&meals)meals.due=(meals.due||0)+1;
-  this._wanted=want;this._meals=meals||null;
+  this._wanted=want;this._meals=meals||null;this._worker=ctx&&ctx.worker||null;
+  // Round 7: normal2's bar fell to 5 with `due 1, failed 0` and nothing to eat. A hungry
+  // episode with no food held is counted apart, so the verdict reads "no food held".
+  const starving=!hasFood&&(bot.food|0)<=cfg.food.alwaysEatWhenBelowHunger;
+  if(starving&&!this._starving&&meals)meals.noFood=(meals.noFood||0)+1;
+  this._starving=starving;
   if(want)this.startEat(bot,best);
   else this.stopEat();
   if(this._needsFood||total<cfg.minimumFoodAllowed){
@@ -81,18 +88,17 @@ export class FoodChain extends SingleTaskChain{
  startEat(bot,food){
   this._isTryingToEat=true;
   this._requestFillup=true;
-  if(this._eating)return;
+  if(this._eating||Date.now()<(this._retryAt||0))return;
   this._eating=true;
   (async()=>{
-   // mineflayer's equip moves item.slot: the picked {name,fills} has none, so the equip
-   // threw and no chain meal ever happened (round 4: eaten 0 on every run; hard3 sat in its
-   // shelter at 8.3 hp). Equip the real stack.
+   // Round 4: equip the real stack (the picked {name,fills} has no slot). Round 7: the meal
+   // is judged by the bar/stack, not by consume's promise (src/eating.js).
+   const m=this._meals;
    try{
-    const real=inventoryItems(bot).find(i=>i.name===food.name);
-    if(!real)throw Error('no '+food.name+' stack in the inventory');
-    await bot.equip(real,'hand');await bot.consume();
+    const r=await eatMeal(bot,food.name,{worker:this._worker});
+    if(!r.ok&&r.reason!=='Food is already full')throw Error(r.reason);
    }
-   catch(e){const m=this._meals;if(m){m.failed=(m.failed||0)+1;m.lastError=String(e&&e.message||e).slice(0,120);}}
+   catch(e){this._retryAt=Date.now()+EAT_RETRY_MS;if(m){m.failed=(m.failed||0)+1;m.lastError=String(e&&e.message||e).slice(0,120);}}
    finally{this._eating=false;}
   })();
  }

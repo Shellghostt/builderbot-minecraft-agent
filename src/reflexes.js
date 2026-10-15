@@ -7,6 +7,7 @@
 // interrupted.
 import pathfinderPackage from 'mineflayer-pathfinder';
 import {Vec3} from 'vec3';
+import {eatMeal} from './eating.js';
 const {goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const UNSAFE=new Set(['spider_eye','poisonous_potato','pufferfish']);
@@ -227,12 +228,8 @@ async function autoEat(worker){
  await withControl(worker,'hunger (food '+Math.round(b.food)+')',async()=>{
   const b2=worker.bot,chosen=pick();
   if(!chosen)return;
-  await b2.equip(chosen.item,'hand');
-  const before=b2.food;
-  worker.eating=true;
-  try{await b2.consume();}finally{worker.eating=false;}
-  await sleep(300);
-  if(b2.food>before)worker.log('Reflex: ate '+chosen.item.name);
+  const r=await eatMeal(b2,chosen.item.name,{worker});
+  if(r.ok)worker.log('Reflex: ate '+chosen.item.name);
  });
 }
 function autoArmour(worker){

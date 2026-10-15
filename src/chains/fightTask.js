@@ -12,6 +12,7 @@
 import {ActionTask} from '../tasks/action.js';
 import {CombatController} from '../combat.js';
 import {creeperSwell} from '../creeper.js';
+import {eatMeal} from '../eating.js';
 export class FightTask extends ActionTask{
  constructor({move=null,log=null,opts={}}={}){
   super('FightTask');
@@ -192,7 +193,7 @@ export class FightTask extends ActionTask{
   });
   if(!food)return;
   this._eating=true;
-  this.run((async()=>{await bot.equip(food,'hand');await bot.consume();})().catch(()=>{}).then(()=>{this._eating=false;}));
+  this.run(eatMeal(bot,food.name,{tries:1}).catch(()=>{}).then(()=>{this._eating=false;}));
  }
  // 7d: log each fight - mob, tactic, hits, crits, damage taken, result. Once per task.
  _report(ctl,result){

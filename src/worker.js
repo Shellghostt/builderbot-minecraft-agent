@@ -7,6 +7,7 @@ import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import {jobSchema,validateBlueprint} from './schema.js';
 import {installMovementFix,installWeatherFix} from './compat.js';
+import {eatMeal,guardEquip} from './eating.js';
 import {craftConfirmedRetry as craftConfirmed} from './crafting.js';
 import {survey} from './observe.js';
 import {dayTicks,isNight} from './daytime.js';
@@ -94,7 +95,7 @@ export class Worker extends EventEmitter {
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
   this.reflexEnabled=config.reflexes!==false;this.reflexBusy=false;this.reflexStopping=false;this.userStopped=false;this.deathResume=false;this.eating=false;
   this.runSettled=null;this.controlToken=null;this.lastDeath=null;this.combat=combat; // reflex-side ownership token (see reflexes.js)
-  this.meals={eaten:0,points:0,cooked:0,items:{},due:0,failed:0,lastError:null}; // food accounting for the soak (trackMeals, smelt, FoodChain due/failed)
+  this.meals={eaten:0,points:0,cooked:0,items:{},due:0,failed:0,noFood:0,lastError:null}; // food accounting for the soak (trackMeals, smelt, FoodChain due/failed)
   this.autopilot=new Autopilot(this,root);
   this.loopWatch=createLoopWatch({log:m=>this.log(m)}); // LOOP_SLOW / LOOP_STALL lines (round 5)
   // Phase 7A: the AltoClef task runner owns survival behaviour (mob defense, food, world
@@ -222,7 +223,7 @@ export class Worker extends EventEmitter {
  connect(){
   if(this.bot)return;
   const bot=this.bot=mineflayer.createBot({...this.config.server,hideErrors:true});
-  installMovementFix(bot);installWeatherFix(bot);this.trackMeals(bot);
+  installMovementFix(bot);installWeatherFix(bot);this.trackMeals(bot);guardEquip(bot);
   bot.loadPlugin(pathfinder);bot.loadPlugin(toolPackage.plugin);
   bot.once('spawn',()=>{this.ready=true;installToolWear(bot);if(!bot.inventory._lossWatch){bot.inventory._lossWatch=true;watchToolLoss(bot,m=>this.log(m));}const movement=this.movements=this.normalMovements(bot);bot.pathfinder.setMovements(movement);bot.pathfinder.searchRadius=128;// in blocks: bounds searches for unreachable goals; legit paths may still cost up to goal distance + 128
   if(!this.trackersTimer){ // tracker refresh + preemption resume + idle armour, port of the reflex cadence
@@ -545,12 +546,8 @@ export class Worker extends EventEmitter {
   const foods=b.inventory.items().map(i=>({item:i,food:b.registry.foodsByName[i.name]})).filter(f=>f.food&&!unsafe.has(f.item.name));
   if(!foods.length)throw Error('No edible food in the inventory');
   foods.sort((x,y)=>y.food.foodPoints-x.food.foodPoints);
-  await b.equip(foods[0].item,'hand');
-  const before=b.food;
-  this.eating=true;
-  try{await b.consume();}finally{this.eating=false;}
-  await sleep(300);
-  if(b.food<=before)throw Error('Eating did not increase food');
+  const r=await eatMeal(b,foods[0].item.name,{worker:this,check:()=>this.check(token)});
+  if(!r.ok)throw Error('Eating did not increase food: '+r.reason);
  }
  async equip(job,token){
   const b=this.bot,tier={wooden:1,golden:2,stone:3,iron:4,diamond:5,netherite:6},kind={pickaxe:4,axe:3,shovel:2,sword:1},plate={leather:1,golden:2,chainmail:3,iron:4,diamond:5,netherite:6};

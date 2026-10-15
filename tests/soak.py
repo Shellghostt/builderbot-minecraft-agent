@@ -136,6 +136,7 @@ def meals_delta(state,run):
     return {'eaten':now.get('eaten',0)-mark.get('eaten',0),'points':now.get('points',0)-mark.get('points',0),
             'cooked':max(0,now.get('cooked',0)-mark.get('cooked',0)),'items':{k:v for k,v in items.items() if v>0},
             'due':max(0,now.get('due',0)-mark.get('due',0)),'failed':max(0,now.get('failed',0)-mark.get('failed',0)),
+            'no_food':max(0,now.get('noFood',0)-mark.get('noFood',0)),
             'last_error':now.get('lastError') if now.get('failed',0)>mark.get('failed',0) else None}
 # FoodChain (AltoClef defaults) always eats at food <= 10; at 11..14 only when the best food
 # held fills the bar exactly (cooked beef at 12), and below 14 health at any food < 20.
@@ -145,18 +146,30 @@ def food_level(samples):
     # never got low in 20 min. The samples' food bar (and saturation) says which.
     food=[s['food'] for s in samples if isinstance(s.get('food'),(int,float))]
     sat=[s['sat'] for s in samples if isinstance(s.get('sat'),(int,float))]
-    return {'food_min':min(food) if food else None,'food_max':max(food) if food else None,'sat_min':min(sat) if sat else None}
+    # Round 7: the lowest bar while food was actually held - normal2 fell to 5 with nothing
+    # to eat and read EAT FAILED.
+    held=[s['food'] for s in samples if isinstance(s.get('food'),(int,float)) and s.get('food_items',0)>0]
+    return {'food_min':min(food) if food else None,'food_max':max(food) if food else None,'sat_min':min(sat) if sat else None,
+            'food_min_held':min(held) if held else None}
 def food_verdict(run):
     # ate | never hungry (no meal was due) | no food held | EAT FAILED (a meal was due, food
     # was held, nothing was eaten). Due comes from the bot itself: a dip to 12 and the meal
-    # that answers it fit between two 30 s samples.
+    # that answers it fit between two 30 s samples. Round 7: hungry only while holding no food
+    # (FoodChain's noFood episodes, or the samples' lowest bar with food held) is "no food
+    # held", not EAT FAILED; a failed meal always reads EAT FAILED with its reason.
     meals=run.get('meals') or {};lv=run.get('food_level') or {}
-    if meals.get('eaten',0)>0:return 'ate'
+    due,failed=meals.get('due',0),meals.get('failed',0)
     low=lv.get('food_min')
-    if meals.get('due',0)==0 and meals.get('failed',0)==0:
-        if low is None or low>FOOD_EAT_AT:return 'never hungry (food min '+str(low)+')'
-        if not run.get('edible_peak'):return 'no food held (food min '+str(low)+')'
-    return 'EAT FAILED (due '+str(meals.get('due',0))+', failed '+str(meals.get('failed',0))+(', '+meals['last_error'] if meals.get('last_error') else '')+', food min '+str(low)+')'
+    failed_txt='EAT FAILED (due '+str(due)+', failed '+str(failed)+(', '+meals['last_error'] if meals.get('last_error') else '')+', food min '+str(low)+')'
+    if meals.get('eaten',0)>0:
+        return 'ate' if not failed else 'ate ('+str(failed)+' failed'+(': '+meals['last_error'] if meals.get('last_error') else '')+')'
+    if failed:return failed_txt
+    if low is None or low>FOOD_EAT_AT:
+        return 'never hungry (food min '+str(low)+')' if due==0 else failed_txt
+    held=lv.get('food_min_held')
+    if meals.get('no_food',0) or not run.get('edible_peak') or ('food_min_held' in lv and (held is None or held>FOOD_EAT_AT)):
+        return 'no food held (food min '+str(low)+')'
+    return failed_txt
 # Deaths (round 5): the run count is the max of three independent sources, so no single
 # blind spot can hide one - round 4 recorded 1 death where the server log has 4:
 # - the bot's own counter (state['deaths'], +1 per mineflayer 'death' event, session-wide);
@@ -492,6 +505,7 @@ def summarise(runs):
             'eaten':[(r.get('meals') or {}).get('eaten',0) for r in runs],'food_points':[(r.get('meals') or {}).get('points',0) for r in runs],
             'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],
             'food_due':[(r.get('meals') or {}).get('due',0) for r in runs],'food_failed':[(r.get('meals') or {}).get('failed',0) for r in runs],
+            'food_no_food':[(r.get('meals') or {}).get('no_food',0) for r in runs],
             'food_min':[(r.get('food_level') or {}).get('food_min') for r in runs],'food_max':[(r.get('food_level') or {}).get('food_max') for r in runs],
             'food_verdict':[r.get('food_verdict') for r in runs],
             'tod_end':[r.get('tod_end') for r in runs],
