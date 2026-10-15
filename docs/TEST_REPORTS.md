@@ -306,3 +306,11 @@ No second soak.
 `git pull --rebase` was already at `02c8eb6`. Unit tests (`tests/*.test.js` except `resources.test.js`): **375 passed, 0 failed** (the cloud note said 366; nothing failed). Services restarted with `AGENT_MODEL=off`. Supervisor: `model server disabled`.
 
 `python tests/integration.py`, exit 0, 1059 s. `All in-game integration tests passed`. The reworked reflex-pause fixture paused the gather: `Reflex: preempted by Mob Defense`, and the gather then resumed and completed. A4 escaped the lava trench at 18.8 hp, at [1654, -60, 1652].
+
+## 2026-10-15 12:13–12:18 IST — combat run 1 (`88672a1`, bot code `02c8eb6`)
+
+`python tests/combat_integration.py`, model off, same services. Exit 0, 316 s. `All combat acceptance tests passed`. No second run.
+
+`4_creeper` (lane): `pillar-up 2 at 1499,-60,1518 (creeper at 7.3)`, perched, then `perch 2 up is inside the fuse ring; knocking the creeper back (at 3.6)`. Three `pillar-strike` lines followed. No arrow was released. Suite: ttk 7.3 s, hits 5, `damage_taken=0`, end health 20, killed. Glowstone held at the spawn, the midpoint, and the bot start.
+
+`4b_creeper_roofed`: `pillar-up 2 at 1496,-60,1497 (creeper at 8.0)`, two arrows released (2.96 and 3.02 b/t) and both landed, then the same knockback line at 3.7 and one strike. `shots=2 released=2 landed=2`, ttk 7.3 s, hits 3, `damage_taken=0`, end health 20, killed, no crater.
