@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {Vec3} from 'vec3';
-import {Autopilot,duskKitJob,kitCobbleNeed,KIT_GRACE,plan} from '../src/autopilot.js';
+import {Autopilot,duskKitJob,duskCobbleJob,kitCobbleNeed,KIT_GRACE,DUSK_COBBLE_JOBS,DUSK_COBBLE_STOP,plan} from '../src/autopilot.js';
 import {SUNSET} from '../src/night.js';
 import {Worker} from '../src/worker.js';
 console.error=()=>{};
@@ -128,4 +128,62 @@ test('in the dusk window an affordable kit craft outranks the bed prep; a hostil
  try{t.ap.tick();assert.ok(!t.submitted.some(s=>s.item==='stick'));}finally{t.done();}
  t=ladder({tod:SUNSET+40,items:{...HARD1},hostile:[12,64,0]});
  try{t.ap.tick();assert.deepEqual(t.submitted.map(s=>s.item||s.type),['furnace'],'a mob at 12 no longer blocks a 2-second craft');}finally{t.done();}
+});
+// ---- round 7, task 4: hard1/hard3 sent `gather grass_block x25` at dusk and never held a
+// stone pickaxe; hard3's wood took 542 s (the third run in the same, already-cut forest).
+const WOOD_KIT={crafting_table:1,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1,stick:1};
+test('stone step: cobble before sticks - no log hunt before the first stone is mined',()=>{
+ let r=plan({...WOOD_KIT});
+ assert.equal(r.step,'stone');
+ assert.deepEqual([r.job.type,r.job.block,r.job.count],['gather','stone',3],'no planks, no logs, 1 stick: mine the pickaxe\'s 3 cobble first');
+ r=plan({...WOOD_KIT,cobblestone:3});
+ assert.deepEqual([r.job.type,r.job.block],['gather','log'],'the pickaxe is affordable but needs a 2nd stick: now the wood');
+ r=plan({...WOOD_KIT,cobblestone:3,oak_planks:2});
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['craft','stick',5],'sticks for the whole kit (6) in one craft');
+ r=plan({...WOOD_KIT,cobblestone:3,stick:2});
+ assert.deepEqual([r.job.type,r.job.item],['craft','stone_pickaxe']);
+ r=plan({...WOOD_KIT,stone_pickaxe:1,cobblestone:0});
+ assert.deepEqual([r.job.type,r.job.count],['gather',18],'with the stone pickaxe: the rest of the kit + 4 spare');
+});
+test('duskCobbleJob: the next kit piece\'s cobble, only between the wood and stone steps',()=>{
+ assert.deepEqual(duskCobbleJob({...WOOD_KIT}),{type:'gather',block:'stone',count:3,radius:32,searchIfMissing:true});
+ assert.equal(duskCobbleJob({...WOOD_KIT,cobblestone:3}),null,'affordable: the dusk kit craft takes it');
+ assert.equal(duskCobbleJob({...WOOD_KIT,stone_pickaxe:1,cobblestone:1}).count,1,'the sword\'s 2');
+ const tools={...WOOD_KIT,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1};
+ assert.equal(duskCobbleJob({...tools,cobblestone:5}).count,3,'the furnace\'s 8');
+ assert.equal(duskCobbleJob({...tools,cobblestone:5},{worldFurnace:true}),null,'a furnace stands near: kit done');
+ assert.equal(duskCobbleJob({wooden_pickaxe:1}),null,'wood step not done');
+});
+test('dusk: the kit\'s cobble and its craft come before the shelter dirt; then the dirt',()=>{
+ const t=ladder({tod:10100,items:{...WOOD_KIT,stick:2}});
+ try{
+  t.ap.tick();
+  assert.deepEqual(t.submitted.map(s=>s.block||s.item||s.type),['stone'],'cobble first, not grass_block');
+  t.worker.jobs.at(-1).status='complete';
+  t.worker.bot.inventory.items().push({name:'cobblestone',count:3});
+  t.ap.tick();
+  assert.deepEqual(t.submitted.map(s=>s.block||s.item||s.type),['stone','stone_pickaxe'],'dusk - finishing the stone kit first');
+  t.worker.jobs.at(-1).status='complete';
+  const inv=t.worker.bot.inventory.items();inv.push({name:'stone_pickaxe',count:1});inv.find(i=>i.name==='cobblestone').count=0;inv.find(i=>i.name==='stick').count=0;
+  // past the cobble window: the shelter dirt
+  t.worker.bot.time.timeOfDay=SUNSET-DUSK_COBBLE_STOP+10;
+  t.ap.tick();
+  assert.deepEqual(t.submitted.at(-1),{type:'gather',block:'grass_block',count:25,radius:32});
+ }finally{t.done();}
+});
+test('dusk cobble: at most DUSK_COBBLE_JOBS a day; a failed one hands the dusk to the dirt',()=>{
+ let t=ladder({tod:10100,items:{...WOOD_KIT}});
+ try{
+  t.ap.tick();
+  assert.equal(t.submitted.at(-1).block,'stone');
+  t.worker.jobs.at(-1).status='failed';t.worker.jobs.at(-1).message='Cannot reach stone';
+  t.ap.tick();t.ap.coolUntil=0;t.ap.tick();
+  assert.equal(t.submitted.at(-1).block,'grass_block','failed: the dirt now');
+ }finally{t.done();}
+ t=ladder({tod:10100,items:{...WOOD_KIT}});
+ try{
+  for(let i=0;i<DUSK_COBBLE_JOBS+1;i++){t.ap.tick();t.worker.jobs.at(-1).status='complete';t.ap.coolUntil=0;}
+  assert.equal(t.submitted.filter(s=>s.block==='stone').length,DUSK_COBBLE_JOBS);
+  assert.equal(t.submitted.at(-1).block,'grass_block');
+ }finally{t.done();}
 });

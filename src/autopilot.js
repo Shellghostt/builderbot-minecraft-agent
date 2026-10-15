@@ -90,6 +90,18 @@ export function duskKitJob(counts,ctx={}){
  const furnace=c('furnace')>=1||!!ctx.worldFurnace;
  return !furnace&&c('cobblestone')>=8?{type:'craft',item:'furnace',count:1,keepTable:true,collectTable:!piece}:null;
 }
+// Dusk with the stone kit unfinished and its next piece short of cobble (round 7: hard1 and
+// hard3 sent `gather grass_block x25` at dusk and never held a stone pickaxe): gather that
+// piece's cobble first - it is shelter material too - so the craft lands before sunset.
+export function duskCobbleJob(counts,ctx={}){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ if(!STEPS[0].done(c,ctx)||STEPS[1].done(c,ctx))return null;
+ const piece=STONE_KIT.find(([item])=>c(item)<1);
+ const need=piece?piece[1]:8; // stone step not done with every tool held: the furnace
+ if(c('cobblestone')>=need)return null;
+ return {type:'gather',block:'stone',count:need-c('cobblestone'),radius:32,searchIfMissing:true};
+}
 const IRON_REST=[['iron_axe',3],['iron_helmet',5],['iron_chestplate',8],['iron_leggings',7],['iron_boots',4],['bucket',3]];
 // Staircase target for ore: the 1.18+ iron band peaks at y=16 (-24..56) and the gather's
 // radius-32 block scan (findBlocks sees ore inside stone, deepslate included) from y=32
@@ -170,23 +182,28 @@ export const STEPS=[
   return null;
  }},
  {name:'stone',done:(c,ctx)=>(c('furnace')>=1||!!ctx?.worldFurnace)&&c('stone_pickaxe')>=1&&c('stone_axe')>=1&&c('stone_sword')>=1&&c('stone_shovel')>=1,next(c,ctx){
-  if(c('stick')<10){
-   // Sticks need planks: gather or craft them first, or the craft fails with none held.
-   const planks=planksJob(c,ctx,2);if(planks)return planks;
-   return {type:'craft',item:'stick',count:10-c('stick')};
-  }
   const plank=((ctx.heldLog||'oak_log').replace('_log','_planks'));
+  // Planks from held logs are a 2x2 craft (seconds, no table): keep a few for the sticks.
   if(ctx.planksTotal<8&&ctx.logsTotal>=2)return {type:'craft',item:plank,count:8};
   // Each piece is crafted as soon as its cobble is held, in kit order (pickaxe, then the
   // sword - COMBAT_SPEC 7f - axe, shovel, furnace). Round 3 hard1/hard2 held dig-down cobble
   // at 150 s and 241 s but never a stone pickaxe: the 32-cobble gather had to finish first,
   // and on the hard anchor it failed short every time, so the ladder looped on the gather.
-  const piece=STONE_KIT.find(([item])=>c(item)<1);
-  if(piece&&c('cobblestone')>=piece[1])return {type:'craft',item:piece[0],count:1,keepTable:true};
+  // Round 7 (hard1/hard3 never got a stone pickaxe): sticks are made only for a piece whose
+  // cobble is already held - the old 10-sticks-first rule sent a log hunt (planks 0, logs 0
+  // after the wood kit; a harvested forest by hard3) before the first stone was ever mined.
+  const left=STONE_KIT.filter(([item])=>c(item)<1),piece=left[0];
+  if(piece&&c('cobblestone')>=piece[1]){
+   if(c('stick')>=KIT_STICKS[piece[0]])return {type:'craft',item:piece[0],count:1,keepTable:true};
+   const planks=planksJob(c,ctx,2);if(planks)return planks;
+   return {type:'craft',item:'stick',count:Math.max(1,left.reduce((a,[item])=>a+KIT_STICKS[item],0)-c('stick'))};
+  }
   if(!piece&&!(c('furnace')>=1||ctx?.worldFurnace)&&c('cobblestone')>=8)return {type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true};
   // Gather what the rest of the kit costs plus a small spare, not a flat 32: round 4 hard2
   // was still filling the 32 (24 held, kit needing 14) when sunset cancelled the gather.
-  const want=Math.min(32,kitCobbleNeed(c,ctx)+KIT_SPARE);
+  // Without a stone pickaxe only its 3 first (a short wooden-pickaxe dig that succeeds),
+  // then the faster pickaxe digs the rest.
+  const want=c('stone_pickaxe')<1?3:Math.min(32,kitCobbleNeed(c,ctx)+KIT_SPARE);
   if(c('cobblestone')<want)return {type:'gather',block:'stone',count:want-c('cobblestone'),radius:32,searchIfMissing:true};
   if(c('stone_pickaxe')<1)return {type:'craft',item:'stone_pickaxe',count:1,keepTable:true};
   // COMBAT_SPEC 7f: the stone sword comes right after the stone pickaxe.
@@ -338,6 +355,8 @@ export const RECOVER_MS=60000;
 export const NIGHT_RETRIES=3;
 // Sunset grace for affordable stone-kit crafts (ticks after SUNSET; spawns start ~12970).
 export const KIT_GRACE=600,KIT_HOSTILE=8;
+// Dusk cobble gathers per day, and how long before sunset they stop (the dirt's minute).
+export const DUSK_COBBLE_JOBS=3,DUSK_COBBLE_STOP=1200;
 // A respawn counts as 'just died' for this long (the death screen plus a slow respawn).
 const RESPAWN_FRESH_MS=60000;
 export function bedPrepJob(counts,ctx){
@@ -473,6 +492,14 @@ export class Autopilot{
    const job=bedPrepJob(this.counts(),{tod:dayTicks(b),bedNear:!!bedNear,sheepNear:this.sheepNear(b),worldTable});
    if(job){this.bedPrep.jobs++;this.submit('bed-prep',job);return;}
   }
+  // The kit piece's cobble before the shelter dirt (duskCobbleJob), up to DUSK_COBBLE_JOBS
+  // per day and not in the last minute before sunset; a failed one ends it for the day.
+  if(todNow>=BED_PREP_FROM&&todNow<SUNSET-DUSK_COBBLE_STOP&&!bedNear&&this.hostileDistance(b)>KIT_HOSTILE){
+   if(this.duskCobble?.day!==day)this.duskCobble={day,jobs:0,off:false};
+   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
+   const job=!this.duskCobble.off&&this.duskCobble.jobs<DUSK_COBBLE_JOBS&&duskCobbleJob(this.counts(),{worldFurnace});
+   if(job){this.duskCobble.jobs++;this.log('Autopilot: dusk - cobble for the stone kit first ('+job.count+')');this.submit('dusk-cobble',job);return;}
+  }
   const dusk=todNow>=DUSK_PREP&&todNow<SUNSET; // the dirt must be in hand when the shelter starts
   if(dusk&&this.lastDuskKey!==String(b.time.day)&&!bedNear&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
    const dirt=b.inventory.items().filter(i=>i.name==='dirt'||i.name==='cobblestone').reduce((a,i)=>a+i.count,0)-(this.worker.cobbleReserve||0);
@@ -570,6 +597,7 @@ export class Autopilot{
    this.failures[step]=(this.failures[step]||0)+1;
    this.coolUntil=Date.now()+8000; // give the world (and reflexes) time before retrying
    if(step==='bed-prep'&&this.bedPrep)this.bedPrep.off=true; // shelter tonight
+   if(step==='dusk-cobble'&&this.duskCobble)this.duskCobble.off=true; // the dirt now
    // Only ladder steps block (and explore to unblock): a night job that keeps failing must
    // never turn into an explore in the dark - nightKeyFree caps its retries instead.
    if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}

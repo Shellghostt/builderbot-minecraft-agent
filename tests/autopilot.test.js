@@ -84,7 +84,9 @@ test('any log species satisfies the wood step, matching its planks',()=>{
 test('the stone step gathers cobblestone and then builds the stone kit and furnace',()=>{
  let r=plan(counts({...WOOD,stick:10,cobblestone:0}));
  assert.equal(r.step,'stone');assert.equal(r.job.type,'gather');assert.equal(r.job.block,'stone');
- assert.equal(r.job.count,21,'the whole kit (3+2+3+1 tools + 8 furnace = 17) plus a 4 spare, not a flat 32 (round 5)');
+ assert.equal(r.job.count,3,'round 7: the stone pickaxe\'s 3 first (a short wooden-pickaxe dig)');
+ r=plan(counts({...WOOD,stick:10,cobblestone:0,stone_pickaxe:1}));
+ assert.equal(r.job.count,18,'then the rest of the kit (2+3+1 tools + 8 furnace = 14) plus a 4 spare, not a flat 32 (round 5)');
  const have={...WOOD,stick:10,cobblestone:32};
  for(const item of ['stone_pickaxe','stone_sword','stone_axe','stone_shovel','furnace']){
   r=plan(counts(have));
