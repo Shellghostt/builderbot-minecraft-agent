@@ -171,3 +171,29 @@ test('a furnace the bot placed is still its own when a later run reuses it, fuel
  assert.deepEqual(t.calls.filter(c=>c[0]==='pickUp'),[['pickUp','furnace']],'... and the last take picks it up');
  assert.equal(t.inv.iron_ingot,6);
 });
+test('autopilot: exposed coal in arm\'s reach is a short pickup between jobs, once a minute',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'pickup-'));
+ const clk=clock(),submitted=[],jobs=[];
+ const items={...STONE,stone_pickaxe:2,cooked_beef:8,stick:4};
+ const coal=new Vec3(3,64,0);
+ const worker={ready:true,userStopped:false,deathResume:false,jobs,log(){},
+  submit(spec){jobSchema.parse(spec);submitted.push(spec);const job={id:'j'+submitted.length,status:'running',spec};jobs.push(job);return job;},cancel(){},
+  bot:{time:{timeOfDay:3000,day:3},inventory:{items:()=>Object.entries(items).map(([name,count])=>({name,count})),slots:[]},entities:{},
+   registry:{blocksByName:{coal_ore:{id:16},deepslate_coal_ore:{id:17}},foodsByName:{cooked_beef:{}},itemsByName:{}},
+   findBlock(){return null;},findBlocks(o){return o.matching.includes(16)?[coal]:[];},
+   blockAt(p){return p.x===coal.x&&p.y===coal.y&&p.z===coal.z?{name:'coal_ore',boundingBox:'block'}:{name:'air',boundingBox:'empty'};},
+   entity:{position:new Vec3(0.5,64,0.5)}}};
+ const ap=new Autopilot(worker,root);
+ try{
+  await withClock(clk,()=>{
+   ap.start();ap.tick();
+   assert.deepEqual(submitted[0],{type:'gather',block:'coal_ore',count:1,radius:6});
+   assert.equal(ap.currentStep,'pickup');
+   jobs[0].status='complete';ap.tick();
+   assert.equal(ap.currentStep,'iron','the ladder goes on');
+   assert.notEqual(submitted[1].radius,6);
+   jobs[1].status='complete';clk.advance(61000);ap.tick();
+   assert.deepEqual(submitted[2],{type:'gather',block:'coal_ore',count:1,radius:6},'a minute later: the next pickup');
+  });
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

@@ -7,6 +7,7 @@ import {Vec3} from 'vec3';
 import {dayTicks} from './daytime.js';
 import {shelterDue,nightJobFor,DUSK_PREP,SUNSET} from './night.js';
 import {EDIBLE_SKIP} from './observe.js';
+import {isExposed} from './digDown.js';
 
 const BED=/(_bed)$/;
 const WOOLS=['white_wool','light_gray_wool','gray_wool','black_wool','brown_wool','red_wool','orange_wool','yellow_wool','lime_wool','green_wool','cyan_wool','light_blue_wool','blue_wool','purple_wool','magenta_wool','pink_wool'];
@@ -326,6 +327,27 @@ export function furnaceWork(run,counts,ctx){
  if(c('torch')<TORCHES&&c('coal')+c('charcoal')>=1&&c('stick')>=1)return {type:'craft',item:'torch',count:Math.min(TORCHES-c('torch'),4*Math.min(c('coal')+c('charcoal'),c('stick')))};
  if(ctx.logsTotal<4&&ctx.logNear)return {type:'gather',block:'log',count:2,radius:r,belowFoots:true};
  if(ctx.dropsNear)return {type:'collect',radius:r};
+ return null;
+}
+// Round 10 (efficiency 3): opportunistic pickups between jobs. Exposed coal, iron or diamond
+// ore (or a log when wood is low) within PICKUP_RADIUS that the ladder will need soon is mined
+// in a short detour (a radius-PICKUP_RADIUS gather, no search), at most once per PICKUP_EVERY_MS,
+// never at night or with a hostile within 16. ctx.exposed: {coal,iron,diamond,log} counts.
+export const PICKUP_RADIUS=6,PICKUP_EVERY_MS=60000,PICKUP_MAX=4;
+export function pickupJob(counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ const ex=ctx.exposed||{};
+ if(ctx.tod!=null&&ctx.tod>=SUNSET)return null;
+ if((ctx.hostileDistance??Infinity)<=16)return null;
+ if(ctx.sinceLast!=null&&ctx.sinceLast<PICKUP_EVERY_MS)return null;
+ const g=(block,n)=>({type:'gather',block,count:Math.max(1,Math.min(PICKUP_MAX,n)),radius:PICKUP_RADIUS});
+ const anyPick=['wooden','stone','iron','diamond','golden'].some(t=>c(t+'_pickaxe')>=1);
+ const stonePick=['stone','iron','diamond'].some(t=>c(t+'_pickaxe')>=1);
+ if(c('iron_pickaxe')+c('diamond_pickaxe')>=1&&ex.diamond&&c('diamond_pickaxe')<1)return g('diamond_ore',ex.diamond);
+ if(stonePick&&ex.iron&&c('raw_iron')+c('iron_ingot')<30)return g('iron_ore',ex.iron);
+ if(anyPick&&ex.coal&&c('coal')+c('charcoal')<16)return g('coal_ore',ex.coal);
+ if(ex.log&&ctx.logsTotal+ctx.planksTotal/4<2)return {...g('log',Math.min(2,ex.log)),belowFoots:true};
  return null;
 }
 // The progression ladder. Each entry: name, done(counts) and next(counts, ctx) producing the
@@ -979,6 +1001,12 @@ export class Autopilot{
    const wool=woolJob(counts,{...ctx,tod:dayTicks(b)});
    if(wool){this.submit('bed-rung',wool);return;}
   }
+  // Pickups in arm's reach between jobs (efficiency 3), unless the step's own job is that gather.
+  if(choice.step!=='wood'&&!QUICK_JOBS.has(choice.job?.type)){
+   const exposed=this.exposedNear(b);
+   const pick=exposed&&pickupJob(counts,{...ctx,tod:dayTicks(b),exposed,sinceLast:this.lastPickup?Date.now()-this.lastPickup:null});
+   if(pick&&!(choice.job?.type==='gather'&&choice.job.block===pick.block)){this.lastPickup=Date.now();this.submit('pickup',pick);return;}
+  }
   if(choice.step==='food'&&this.foodTrack(counts,choice.job))return; // set aside: next tick moves on
   if(choice.step==='food'&&choice.job?.type==='explore'&&this.lastSurfaceY==null&&this.foodAnchorY==null)this.foodAnchorY=standY;
   if(choice.step==='food'||choice.step==='bed')this.huntPhase=!this.huntPhase;
@@ -1007,6 +1035,22 @@ export class Autopilot{
   if(choice.step==='iron'&&isDiamondJob(choice.job)){this.submit('diamond-rung',choice.job);return;}
   if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
+ }
+ // Exposed ore and logs within PICKUP_RADIUS (pickupJob), skipping blocks a gather refused.
+ exposedNear(b){
+  try{
+   const reg=b.registry.blocksByName||{},at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+   const kinds={coal:['coal_ore','deepslate_coal_ore'],iron:['iron_ore','deepslate_iron_ore'],diamond:['diamond_ore','deepslate_diamond_ore'],log:Object.keys(reg).filter(n=>/_log$/.test(n))};
+   const out={};let any=false;
+   const me=b.entity.position,bl=this.worker.blacklist;
+   for(const [kind,names] of Object.entries(kinds)){
+    const ids=names.map(n=>reg[n]&&reg[n].id).filter(id=>id!=null);
+    if(!ids.length||typeof b.findBlocks!=='function')continue;
+    const found=b.findBlocks({matching:ids,maxDistance:PICKUP_RADIUS,count:8}).filter(p=>isExposed(at3,p)&&!(bl&&bl.blockRecently&&bl.blockRecently(p))&&(kind!=='log'||Math.abs(p.y-me.y)<=3));
+    if(found.length){out[kind]=found.length;any=true;}
+   }
+   return any?out:null;
+  }catch{return null;}
  }
  // A block of one of `names` within `radius` (any exposure; the gather prefers exposed ones).
  oreNear(b,names,radius){

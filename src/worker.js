@@ -24,7 +24,7 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS} from './move-safety.js';
-import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity,stepFooting,turnOrder} from './digDown.js';
+import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity,stepFooting,turnOrder,wallOre} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
@@ -141,6 +141,10 @@ const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String
 // cave, a ravine), lava under the floor or a loose floor over a hollow turns the tunnel to a
 // side (STAIR_TURNS per job). No safe way on: the tunnel stops - it never walks onto air.
 export const STAIR_TURNS=6;
+// Efficiency 3: ore worth a swing from the tunnel (coal and iron for the ladder, diamonds), and
+// how many such wall digs one job may make.
+const WALL_ORE=/^(deepslate_)?(coal|iron|diamond|copper|gold|redstone|lapis|emerald)_ore$/;
+export const WALL_PICKUPS=16;
 const FILL_ITEMS=['cobblestone','cobbled_deepslate','dirt','netherrack','stone','deepslate','andesite','diorite','granite','tuff'];
 export function planTunnelStep(b,job,dir,dy){
  const here=b.entity.position.floored(),at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
@@ -163,6 +167,29 @@ export function planTunnelStep(b,job,dir,dy){
 export async function descendLeg(w,job,token,targetY){
  try{await w.staircase(job,token,targetY);}
  catch(e){w.check(token);if(!/^Tunnel stopped: (cave opening|a hole|hole|loose|lava two below|unloaded|turn limit|dropped)/.test(e.message))throw e;w.log('Gather: descent stopped at y='+w.bot.entity.position.floored().y+' ('+e.message+'); searching from here');}
+}
+// Efficiency 3: mine wanted ore in the tunnel's side walls (digDown.wallOre) as the tunnel
+// passes, with the right tool held, up to WALL_PICKUPS per job and never with a hostile
+// within 8. Its drop lands in the next cell, inside the pickup reach.
+export async function wallPickups(w,job,token,feet,dir){
+ const b=w.bot;
+ if((job.wallPickups||0)>=WALL_PICKUPS||typeof b.dig!=='function')return;
+ if(Object.values(b.entities||{}).some(e=>e&&e.type==='hostile'&&e.position&&e.position.distanceTo(b.entity.position)<8))return;
+ const wanted=bl=>WALL_ORE.test(bl.name||'');
+ for(const p of wallOre((x,y,z)=>b.blockAt(new Vec3(x,y,z)),feet,dir,wanted)){
+  if((job.wallPickups||0)>=WALL_PICKUPS)return;
+  w.check(token);
+  const block=b.blockAt(new Vec3(p.x,p.y,p.z));
+  if(!block||!wanted(block))continue;
+  if(block.harvestTools&&!Object.keys(block.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id)))continue;
+  try{
+   await b.tool.equipForBlock(block);w.check(token);
+   if(block.material==='incorrect_for_wooden_tool')block.material='mineable/pickaxe';
+   await b.dig(block);await sleep(250);
+   job.wallPickups=(job.wallPickups||0)+1;
+   w.log('Tunnel: mined '+p.name+' in the wall at '+p.x+','+p.y+','+p.z);
+  }catch(e){w.check(token);}
+ }
 }
 async function fillFooting(w,token,foot,filler){
  const b=w.bot,item=b.inventory.items().find(i=>i.name===filler);
@@ -2055,6 +2082,7 @@ export class Worker extends EventEmitter {
   const here=b.entity.position.floored();
   if(here.y<next.y)throw Error('Tunnel stopped: dropped to y='+here.y+' below the step at '+next);
   await this.clearCells(token,[here.offset(0,1,0),here],natural,false);
+  await wallPickups(this,job,token,here,plan.dir);
   return {dir:plan.dir,next};
  }
  // Move one cell along dir: try the pathfinder first, then walk straight in. The pathfinder

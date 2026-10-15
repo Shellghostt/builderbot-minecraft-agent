@@ -113,3 +113,19 @@ export function turnOrder(dir){
  const side=[{x:dir.z||0,z:-dir.x||0},{x:-dir.z||0,z:dir.x||0}];
  return [{x:dir.x,z:dir.z},...side];
 }
+// Round 10 (efficiency 3): ore in the side walls of a tunnel cell the bot stands in is in arm's
+// reach - a player mines it on the way. Side walls only (perpendicular to the tunnel: the cells
+// ahead are dug anyway, behind is the tunnel): never the floor (no digging down) and never the
+// ceiling (what sits on it would fall onto the bot), never a block a fluid touches.
+export function wallOre(blockAt,feet,dir,isWanted){
+ const out=[];
+ const sides=[{x:dir.z||0,z:-dir.x||0},{x:-dir.z||0,z:dir.x||0}];
+ for(const y of [feet.y,feet.y+1])for(const s of sides){
+  const x=feet.x+s.x,z=feet.z+s.z,bl=blockAt(x,y,z);
+  if(!bl||!isWanted(bl))continue;
+  let wet=false;
+  for(const [dx,dy,dz] of SIDES)if(isFluid(blockAt(x+dx,y+dy,z+dz))){wet=true;break;}
+  if(!wet)out.push({x,y,z,name:bl.name});
+ }
+ return out;
+}

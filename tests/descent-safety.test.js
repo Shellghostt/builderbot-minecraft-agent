@@ -143,3 +143,43 @@ test('an ore descent stopped by a cave opening hands back to the gather; lava st
  worker.staircase=async()=>{throw Error('Tunnel stopped: lava at 1,120,0');};
  await assert.rejects(descendLeg(worker,{},0,-54),/lava at/);
 });
+// Round 10, efficiency 3: ore in arm's reach of the tunnel is mined on the way.
+import {wallOre} from '../src/digDown.js';
+import {pickupJob,PICKUP_EVERY_MS} from '../src/autopilot.js';
+import {jobSchema} from '../src/schema.js';
+test('wallOre: the side walls of the feet and head cells only, never beside a fluid',()=>{
+ const w=world({'0,130,1':'coal_ore','0,131,-1':'iron_ore','1,130,0':'coal_ore','0,129,0':'coal_ore','0,132,0':'coal_ore','-1,130,0':'coal_ore','0,131,1':'diamond_ore','0,131,2':'lava'});
+ const ore=bl=>/_ore$/.test(bl.name);
+ const got=wallOre(w.blockAt,{x:0,y:130,z:0},{x:1,z:0},ore).map(p=>p.x+','+p.y+','+p.z+' '+p.name).sort();
+ assert.deepEqual(got,['0,130,1 coal_ore','0,131,-1 iron_ore'],'ahead, behind, floor and ceiling are left; the diamond touches lava');
+});
+test('a staircase mines coal in its side wall as it passes, with the right tool only',async()=>{
+ const w=world({'1,129,1':'coal_ore','2,128,-1':'iron_ore'});
+ const {worker,bot,logs}=digger(w);
+ bot.blockAt=(p=>{const real=w.blockAt(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z));if(real.name==='iron_ore')real.harvestTools={901:true};return real;});
+ const job={id:'c'};
+ await Worker.prototype.staircase.call(worker,job,0,127,{dir:new Vec3(1,0,0)});
+ assert.equal(w.nameAt(1,129,1),'air','the coal beside step 1 was mined');
+ assert.equal(w.nameAt(2,128,-1),'iron_ore','no stone pickaxe: the iron stays');
+ assert.equal(job.wallPickups,1);
+ assert.ok(logs.some(l=>/mined coal_ore in the wall at 1,129,1/.test(l)));
+ // a hostile within 8: no wall digs
+ const w2=world({'1,129,1':'coal_ore'});
+ const t=digger(w2);t.bot.entities={9:{type:'hostile',name:'zombie',position:new Vec3(3,129,0)}};
+ await Worker.prototype.staircase.call(t.worker,{id:'d'},0,128,{dir:new Vec3(1,0,0)});
+ assert.equal(w2.nameAt(1,129,1),'coal_ore');
+});
+test('pickupJob: exposed ore the ladder needs within 6, rate-limited, never at night or near hostiles',()=>{
+ const kit={wooden_pickaxe:1,stone_pickaxe:1,oak_log:4};
+ assert.deepEqual(pickupJob(kit,{tod:3000,exposed:{coal:3}}),{type:'gather',block:'coal_ore',count:3,radius:6});
+ assert.deepEqual(pickupJob(kit,{tod:3000,exposed:{coal:3,iron:9}}),{type:'gather',block:'iron_ore',count:4,radius:6},'iron first, capped');
+ assert.equal(pickupJob({wooden_pickaxe:1,oak_log:4},{tod:3000,exposed:{iron:2}}),null,'iron needs a stone pickaxe');
+ assert.equal(pickupJob({...kit,coal:16},{tod:3000,exposed:{coal:3}}),null,'enough coal');
+ assert.equal(pickupJob(kit,{tod:13000,exposed:{coal:3}}),null,'night');
+ assert.equal(pickupJob(kit,{tod:3000,exposed:{coal:3},hostileDistance:10}),null);
+ assert.equal(pickupJob(kit,{tod:3000,exposed:{coal:3},sinceLast:PICKUP_EVERY_MS-1}),null,'once a minute');
+ assert.deepEqual(pickupJob({stone_pickaxe:1},{tod:3000,exposed:{log:5}}),{type:'gather',block:'log',count:2,radius:6,belowFoots:true},'logs when wood is low');
+ assert.equal(pickupJob(kit,{tod:3000,exposed:{log:5}}),null,'4 logs held: no detour');
+ assert.deepEqual(pickupJob({iron_pickaxe:1},{tod:3000,exposed:{diamond:1,coal:2}}),{type:'gather',block:'diamond_ore',count:1,radius:6});
+ for(const j of [pickupJob(kit,{tod:3000,exposed:{coal:3}}),pickupJob({stone_pickaxe:1},{tod:3000,exposed:{log:5}})])assert.ok(jobSchema.safeParse(j).success);
+});
