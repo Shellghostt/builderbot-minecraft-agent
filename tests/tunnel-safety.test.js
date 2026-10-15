@@ -39,7 +39,7 @@ function tunneller(w,start=new Vec3(0.5,130,0.5)){
   inventory:{items:()=>[]},tool:{async equipForBlock(){}},
   async dig(bl){digs.push(bl.name+'@'+bl.position.y);w.dig(bl.position);}};
  const worker={bot,epoch:0,logs:[],check(){},save(){},log(m){this.logs.push(m);},async placeTorch(){},
-  clearCells:Worker.prototype.clearCells,digTunnelStep:Worker.prototype.digTunnelStep,
+  clearCells:Worker.prototype.clearCells,digTunnelStep:Worker.prototype.digTunnelStep,tunnelStep:Worker.prototype.tunnelStep,
   takeStrandedTunnel:Worker.prototype.takeStrandedTunnel,
   async stepInto(next){bot.entity.position=new Vec3(next.x+0.5,next.y,next.z+0.5);if(worker.onStep)worker.onStep(next);}};
  return {bot,worker,digs};

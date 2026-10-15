@@ -24,7 +24,7 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS} from './move-safety.js';
-import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity} from './digDown.js';
+import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity,stepFooting,turnOrder} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
@@ -123,6 +123,40 @@ export const SHELTER_DIG_MS=45000,SHELTER_SEAL_MS=30000,NIGHT_PILLAR_MS=13*60000
 // refused, so the seal digs them out first (a dark-forest floor is full of mushrooms).
 export const SHELTER_NOTCH=/^(.*_mushroom|.*_sapling|.*_fungus|.*_roots|dandelion|poppy|blue_orchid|allium|azure_bluet|.*_tulip|oxeye_daisy|cornflower|lily_of_the_valley|wither_rose|torchflower|pink_petals|wildflowers|leaf_litter|sweet_berry_bush|sugar_cane|bush|firefly_bush|short_dry_grass|tall_dry_grass|moss_carpet|cocoa|lily_pad)$/;
 const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message));
+// Round 10 (bug A): a tunnel step is planned before it is dug. stepFooting looks two cells
+// under the next step; a shallow hole there is filled with a held block, a deep opening (a
+// cave, a ravine), lava under the floor or a loose floor over a hollow turns the tunnel to a
+// side (STAIR_TURNS per job). No safe way on: the tunnel stops - it never walks onto air.
+export const STAIR_TURNS=6;
+const FILL_ITEMS=['cobblestone','cobbled_deepslate','dirt','netherrack','stone','deepslate','andesite','diorite','granite','tuff'];
+export function planTunnelStep(b,job,dir,dy){
+ const here=b.entity.position.floored(),at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+ const filler=FILL_ITEMS.find(n=>b.inventory.items().some(i=>i.name===n))||null;
+ const why=[];
+ for(const d of turnOrder(dir)){
+  const turned=d.x!==dir.x||d.z!==dir.z;
+  if(turned&&(job.stairTurns||0)>=STAIR_TURNS){why.push('turn limit');break;}
+  const next=here.offset(d.x,dy,d.z),foot=stepFooting(at3,next);
+  if(foot.fill&&!filler){why.push('a hole under '+next+' and no block to fill it');continue;}
+  if(foot.turn){why.push(foot.turn);continue;}
+  if(turned)job.stairTurns=(job.stairTurns||0)+1;
+  return {dir:new Vec3(d.x,0,d.z),next,foot,filler,turned,why};
+ }
+ return {why};
+}
+// An ore gather's descent leg. A leg the footing check stopped (a cave or ravine with no
+// safe way around) ends where the bot stands: the gather scans from there (and the next leg,
+// if one is left, tries again) instead of failing the trip on a safe stop. Lava still fails.
+export async function descendLeg(w,job,token,targetY){
+ try{await w.staircase(job,token,targetY);}
+ catch(e){w.check(token);if(!/^Tunnel stopped: (cave opening|a hole|hole|loose|lava two below|unloaded|turn limit|dropped)/.test(e.message))throw e;w.log('Gather: descent stopped at y='+w.bot.entity.position.floored().y+' ('+e.message+'); searching from here');}
+}
+async function fillFooting(w,token,foot,filler){
+ const b=w.bot,item=b.inventory.items().find(i=>i.name===filler);
+ if(!item)throw Error('Tunnel stopped: no '+filler+' left to fill the hole at '+foot.fill.x+','+foot.fill.y+','+foot.fill.z);
+ await b.equip(item,'hand');w.check(token);
+ await w.placeBlocks(b.blockAt(new Vec3(foot.support.x,foot.support.y,foot.support.z)),new Vec3(foot.face.x,foot.face.y,foot.face.z),new Vec3(foot.fill.x,foot.fill.y,foot.fill.z),filler,token);
+}
 export class Worker extends EventEmitter {
  constructor(root,config){
   super();this.root=root;this.config=config;this.bot=null;this.ready=false;this.busy=false;this.epoch=0;this.events=[];
@@ -1665,7 +1699,7 @@ export class Worker extends EventEmitter {
      if(UNDERGROUND.test(s.block)&&b.entity.position.y>targetY&&job.descents<3){
       const legY=s.targetY!=null?descentTarget(s,b.entity.position.y):targetY;
       job.descents++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${legY}`);
-      await this.staircase(job,token,legY);
+      await descendLeg(this,job,token,legY);
       job.anchor=b.entity.position.floored();this.save();continue;
      }
      if(s.strip&&b.entity.position.y<=targetY&&!job.stripped){
@@ -1712,7 +1746,7 @@ export class Worker extends EventEmitter {
        job.descents++;
        const legY=descentTarget(s,b.entity.position.y);
        this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Digging a staircase down to y=${legY}`);
-       await this.staircase(job,token,legY);
+       await descendLeg(this,job,token,legY);
        job.anchor=b.entity.position.floored();this.save();continue;
       }
       // Round 9 hard2 (never a log in 20 min): the hard runs share one anchor, so run 2 starts
@@ -1906,20 +1940,12 @@ export class Worker extends EventEmitter {
   const b=this.bot;
   if(!job.tunnel)job.tunnel=[];
   const start=b.entity.position.floored();
-  const dir=opts.dir||[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x*3+start.z)%4];
+  let dir=opts.dir||[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x*3+start.z)%4];
  let lastY=start.y,stalls=0;
  for(let steps=0;b.entity.position.floored().y>targetY&&steps<200;steps++){
   this.check(token);
-  const next=b.entity.position.floored().plus(dir).offset(0,-1,0);
-  const before=job.tunnel[job.tunnel.length-1];
-   if(before&&before.x===next.x&&before.y===next.y&&before.z===next.z)throw Error('Staircase stalled at '+next);
-   // Corner cut: without digging the cell above the target's head the bot wedges against
-   // the ceiling when it walks over the edge to drop one level.
-   await this.digTunnelStep(job,token,next,true,opts.natural);
-  await this.stepInto(next,dir,token);
-  // A late fall can still land on the bot: free its own head and feet before the next step.
-  const here=b.entity.position.floored();
-  await this.clearCells(token,[here.offset(0,1,0),here],opts.natural,false);
+  const step=await this.tunnelStep(job,token,dir,-1,true,opts.natural);
+  dir=step.dir;const next=step.next;
   job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
   if(steps%6===5)await this.placeTorch(token);
   const nowY=b.entity.position.floored().y;
@@ -1928,6 +1954,31 @@ export class Worker extends EventEmitter {
   this.save();
   if(opts.stopWhen&&opts.stopWhen())break;
   }
+ }
+ // One tunnel step along dir (dy -1: a staircase step, 0: a strip-mine step): plan the
+ // footing (a turn when the way on is unsafe), dig the cells, fill a shallow hole, walk in,
+ // then free the bot's own head and feet (a late fall can still land on it). A bot that
+ // ends up below the step dropped somewhere: the tunnel stops there.
+ async tunnelStep(job,token,dir,dy,corner,natural){
+  const b=this.bot;
+  const plan=planTunnelStep(b,job,dir,dy);
+  if(!plan.next)throw Error('Tunnel stopped: '+(plan.why.join('; ')||'no safe step')+'; no safe way on');
+  const next=plan.next;
+  const before=job.tunnel[job.tunnel.length-1];
+  if(before&&before.x===next.x&&before.y===next.y&&before.z===next.z)throw Error((dy<0?'Staircase':'Strip mine')+' stalled at '+next);
+  if(plan.turned)this.log('Tunnel: '+plan.why[0]+'; turning '+(plan.dir.x?(plan.dir.x>0?'east':'west'):(plan.dir.z>0?'south':'north')));
+  await this.digTunnelStep(job,token,next,corner,natural,!!plan.foot.fill);
+  if(plan.foot.fill){
+   await fillFooting(this,token,plan.foot,plan.filler);
+   this.log('Tunnel: filled a hole under '+next+' with '+plan.filler);
+  }
+  const foot=stepFooting((x,y,z)=>b.blockAt(new Vec3(x,y,z)),next);
+  if(!foot.ok)throw Error('Tunnel stopped: '+(foot.turn||'a hole under '+next)+' after the dig');
+  await this.stepInto(next,plan.dir,token);
+  const here=b.entity.position.floored();
+  if(here.y<next.y)throw Error('Tunnel stopped: dropped to y='+here.y+' below the step at '+next);
+  await this.clearCells(token,[here.offset(0,1,0),here],natural,false);
+  return {dir:plan.dir,next};
  }
  // Move one cell along dir: try the pathfinder first, then walk straight in. The pathfinder
  // sometimes refuses (or fakes) the single step down a dug staircase.
@@ -1948,17 +1999,12 @@ export class Worker extends EventEmitter {
   const b=this.bot;
   if(!job.tunnel)job.tunnel=[];
   const start=b.entity.position.floored();
-  const dir=[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x+start.z*5)%4];
+  let dir=[new Vec3(1,0,0),new Vec3(0,0,1),new Vec3(-1,0,0),new Vec3(0,0,-1)][Math.abs(start.x+start.z*5)%4];
   let last=start.floored(),stalls=0;
   for(let steps=0;steps<length;steps++){
    this.check(token);
-   const next=b.entity.position.floored().plus(dir);
-   const before=job.tunnel[job.tunnel.length-1];
-   if(before&&before.x===next.x&&before.y===next.y&&before.z===next.z)throw Error('Strip mine stalled at '+next);
-   await this.digTunnelStep(job,token,next);
-   await this.stepInto(next,dir,token);
-   const here=b.entity.position.floored();
-   await this.clearCells(token,[here.offset(0,1,0),here],undefined,false);
+   const step=await this.tunnelStep(job,token,dir,0,false,undefined);
+   dir=step.dir;const next=step.next;
    job.tunnel.push({x:next.x,y:next.y,z:next.z});this.strandedTunnel={points:job.tunnel,job:job.id};
    if(steps%8===7)await this.placeTorch(token);
    const now=b.entity.position.floored();
@@ -2034,14 +2080,15 @@ export class Worker extends EventEmitter {
    for(const delta of [new Vec3(0,-1,0),new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1)])if(['lava','water'].includes(b.blockAt(feet.offset(0,-2,0).plus(delta))?.name))return;
    // The dig must not open a long fall: count the air below and refuse deep drops.
    let air=0;let probe=feet.offset(0,-2,0);
-   while(air<4&&!b.blockAt(probe)?.boundingBox==='block'&&probe.y>-60){air++;probe=probe.offset(0,-1,0);}
-   if(air>=4)return;
+   // (round 10: this read `!x?.boundingBox==='block'`, always false - deep drops were never refused)
+   while(air<2&&b.blockAt(probe)&&b.blockAt(probe).boundingBox!=='block'&&probe.y>-64){air++;probe=probe.offset(0,-1,0);}
+   if(air>=2)return; // the dug block plus 2 open cells is a 3-block drop: refuse
    await b.tool.equipForBlock(below);
    await b.dig(below);await sleep(250);
    await sleep(400); // let the bot land
   }
  }
- async digTunnelStep(job,token,next,corner,natural){
+ async digTunnelStep(job,token,next,corner,natural,fillPlanned=false){
   const b=this.bot;
   const fluidAt=p=>['lava','water'].includes(b.blockAt(p)?.name);
   const feetBlock=b.blockAt(next),head=b.blockAt(next.offset(0,1,0)),floor=b.blockAt(next.offset(0,-1,0));
@@ -2050,7 +2097,7 @@ export class Worker extends EventEmitter {
   if(natural){
    const foreign=targets.find(bl=>!natural(bl));
    if(foreign)throw Error('Tunnel stopped: '+foreign.name+' at '+foreign.position+' is not natural terrain');
-   if(floor?.boundingBox!=='block')throw Error('Tunnel stopped: no floor under '+next);
+   if(floor?.boundingBox!=='block'&&!fillPlanned)throw Error('Tunnel stopped: no floor under '+next);
   }
   for(const spot of [next,next.offset(0,1,0),...(corner?[next.offset(0,2,0)]:[])])for(const delta of [new Vec3(1,0,0),new Vec3(-1,0,0),new Vec3(0,0,1),new Vec3(0,0,-1),new Vec3(0,1,0)]){
    const p=spot.plus(delta);

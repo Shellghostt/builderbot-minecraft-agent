@@ -74,3 +74,42 @@ export function stonePlan({targets,botPos,blockAt,isNatural,isTarget,digDowns=0,
  }
  return {action:'mine',targets:exposed.length?exposed:targets};
 }
+// Round 10 (round-9 normal2 'fell from a high place' at y=13, normal3 18.4 -> 3.5 hp on the
+// diamond staircase): the ore staircase and the strip mine never looked under the next step,
+// so a cave or ravine opening under it dropped the bot. The footing of a step at `next`
+// (its feet cell), checked two cells down before the bot walks in:
+// - {ok:true}: a solid, non-fluid floor (sand/gravel only with something solid under it);
+// - {fill,support,face}: the floor cell is a shallow hole (FILL_DEPTH cells or less of open
+//   space): place one block into it from `support` (face = fill - support), then walk in;
+// - {turn:reason}: a deep opening (a ravine, a cave), lava under the floor, a loose floor
+//   over a hollow, or a hole with nothing to place against: take another direction.
+// The bot never steps onto a cell it could drop more than one block from.
+export const FILL_DEPTH=2;
+export function stepFooting(blockAt,next){
+ const floor=blockAt(next.x,next.y-1,next.z),under=blockAt(next.x,next.y-2,next.z);
+ if(!floor)return {turn:'unloaded floor under '+fmt(next)};
+ if(isFluid(floor))return {turn:floor.name+' under '+fmt(next)};
+ if(solid(floor)){
+  if(isFluid(under)&&under.name==='lava')return {turn:'lava two below '+fmt(next)};
+  if(isGravity(floor)&&!solid(under))return {turn:'loose '+floor.name+' over a hollow under '+fmt(next)};
+  return {ok:true};
+ }
+ // Open floor: how deep does it go?
+ let depth=1;
+ while(depth<=FILL_DEPTH){const bl=blockAt(next.x,next.y-1-depth,next.z);if(!bl||solid(bl)||isFluid(bl))break;depth++;}
+ if(depth>FILL_DEPTH)return {turn:'cave opening under '+fmt(next)+' ('+depth+'+ deep)'};
+ const fill={x:next.x,y:next.y-1,z:next.z};
+ for(const [dx,dy,dz] of [[0,-1,0],[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]]){
+  const p={x:fill.x+dx,y:fill.y+dy,z:fill.z+dz};
+  const bl=blockAt(p.x,p.y,p.z);
+  if(solid(bl)&&!isGravity(bl))return {fill,support:p,face:{x:-dx||0,y:-dy||0,z:-dz||0}};
+ }
+ return {turn:'hole under '+fmt(next)+' with nothing to build on'};
+}
+const fmt=p=>p.x+','+p.y+','+p.z;
+// The directions a blocked staircase may turn to: straight on first, then the two sides;
+// never back into its own tunnel.
+export function turnOrder(dir){
+ const side=[{x:dir.z||0,z:-dir.x||0},{x:-dir.z||0,z:dir.x||0}];
+ return [{x:dir.x,z:dir.z},...side];
+}
