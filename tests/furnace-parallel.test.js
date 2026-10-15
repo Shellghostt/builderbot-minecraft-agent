@@ -27,7 +27,7 @@ function smeltFake({worldFurnace=false,clk=clock()}={}){
     async putFuel(id,meta,n){inv.coal-=n;state.fuel+=n;},
     inputItem(){tick();return state.input?{count:state.input}:null;},
     outputItem(){tick();return state.output?{count:state.output}:null;},
-    fuelItem(){return state.fuel?{count:state.fuel}:null;},
+    fuelItem(){return state.fuel?{count:state.fuel,name:'coal',type:3}:null;},
     async takeOutput(){inv.iron_ingot+=state.output;state.output=0;},
     async takeInput(){inv.raw_iron+=state.input;state.input=0;},
     async takeFuel(){inv.coal+=state.fuel;state.fuel=0;}};},
@@ -134,4 +134,40 @@ test('autopilot: the iron smelt is left to work, coal is mined beside it, then t
    assert.deepEqual(submitted[3],{type:'craft',item:'iron_pickaxe',count:1},'the ladder goes on with the ingots');
   });
  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+// Round 10, efficiency 2 (seen live: one kill, cook, break the furnace, walk to the next
+// animal right beside it, repeat): hunt everything in reach first, then one furnace run.
+import {plan,FOOD_BATCH} from '../src/autopilot.js';
+const STONE={oak_planks:8,stick:10,crafting_table:1,wooden_pickaxe:1,wooden_sword:1,wooden_axe:1,cobblestone:32,stone_pickaxe:1,stone_sword:1,stone_axe:1,stone_shovel:1,furnace:1};
+test('food batching: animals still in reach are hunted before the meat is cooked',()=>{
+ let r=plan({...STONE,beef:2,_edible:2},{animalsNearby:'cow',animalsClose:3,huntPhase:false});
+ assert.deepEqual([r.step,r.job.type,r.job.entity],['food','fight','cow'],'hunt on, no furnace yet');
+ r=plan({...STONE,beef:2,_edible:2},{animalsNearby:'cow',animalsClose:3,huntPhase:true});
+ assert.equal(r.job.type,'collect','the drops of the kills');
+ r=plan({...STONE,beef:FOOD_BATCH,_edible:FOOD_BATCH},{animalsNearby:'cow',animalsClose:3});
+ assert.deepEqual([r.job.type,r.job.item,r.job.count],['smelt','beef',FOOD_BATCH],'a full batch: cook it all at once');
+ r=plan({...STONE,beef:2,_edible:2},{animalsNearby:'cow',animalsClose:0});
+ assert.deepEqual([r.job.type,r.job.count],['smelt',2],'the rest are far: cook what is held');
+});
+test('a furnace the bot placed is still its own when a later run reuses it, fuel and all',async()=>{
+ const t=smeltFake();t.inv.coal=0;t.inv.charcoal=0;
+ t.w.fuelPlan=async()=>({id:3,count:1});t.inv.coal=1; // one coal, put in once
+ await withClock(t.clk,async()=>{
+  await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:3,leave:true}},0);
+  t.clk.advance(40000);
+  await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:3,take:true,keepFurnace:true}},0);
+  assert.deepEqual(t.calls.filter(c=>c[0]==='pickUp'),[],'kept for the next batch');
+  // the next batch finds that furnace standing (no new placement) ...
+  t.w.bot.findBlock=()=>({position:new Vec3(2,64,0),name:'furnace'});
+  t.state.fuel=1; // a second coal still in the fuel slot (the fake never burns the slot)
+  t.w.fuelPlan=Worker.prototype.fuelPlan; // nothing held: the slot must cover the batch
+  await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:3,leave:true}},0);
+  assert.equal(t.calls.filter(c=>c[0]==='place').length,1);
+  assert.equal(t.inv.coal,0,'no fuel needed from the inventory');
+  assert.equal(t.w.furnaceRun.placed,true,'still the bot\'s own furnace');
+  t.clk.advance(40000);
+  await Worker.prototype.smelt.call(t.w,{spec:{type:'smelt',item:'raw_iron',count:3,take:true}},0);
+ });
+ assert.deepEqual(t.calls.filter(c=>c[0]==='pickUp'),[['pickUp','furnace']],'... and the last take picks it up');
+ assert.equal(t.inv.iron_ingot,6);
 });

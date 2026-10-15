@@ -293,7 +293,7 @@ function replacementJob(c,ctx){
 // Done at FOOD_ENOUGH edible held, or that many held + eaten this run (`_eaten`), unless the
 // bot is hungry (bar <= FOOD_HUNGRY) with nothing to eat. A food step that keeps failing is
 // set aside (ctx.foodOff, FOOD_OFF_MS) and comes back only on that hunger (ctx.foodDeferred).
-export const FOOD_ENOUGH=4,FOOD_HUNGRY=14,FOOD_LEGS=6,FOOD_OFF_MS=8*60000;
+export const FOOD_ENOUGH=4,FOOD_HUNGRY=14,FOOD_LEGS=6,FOOD_OFF_MS=8*60000,FOOD_BATCH=6;
 export function foodDone(c,ctx){
  if(COOKABLE_MEAT.some(m=>c(m)>=1&&c('furnace')>=1))return false; // smelting it takes seconds
  const edible=c('_edible');
@@ -403,7 +403,11 @@ export const STEPS=[
   // COMBAT_SPEC 7a: keep cooked food - raw meat is smelted through the existing flow
   // whenever a furnace is available, even while enough raw food is already held.
   const meat=COOKABLE_MEAT.find(m=>c(m)>=1);
-  if(meat&&c('furnace')>=1)return {type:'smelt',item:meat,count:Math.min(48,c(meat))};
+  // Round 10 (efficiency 2, seen live: kill one, cook it, break the furnace, walk to the next
+  // animal right beside it): while animals are still within reach (ctx.animalsClose, 24) and
+  // the batch is short of FOOD_BATCH, hunt on; then cook it all in one furnace run.
+  const hunting=ctx.animalsNearby&&(ctx.animalsClose||0)>0&&c('_edible')<FOOD_BATCH;
+  if(meat&&c('furnace')>=1&&!hunting)return {type:'smelt',item:meat,count:Math.min(48,c(meat))};
   if(c('wheat')>=3)return {type:'craft',item:'bread',count:1};
   // COMBAT_SPEC 7a: replace a nearly-broken weapon before hunting.
   const fix=replacementJob(c,ctx);if(fix)return fix;
@@ -889,7 +893,9 @@ export class Autopilot{
    if(['cow','pig','sheep','chicken'].includes(e.name)&&e.position.distanceTo(b.entity.position)<=48)counts[e.name]=(counts[e.name]||0)+1;
   }
   const best=Object.keys(counts).sort((a,c)=>counts[c]-counts[a])[0];
-  return best?{type:best,near:counts[best]}:null;
+  if(!best)return null;
+  const close=Object.values(b.entities).filter(e=>e!==b.entity&&e.name===best&&e.position&&e.position.distanceTo(b.entity.position)<=WOOL_NEAR).length;
+  return {type:best,near:counts[best],close};
  }
  chestSpotNear(b){
   const origin=b.entity.position.floored();
@@ -942,7 +948,7 @@ export class Autopilot{
   const worldTable=!!b.findBlock({matching:b.registry.blocksByName.crafting_table?.id,maxDistance:8})||!!(left&&left.distance<=32);
   const worldFurnace=!!b.findBlock({matching:b.registry.blocksByName.furnace?.id,maxDistance:16});
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
-  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
+  const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,animalsClose:animals?animals.close:0,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
    coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};

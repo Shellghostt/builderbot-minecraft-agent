@@ -714,7 +714,10 @@ export class Worker extends EventEmitter {
   if(!outputName)throw Error('Unknown smelting output for '+s.item);
   const output=b.registry.itemsByName[outputName];
   if(!output)throw Error('Unknown output item '+outputName);
-  const fuel=await this.fuelPlan(s.count,s.fuel);
+  // A kept furnace may still hold fuel (efficiency 2): no fuel held is only fatal when no
+  // furnace stands near or its fuel slot does not cover the batch (checked once it is open).
+  let fuel=null,fuelErr=null;
+  try{fuel=await this.fuelPlan(s.count,s.fuel);}catch(e){fuelErr=e;if(!b.findBlock({matching:b.registry.blocksByName.furnace.id,maxDistance:16}))throw e;}
   const before=this.count(outputName);
   let block=null,placedAt=null,placedFurnace=null,left=false;
   try{
@@ -743,14 +746,25 @@ export class Worker extends EventEmitter {
    const out=()=>furnace.outputItem()?.count||0;
    const take=async()=>{const n=out();if(n){await furnace.takeOutput();taken+=n;}};
    try{
+    const slot=furnace.fuelItem&&furnace.fuelItem();
+    const fuelValue=n=>n==='coal'||n==='charcoal'?8:(/_planks$|_log$/.test(n||'')?1.5:0);
+    const covered=slot?Math.floor((slot.count||0)*fuelValue(slot.name)):0;
+    if(covered<s.count&&fuelErr)throw fuelErr;
     await furnace.putInput(input.id,null,s.count);
-    await furnace.putFuel(fuel.id,null,fuel.count);
+    if(covered<s.count){
+     if(slot&&slot.type!==undefined&&slot.type!==fuel.id){try{await furnace.takeFuel();}catch{}} // a mixed slot refuses
+     await furnace.putFuel(fuel.id,null,fuel.count);
+    }
     if(s.leave){
      // Round 10 (efficiency 1): a furnace works on its own. Loaded, the job ends and the bot
      // does other work nearby; the ladder's take job (furnaceRun) collects the output.
      if(furnace.inputItem&&!furnace.inputItem())throw Error('The furnace did not take the '+s.item);
      const p=block.position;
-     this.furnaceRun={x:p.x,y:p.y,z:p.z,item:s.item,output:outputName,count:s.count,readyAt:Date.now()+s.count*KILN_ITEM_MS+1000,placed:!!placedFurnace,started:Date.now()};
+     // A furnace this bot placed stays its own across runs (a kept furnace reused for the next
+     // batch is still picked up by the last take, efficiency 2).
+     const own=!!placedFurnace||!!this.ownFurnaces?.has(p.x+','+p.y+','+p.z);
+     if(placedFurnace)(this.ownFurnaces||(this.ownFurnaces=new Set())).add(p.x+','+p.y+','+p.z);
+     this.furnaceRun={x:p.x,y:p.y,z:p.z,item:s.item,output:outputName,count:s.count,readyAt:Date.now()+s.count*KILN_ITEM_MS+1000,placed:own,started:Date.now()};
      this.log('Smelt: furnace at '+p.x+','+p.y+','+p.z+' loaded with '+s.count+' '+s.item+'; back for the '+outputName+' in ~'+Math.round(s.count*KILN_ITEM_MS/1000)+' s');
      done=true;left=true;
     }
@@ -810,7 +824,7 @@ export class Worker extends EventEmitter {
   this.furnaceRun=null;
   this.log('Smelt: took '+taken+' '+run.output+' from the furnace at '+at.x+','+at.y+','+at.z+(job.spec.keepFurnace?' (left standing)':''));
   if(run.placed&&!job.spec.keepFurnace&&b.inventory.items().some(i=>/_pickaxe$/.test(i.name))){
-   try{await this.pickUp(at,'furnace',token);}catch(e){this.log('Left the furnace at '+at+': '+e.message);}
+   try{await this.pickUp(at,'furnace',token);this.ownFurnaces?.delete(run.x+','+run.y+','+run.z);}catch(e){this.log('Left the furnace at '+at+': '+e.message);}
   }
   if(this.count(run.output)<=before)throw Error('The furnace gave no '+run.output);
   if(b.registry.foodsByName&&b.registry.foodsByName[run.output])this.meals.cooked+=taken;
