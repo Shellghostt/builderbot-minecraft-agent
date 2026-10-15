@@ -971,3 +971,140 @@ with planks held now crafts sticks instead of nothing), `combat`, `tunnel-safety
   the lane midpoint.
 - **Integration:** `Reflex paused the gather: Reflex: ...` at the new fixture.
 - **Climbs:** `Tunnel climb: step ...` lines instead of `Could not climb back up the tunnel`.
+
+## Cloud session round 7 (Claude, 2026-10-15, code only - `docs/CLOUD_TASK_7.md`)
+
+No game access. Unit tests only, every `tests/*.test.js` except `resources.test.js`,
+`--max-old-space-size=2048 --test-timeout=60000`: **392 passed, 0 failed** (366 at the start
+of the round, plus 26 new). `tests/soak_metrics_check.py` passes. One commit per task on
+`main` (`299de2e`..`a7bdae2`, plus the follow-up `34c553a`). All five tasks were done. The
+repo still has no round-6 logs or results JSON, so every diagnosis below comes from code, the
+TEST_REPORTS text and `tests/soak.py`. Each fix adds a log line that will confirm it live.
+
+1. **Eating** (`299de2e`, new `src/eating.js`, `tests/eating.test.js`).
+   - Why it timed out: mineflayer's `consume()` resolves only on entity_status 9, a held-item
+     change or a cooldown, all within 2.5 s (`CONSUME_TIMEOUT`). On the ViaBackwards
+     26.x -> 1.21.4 path status 9 can come late or never. FoodChain also never set
+     `worker.eating`, so any hand equip from another chain mid-meal could end the meal
+     server-side: a gather's `equipForBlock`, the pathfinder's dig tool, the forcefield's
+     sword.
+   - Fix: `eatMeal` judges a meal by its result: the food bar rising or the stack shrinking
+     within 1.5 s after consume returns or throws. A meal that shows neither is released
+     (`deactivateItem`) and retried once after selecting another hotbar slot, so the server
+     sees a fresh held-item change.
+   - `guardEquip`: while a meal is in flight, other hand equips wait for it (4.5 s at most).
+     Off-hand equips don't wait.
+   - All four eat paths use it: the eat job, the reflex auto-eat, FoodChain and the fight's
+     disengage-eat. FoodChain sets `worker.eating` and waits 5 s after a failed meal.
+   - Verdict: FoodChain counts `meals.noFood`, the hungry episodes (food <= 10) with nothing
+     to eat. The soak records `food_min_held`, the lowest bar while food was held.
+     `food_verdict` reads `no food held` for normal2's case (due 1, failed 0, nothing held at
+     the low). Any failed meal reads `EAT FAILED` with its reason, never `never hungry`. With
+     food eaten and a failure, it reads `ate (N failed: reason)`. The summary adds
+     `food_no_food`.
+2. **Shelter seal and spider-proof pillar** (`b1c4e4a`, cases in `shelter-seal`, `night`).
+   - `2 open cells, first at 158,154,-8` is a feet/head pair on one side. A bot standing off
+     its cell centre overlaps that neighbour column, and the server refuses placements inside
+     the player.
+   - Fixes:
+     - The seal sneaks back to the cell centre (`centreInCell`) before it starts and before
+       any cell that `hitsBot`.
+     - It digs non-replaceable natural plants out of a cell first (`SHELTER_NOTCH`:
+       mushrooms, flowers, saplings...). The dark-forest floor is full of them.
+     - A failed seal now logs every open cell with its block and the bot's exact x/z
+       (`Shelter: open cells ...`).
+   - Night pillar: once perched, the bot lays an 8-block overhang ring around the column top
+     (4 sides against the top, then 4 corners). Spiders climbing any face hit the ring's
+     underside. Log: `Night: overhang ring N/8 around the pillar top`.
+     - The bot stands on a 3x3 deck and holds sneak. Pushed onto the ring, it walks back to
+       the middle. It is only "knocked off" when it leaves the deck or drops below it.
+     - It still hits anything that reaches the top, and cells that refuse 3 clicks are
+       skipped.
+     - A holding pillar that is knocked off re-climbs after 3 s (was 10).
+     - 11 blocks for column plus ring. Fewer still pillars, with a partial ring.
+3. **Leaving the shelter at night** (`842d00d`, cases in `shelter-seal`, `night`).
+   - Cause: hard runs start at `time set 0`, so sunset is at ~600 s and the clock wraps to 0
+     at ~1200 s. The shelter loop held only while tod >= 12000, so it opened the box at the
+     wrap. The ladder then sent a gather at dawn, with the night's mobs still up and never
+     burning under the dark-oak canopy. That fits hard3's sealed 08:45Z / shot 08:56Z, 3
+     blocks from the box.
+   - Fix: `night.js leaveRefuge`. The sealed shelter and a perched pillar are left only from
+     tod 1000 (`MORNING_SAFE`) with no hostile within 16. From tod 3000 (`MORNING_LATE`), only
+     a hostile within 6 keeps the refuge.
+     - The shelter always opens 60 s before its own 13-minute deadline. A timed-out job would
+       leave the box up.
+     - A shelter resumed at dawn with its box standing re-seals and holds it.
+     - Logs: `Shelter: dawn (tod N); staying sealed ...` and `Shelter: morning (tod N,
+       nearest hostile D); opening up`.
+4. **Hard stone kit at dusk** (`5b08a5d`, cases in `hard-kit`, `autopilot`).
+   - Stone step cause: it demanded 10 sticks before any cobble. After the wood kit the bot
+     holds 0 planks and 0 logs, so this meant a log hunt first, then a 21-cobble gather
+     before the first craft.
+   - hard3's wood at 542 s: `soak.py` keeps one world for all three runs of a difficulty, so
+     hard3 starts in a forest hard1 and hard2 already cut down. That is a harness fairness
+     issue, not a bot bug. A per-run world (or per-run anchors) would fix it.
+   - Stone step fix: it mines the pickaxe's 3 cobble first and makes sticks only for a piece
+     whose cobble is held. The stone pickaxe then digs the rest (kit + 4 spare).
+   - Dusk: `duskCobbleJob` gathers the next kit piece's cobble ahead of the shelter dirt.
+     - It runs from tod 9000 until a minute before sunset, after the bed prep, up to 3 a day.
+       A failed one hands the dusk to the dirt.
+     - The cobble also counts as shelter material.
+     - The dusk kit craft then fires before sunset. Log: `Autopilot: dusk - cobble for the
+       stone kit first (N)`, then `dusk - finishing the stone kit first (...)`.
+5. **Iron** (`a7bdae2` + `34c553a`, new `tests/iron-band.test.js`, cases in `autopilot`).
+   - Band: iron gathers are `{targetY:16, bandTop:64, smeltAt:3}`, in batches of 6.
+     `descentTarget` stops the first staircase at 64 (or 32 below the bot), then goes down in
+     32-block legs and never below 16. Ore below 16 is not a target. Exposed ore beats
+     buried ore up to 8 blocks further away (`BURIED_ORE_PENALTY`). Coal gathers also enter
+     from the top.
+   - Kiln (`worker.kilnTick`): once 3 raw iron is held, the gather places the held furnace in
+     its tunnel (`placeBlockNear` already avoids the climb cells), loads it and keeps mining.
+     - When the batch is due and the bot is within 16, it takes the output and reloads with
+       fresh fuel.
+     - At the end, including a failed gather, it waits for the last batch (45 s at most),
+       takes back what is left and picks the furnace up.
+     - Raw ore in the kiln still counts as gathered (`job.kilnIn`).
+     - No furnace, no fuel or no spot turns the kiln off for the job. The ladder's smelt job
+       still runs.
+     - Logs: `Gather: kiln at x,y,z; smelting raw_iron while mining`, `Gather: kiln loaded
+       with N raw_iron (M ingots taken so far)`.
+   - Ladder: each core piece is crafted as soon as its own ingots are held (iron pickaxe at
+     3). 3+ raw iron is smelted before any further dig. The rest phase also digs in batches
+     of 6.
+   - A spare stone pickaxe (`STONE_PICKS` 2) is crafted from staircase cobble before each
+     iron dig, so a break no longer falls back to the iron pickaxe.
+
+### Files
+
+`src/eating.js` (new), `src/worker.js`, `src/autopilot.js`, `src/night.js`, `src/reflexes.js`,
+`src/schema.js` (gather `bandTop`, `smeltAt`), `src/chains/{foodChain,fightTask,fallbackTasks,mobDefenseChain}.js`;
+`tests/soak.py`, `tests/soak_metrics_check.py`; `AGENTS.md` (the two gather options). New
+tests: `eating`, `iron-band` (`.test.js`); new cases in `shelter-seal`, `night`, `hard-kit`.
+
+Changed expectations:
+- `autopilot` M5 test: spare pickaxe first, 6-ore batches in the band, smelt at 3, pickaxe
+  at 3 ingots. The stone gather with no stone pickaxe is 3, then 18.
+- `night`: the archer-shield test ticks through the ring first. Tod 500 no longer ends the
+  perch.
+- `shelter-seal`: "morning" in the helpers is tod 1500, not 100.
+
+### Needs live verification
+
+- **Food:** `bar MIN..MAX: ate` on runs that got hungry with food held. Any `EAT FAILED` now
+  carries the result-based reason (`the food bar did not rise (2 tries)` or `Promise timed
+  out. (2 tries)`). If it still fails, check whether ViaBackwards delivers the food/health
+  update at all.
+- **Shelter:** `Shelter: sealed` on hard nights with no `Could not seal`. If it still fails,
+  read the new `Shelter: open cells ...` line.
+- **Pillar:** `Night: overhang ring 8/8`, and no `knocked off the pillar` followed by a spider
+  death.
+- **Dawn:** `Shelter: dawn ... staying sealed`, then `Shelter: morning ... opening up` at tod
+  1000+. No death between the wrap and tod 1000.
+- **Hard kit:** `dusk - cobble for the stone kit first`, then `dusk - finishing the stone
+  kit first`. hard1 and hard3 should hold a stone pickaxe, and ideally a furnace, at
+  sunset.
+- **Iron:** `Gather: kiln ...` lines during iron gathers, the staircase stopping at y=64
+  first, and no position below y=16. Expect more ingots than raw iron at the bell, the iron
+  pickaxe held, and `Tool left the inventory: stone_pickaxe ... broke` followed by a re-craft.
+  The kiln's furnace pick-up after each gather is new live behaviour: check the furnace is
+  back in the inventory, or the `Left the furnace at ...` line.
