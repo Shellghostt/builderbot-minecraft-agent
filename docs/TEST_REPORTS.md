@@ -314,3 +314,49 @@ No second soak.
 `4_creeper` (lane): `pillar-up 2 at 1499,-60,1518 (creeper at 7.3)`, perched, then `perch 2 up is inside the fuse ring; knocking the creeper back (at 3.6)`. Three `pillar-strike` lines followed. No arrow was released. Suite: ttk 7.3 s, hits 5, `damage_taken=0`, end health 20, killed. Glowstone held at the spawn, the midpoint, and the bot start.
 
 `4b_creeper_roofed`: `pillar-up 2 at 1496,-60,1497 (creeper at 8.0)`, two arrows released (2.96 and 3.02 b/t) and both landed, then the same knockback line at 3.7 and one strike. `shots=2 released=2 landed=2`, ttk 7.3 s, hits 3, `damage_taken=0`, end health 20, killed, no crater.
+
+## 2026-10-15 12:18–14:26 IST — dual soak (`309f1eb`, bot code `02c8eb6`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 7667 s. `SOAK DONE (clean)`, promoted to `data/soak-results.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [142, 131, 31], normal [310, 131, 30].
+
+| Run | Wood | Stone pick | Furnace | Iron pick | Ingots peak | Bar | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 90 | 331 | 391 | 692, still held | 6 | 20..20 never hungry | 0 |
+| normal2a2 | 120 | 211 | 271 | — | 0 | 5..20 EAT FAILED | 0 |
+| normal3a3 | 90 | 150 | 271 | — | 0 | 15..20 EAT FAILED | 0 |
+| hard1a1 | 180 | never | never | — | 0 | 20..20 never hungry | 0 |
+| hard2a2 | 150, gone at the end | 361, gone | 391, gone | — | 0 | 17..20 EAT FAILED | 1 |
+| hard3a3 | 542, gone at the end | never | never | — | 0 | 17..20 never hungry | 1 |
+
+`iron_runs` 1. normal1 ended holding the iron pickaxe, an iron sword, 30 raw iron and 0 ingots. The furnace was out of the inventory, so the stone predicate is no. The operator returned normal1 from y=122 and normal3 from y=19.
+
+### Night
+
+No `Short of shelter blocks` line.
+
+- hard1, 08:02Z: `[night] shelter`, sealed 36 s later at (144, 129, 33) with 2 blocks. No pillar.
+- hard2, 08:24Z: `Could not seal the shelter: 2 open cells, first at 158,154,-8; night pillar instead`, then `Reflex: no shelter tonight; night pillar until morning`. It perched 3 up four times and was `knocked off the pillar` each time. A spider killed it at 08:28Z. The respawn shelter sealed 45 s later at (87, 130, -38), 20 blocks.
+- hard3, 08:45Z: sealed in 8 s at (132, 125, 38), 16 blocks. No pillar. A skeleton shot it at 08:56Z during a gather, at (135, 125, 36).
+
+### Food
+
+- normal1: `bar 20..20: never hungry (food min 20)`.
+- normal2: `bar 5..20: EAT FAILED (due 1, failed 0, food min 5)`. Cooked 0. The due count rose and `failed` stayed 0, so there is no reason string.
+- normal3: `bar 15..20: EAT FAILED (due 3, failed 4, Promise timed out., food min 15)`. Cooked 4, eaten 0.
+- hard1: `bar 20..20: never hungry`.
+- hard2: `bar 17..20: EAT FAILED (due 1, failed 0, food min 17)`.
+- hard3: `bar 17..20: never hungry (food min 17)`.
+
+### Tools and iron
+
+A stone pickaxe broke at 07:06Z (`1 uses left, broke`) during normal1, and another at 07:46Z during normal3. A wooden pickaxe broke at 07:48Z. The iron pickaxe did not break. It was logged leaving once at 250 uses, at the same instant as the first stone-pick break, and again at the run-end clear with 147 uses left. normal1's end inventory still held it. No other run crafted one.
+
+### Hard furnace
+
+No `sunset - finishing the stone kit` or `dusk - finishing` line. hard2 crafted a furnace at 08:20Z (391 s) and the spider death emptied it before the bell. hard1 and hard3 never sent a furnace craft. hard1's dusk job was `gather grass_block x25`. hard3's was the same, at 08:44Z, a minute before its shelter.
+
+### Deaths
+
+The counter matches the server log on both deaths. hard2: counter 1, log 1, window 0, `slain by Spider` at (129, 138, -2), job none. hard3: counter 1, window 1, log 1, `shot by Skeleton` at (135, 125, 36) during a gather. The other four runs are 0 on all three sources.
+
+No second soak.
