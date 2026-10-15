@@ -8,6 +8,7 @@ import {EventEmitter} from 'node:events';
 import {jobSchema,validateBlueprint} from './schema.js';
 import {installMovementFix,installWeatherFix} from './compat.js';
 import {eatMeal,guardEquip} from './eating.js';
+import {creeperSwell} from './creeper.js';
 import {yawToward} from './heading.js';
 import {craftConfirmedRetry as craftConfirmed} from './crafting.js';
 import {survey} from './observe.js';
@@ -95,6 +96,17 @@ const canSeeTarget=(b,e)=>{
 // the pump runs a queued one before any other queued job (a reflex-paused day job resumed
 // at night sat ahead of the night shelter in the array and ran first - round 4).
 export const SURVIVAL_JOBS=new Set(['sleep','eat','shelter']);
+// Distance to a creeper close enough to override a survival hold: within 6, or fusing within 10.
+export function creeperThreat(bot){
+ const me=bot&&bot.entity&&bot.entity.position;if(!me)return null;
+ let best=null;
+ for(const e of Object.values(bot.entities||{})){
+  if(!e||e.name!=='creeper'||!e.position||e.isValid===false)continue;
+  const d=e.position.distanceTo?e.position.distanceTo(me):Math.hypot(e.position.x-me.x,e.position.y-me.y,e.position.z-me.z);
+  if((d<=6||(d<=10&&creeperSwell(e).fusing))&&(best==null||d<best))best=d;
+ }
+ return best;
+}
 const WORLD_CHAIN='Misc World Survival Chain';
 // Shelter materials (placement order when no kit cobble is reserved). The job needs one per
 // open shell cell where it stands (26 on flat ground, a few in a stone tunnel), digs dirt for
@@ -144,7 +156,12 @@ export class Worker extends EventEmitter {
     // eating off for the run. A shelter still placing its walls is the one exception (dusk
     // is short); the chain itself defers while asleep or while the eat job eats.
     const hold=chain.name!=='User Tasks'&&self.survivalHold();
-    if(hold&&chain.name!==WORLD_CHAIN){
+    // Round 8: a creeper within 6 (or fusing within 10) always gets Mob Defense, even over an
+    // eat job, a bed walk or a shelter still placing its walls - only a sealed box or a bed
+    // the bot is already in keeps the hold (the walls are the answer there).
+    const creeper=hold&&chain.name==='Mob Defense'&&!hold.sealed&&!bot.isSleeping?creeperThreat(bot)!=null:false;
+    if(creeper&&!wasActive)self.log('Reflex: creeper at '+creeperThreat(bot).toFixed(1)+' overrides the '+hold.job.spec.type+' hold');
+    if(hold&&chain.name!==WORLD_CHAIN&&!creeper){
      const building=hold.job.status==='running'&&hold.job.spec.type==='shelter'&&!hold.sealed;
      if(chain.name==='Food'&&!building)try{chain.priority(bot,ctx);}catch{}
      wasActive=false;return -1;

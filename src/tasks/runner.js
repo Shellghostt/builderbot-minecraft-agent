@@ -98,7 +98,17 @@ export class TaskRunner{
     else{w.epoch++;w.controlToken=w.epoch;}
    }else if(!max.userService&&w.controlToken!==w.epoch)w.epoch++;
    w.controlToken=w.epoch; // the tree owns control from here
+   // Round 8 (hard3 blown up by a creeper during a craft): a survival tree never acts with
+   // a job's window still open - an equip (pillar blocks, the sword) would click the
+   // crafting table's slots, and mineflayer waits on those with no timeout.
+   if(!max.userService&&bot.currentWindow)this.closeWindowFor(bot,max.name);
   }else this.releaseControl(false);
+ }
+ closeWindowFor(bot,name){
+  const win=bot.currentWindow;
+  try{const r=bot.closeWindow(win);if(r&&r.catch)r.catch(()=>{});}catch{}
+  const w=this.worker;
+  if(w&&w.log)try{w.log('Runner: closed the open '+String(win&&win.type||'window').replace(/^minecraft:/,'')+' window for '+name);}catch{}
  }
  // Chain switch/stop: the previous chain's whole tree dies with interrupt=true, then onStopped fires.
  teardownChain(bot,chain){

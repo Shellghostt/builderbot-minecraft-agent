@@ -1,11 +1,25 @@
 import {once} from 'node:events';
 // Confirm every click against the server, including the final inventory slot.
 // Mineflayer's optimistic personal crafting currently loses results through Via.
+// Round 8 (hard3 `blown up by Creeper` during a craft): the table's windowOpen and
+// mineflayer's crafting-window click (it waits for the result slot with no timeout) could
+// hold the craft past every check(). Each wait now polls check() - a reflex preemption throws
+// at once and the finally closes the window - and gives up after `ms`.
+export const CRAFT_WAIT_MS=5000;
+export async function interruptible(promise,check,what,ms=CRAFT_WAIT_MS){
+ let poll,timer;
+ try{
+  return await Promise.race([promise,new Promise((_,reject)=>{
+   poll=setInterval(()=>{try{check();}catch(e){reject(e);}},100);
+   timer=setTimeout(()=>reject(Error(what+' timed out')),ms);
+  })]);
+ }finally{clearInterval(poll);clearTimeout(timer);}
+}
 export async function craftConfirmed(bot,recipe,table,check){
  let window=bot.inventory;
- if(recipe.requiresTable){const opened=once(bot,'windowOpen');bot.activateBlock(table);[window]=await opened;}
- const sync=async()=>{check();await new Promise(r=>setTimeout(r,120));await bot._syncWindow(window);await new Promise(r=>setTimeout(r,120));check();};
- const click=async(slot,button=0)=>{check();await bot.clickWindow(slot,button,0);await sync();};
+ if(recipe.requiresTable){const opened=once(bot,'windowOpen');opened.catch(()=>{});bot.activateBlock(table);[window]=await interruptible(opened,check,'Opening the crafting table');}
+ const sync=async()=>{check();await new Promise(r=>setTimeout(r,120));await interruptible(bot._syncWindow(window),check,'Window sync');await new Promise(r=>setTimeout(r,120));check();};
+ const click=async(slot,button=0)=>{check();await interruptible(bot.clickWindow(slot,button,0),check,'Crafting click on slot '+slot);await sync();};
  const putCursor=async()=>{
   const held=window.selectedItem;if(!held)return;
   let target=null;
@@ -27,7 +41,7 @@ export async function craftConfirmed(bot,recipe,table,check){
   }
   await sync();if(window.slots[0]?.type!==recipe.result.id)throw Error('Server did not produce the expected recipe');
   await click(0);await putCursor();await sync();
- }finally{if(recipe.requiresTable&&bot.currentWindow)await bot.closeWindow(window);}
+ }finally{if(recipe.requiresTable&&bot.currentWindow)try{await bot.closeWindow(window);}catch{}}
 }
 // One window-sync retry: the 26.3/Via crafting window occasionally rejects a legitimate
 // move ("destination full" on a half-empty inventory) - a close-and-reopen clears it
