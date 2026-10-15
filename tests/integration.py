@@ -574,17 +574,28 @@ def main():
     command('tp BuilderBot 0 -60 0');time.sleep(1)
     command('fill 860 -63 860 862 -61 862 minecraft:dirt')
     # A running job paused by a reflex resumes and completes from saved progress.
-    command('tp BuilderBot 0 -60 0');time.sleep(3);clear_hostiles();command('give BuilderBot minecraft:iron_sword 1');time.sleep(1)
-    state=api('state');bx,bz=math.floor(state['position']['x']),math.floor(state['position']['z'])
-    # The log sits 20+ blocks away so the gather is still walking when the zombie lands:
-    # a 1-block gather can complete before the chain's first preemption tick.
-    place_far(f'setblock {bx+20} -60 {bz} minecraft:oak_log');time.sleep(1)
-    created=api('jobs',{'type':'gather','block':'oak_log','count':1})
-    wait(lambda:next((j for j in api('state')['jobs'] if j['id']==created['id'] and j['status']=='running'),None),30)
+    # Round 6: the round-5 gather completed ~15 s after the teleport and never paused. The
+    # origin still holds logs from the autopilot fixture (1..6,-60,2..7, 2-7 blocks away),
+    # and the creeper was summoned at the START column after four setup commands. Now: a
+    # clean strip at z=-40 with no other log in the search radius, the setup done before the
+    # job, the log 28 out, and the NoAI creeper summoned 4 blocks AHEAD of the bot's live
+    # position once it is walking - the walk to the log has to pass it.
+    command('tp BuilderBot 0 -60 -40');time.sleep(3);clear_hostiles();command('give BuilderBot minecraft:iron_sword 1')
+    command('fill -32 -60 -72 32 -58 -8 minecraft:air replace minecraft:oak_log');time.sleep(1)
     command('time set day');command('kill @e[type=minecraft:slime]');command('difficulty normal');clear_hostiles()
+    state=api('state');bx,bz=math.floor(state['position']['x']),math.floor(state['position']['z'])
+    assert place_far(f'setblock {bx+28} -60 {bz} minecraft:oak_log'),'the far log never landed'
+    time.sleep(1)
+    created=api('jobs',{'type':'gather','block':'oak_log','count':1})
+    def walking():
+        st=api('state');j=next((j for j in st['jobs'] if j['id']==created['id']),None)
+        if j and j['status'] in ('complete','failed'):raise AssertionError('The gather ended before the creeper landed: '+j['status']+' '+str(j.get('message',''))[:80])
+        if not j or j['status']!='running':return None
+        return st['position'] if st['position']['x']>=bx+1.5 else None
+    pos=wait(walking,30)
     # A creeper (always fled per 7f, even armed) sustains the preemption long enough to
     # demonstrate the pause; a lone zombie dies too fast and the job never pauses.
-    command(f'summon minecraft:creeper {bx+4} -60 {bz} {{NoAI:1b,PersistenceRequired:1b}}');time.sleep(1)
+    command(f"summon minecraft:creeper {math.floor(pos['x'])+4} -60 {math.floor(pos['z'])} {{NoAI:1b,PersistenceRequired:1b}}");time.sleep(1)
     paused=wait(lambda:next((j for j in api('state')['jobs'] if j['id']==created['id'] and str(j.get('message','')).startswith('Reflex:')),None),30)
     print('Reflex paused the gather: '+paused['message'],flush=True)
     clear_hostiles();command('difficulty peaceful')
