@@ -33,13 +33,32 @@ export const ARMOR_POINTS={
  netherite_helmet:3,netherite_chestplate:8,netherite_leggings:6,netherite_boots:3};
 export const withinRange=(e,bot,range)=>!!(e&&e.position&&bot.entity&&dist(e.position,bot.entity.position)<=range);
 export const distanceTo=(e,bot)=>e&&e.position&&bot.entity?dist(e.position,bot.entity.position):Infinity;
+// Round 10, habit 12: mobs a player leaves alone. An enderman is neutral until provoked (looked
+// at or hit): left alone unless it is screaming (metadata 17, angry) or on top of the bot. A
+// spider is neutral in bright light: left alone by day where the sky light at it is 12+ (a cave
+// spider, or a spider in a cave or at night, is not), unless it is on top of the bot. Creepers
+// (never melee - the flee branch) and witches (backed away from) keep their own rules.
+export const LEAVE_ALONE_CLOSE=2;
+export function leaveAlone(e,bot){
+ if(!e||!e.position)return false;
+ if(distanceTo(e,bot)<=LEAVE_ALONE_CLOSE)return false;
+ if(e.name==='enderman'){const m=e.metadata||[];return !(m[17]===true||m[17]===1);}
+ if(e.name==='spider'){
+  const tod=dayTicks(bot);
+  if(tod==null||tod>=12000)return false;
+  let sky=null;
+  try{const bl=bot.blockAt&&bot.blockAt(e.position.floored?e.position.floored():e.position);sky=bl&&typeof bl.skyLight==='number'?bl.skyLight:null;}catch{}
+  return sky==null||sky>=12;
+ }
+ return false;
+}
 // Trackers (P4) are the preferred source; scanning bot.entities keeps chains working until they land.
 export const getHostiles=(bot,ctx)=>{
  if(ctx&&ctx.trackers&&typeof ctx.trackers.getHostiles==='function'){
-  try{return (ctx.trackers.getHostiles()||[]).filter(Boolean);}catch{}
+  try{return (ctx.trackers.getHostiles()||[]).filter(Boolean).filter(e=>!leaveAlone(e,bot));}catch{}
  }
  return Object.values((bot&&bot.entities)||{})
-  .filter(e=>e&&e!==bot.entity&&e.type==='hostile'&&e.position&&e.isValid!==false);
+  .filter(e=>e&&e!==bot.entity&&e.type==='hostile'&&e.position&&e.isValid!==false&&!leaveAlone(e,bot));
 };
 export const nearestDistance=(hostiles,bot)=>hostiles.reduce((m,e)=>Math.min(m,distanceTo(e,bot)),Infinity);
 export const meleeCount=(hostiles,bot,range=8)=>hostiles.filter(e=>isMeleeMob(e.name)&&withinRange(e,bot,range)).length;

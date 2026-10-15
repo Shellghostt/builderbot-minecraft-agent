@@ -30,7 +30,7 @@ import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
 import {installToolWear,watchToolLoss} from './toolWear.js';
 import {darkNow,stillNight,leaveRefuge,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading,nightMineWanted,tunnelBreach,SUNSET,NIGHT_MINE_MS,NIGHT_MINE_STOP,NIGHT_MINE_DEPTH,NIGHT_MINE_STRIP} from './night.js';
-import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
+import {bestWeapon,attackCooldown,leaveAlone} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const pos=p=>new Vec3(p.x,p.y,p.z);
@@ -1385,7 +1385,7 @@ export class Worker extends EventEmitter {
   const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
   const gaps=shellGaps(at,shelterShell(origin,job.pod).required);
   const me=b.entity.position;
-  const hostiles=Object.values(b.entities||{}).filter(e=>e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.isValid!==false&&e.position.distanceTo(me)<=6);
+  const hostiles=Object.values(b.entities||{}).filter(e=>e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.isValid!==false&&e.position.distanceTo(me)<=6&&!leaveAlone(e,b));
   const target=shelterTarget(hostiles,origin,gaps);
   if(target){
    if(Date.now()-(this.shelterGuardLog||0)>5000){this.shelterGuardLog=Date.now();this.log('Shelter: hitting '+target.entity.name+(target.inside?' inside the box':' at a gap'));}
