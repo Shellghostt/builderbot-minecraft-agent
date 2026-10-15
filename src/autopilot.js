@@ -140,22 +140,44 @@ const sticksFor=(c,ctx,need)=>{
  const planks=planksJob(c,ctx,2);if(planks)return planks;
  return {type:'craft',item:'stick',count:need-c('stick')};
 };
-// The bed when its wool is cheap: 3 wool of one colour held, or a sheep within 32 and shears
-// (shear) or a sword (hunt), with the 3 planks (7 without a table) payable from what is held
-// - never a log hunt for it. ctx: {bedNear, sheepNear, worldTable} and the wood totals.
+// The bed when its wool is cheap: 3 wool of one colour held, or a sheep within reach and shears
+// (shear) or a sword (hunt), with the 3 planks (7 without a table) payable from what is held.
+// ctx: {bedNear, sheepNear, worldTable} and the wood totals. Round 10 (bug B, no bed in any
+// round-9 run): with the wool held and no wood left, a short log gather pays the planks; with
+// no sheep in reach and ctx.bedSearch set (the rung), a graze leg looks for sheep.
 export function bedJob(c,ctx){
  if(typeof c!=='function')c=countFactory(c||{});
  if(ctx.bedNear||WOOLS.some(w=>c(w.replace('_wool','_bed'))>=1))return null;
  const wool=WOOLS.reduce((a,w)=>c(w)>c(a)?w:a,WOOLS[0]);
  const planks=3+(c('crafting_table')>=1||ctx.worldTable?0:4);
  if(c(wool)>=3){
-  if(ctx.planksTotal<planks)return ctx.logsTotal>=1?{type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:planks-ctx.planksTotal}:null;
+  if(ctx.planksTotal<planks){
+   if(ctx.logsTotal>=1)return {type:'craft',item:(ctx.heldLog||'oak_log').replace('_log','_planks'),count:planks-ctx.planksTotal};
+   return {type:'gather',block:'log',count:Math.ceil((planks-ctx.planksTotal)/4),radius:32,belowFoots:true};
+  }
   return {type:'craft',item:wool.replace('_wool','_bed'),count:1};
  }
- if(!ctx.sheepNear||ctx.planksTotal+4*ctx.logsTotal<planks)return null;
+ if(!ctx.sheepNear){
+  return ctx.bedSearch?{type:'explore',direction:ctx.grazeDirection||'random',distance:32}:null;
+ }
+ // The dusk prep (needPlanks) has no time for a log trip: only wool it can turn into a bed.
+ if(ctx.needPlanks&&ctx.planksTotal+4*ctx.logsTotal<planks)return null;
  if(c('shears')>=1)return {type:'shear'};
  if(Object.keys(PLATE).concat(['wooden','stone']).some(t=>c(t+'_sword')>=1))return {type:'hunt',entity:'sheep',count:Math.max(1,Math.min(3-c(wool),ctx.sheepNear))};
  return null;
+}
+// Round 10 (bug B, habit 5): wool by day whatever the step, once the wood kit is held - a
+// sheep within WOOL_NEAR (the hunt's own reach) is a bed tonight and a spawn point. Never
+// with a hostile within 16, after sunset, or while the bed is set aside (a failed hunt).
+// The rung's sheep search gives the bed BED_SEARCH_LEGS graze legs before it is set aside.
+export const WOOL_NEAR=24,BED_SEARCH_LEGS=3;
+const QUICK_JOBS=new Set(['craft','equip','smelt','eat']);
+export function woolJob(counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ if(!STEPS[0].done(c,ctx)||ctx.bedOff||(ctx.hostileDistance??Infinity)<=16)return null;
+ if(ctx.tod!=null&&ctx.tod>=SUNSET)return null;
+ return bedJob(c,{...ctx,bedSearch:false});
 }
 // Round 8, toward diamonds: once the iron kit is worn, 3 diamonds for a diamond pickaxe.
 // 1.18+ diamonds peak at the bottom of the world; the dig enters the band from its top
@@ -172,7 +194,10 @@ export function diamondPickJob(c,ctx){
  return diamondGather(DIAMOND_PICK-c('diamond'));
 }
 export const isDiamondJob=job=>!!job&&((job.type==='gather'&&job.block==='diamond_ore')||(job.type==='craft'&&job.item==='diamond_pickaxe'));
-export const isBedJob=job=>!!job&&(job.type==='shear'||(job.type==='hunt'&&job.entity==='sheep')||(job.type==='craft'&&/_bed$/.test(job.item||'')));
+// BED_JOBS: the planks craft or log gather a bed asked for (the rung's failures must not
+// count toward blocking the iron step).
+const BED_JOBS=new WeakSet();
+export const isBedJob=job=>!!job&&(BED_JOBS.has(job)||job.type==='shear'||(job.type==='hunt'&&job.entity==='sheep')||(job.type==='craft'&&/_bed$/.test(job.item||'')));
 // The rung after the iron core, or null when it is done (or waits on wool that is not cheap).
 export function ironRung(c,ctx){
  if(typeof c!=='function')c=countFactory(c||{});
@@ -199,7 +224,7 @@ export function ironRung(c,ctx){
  const wear=armourToWear(c);
  if(wear&&wear!==ctx.lastEquip)return {type:'equip'};
  // A bed while the wool is cheap; otherwise the ladder moves on (the dusk prep still tries).
- if(!ctx.bedOff){const bed=bedJob(c,ctx);if(bed)return bed;}
+ if(!ctx.bedOff){const bed=bedJob(c,{...ctx,bedSearch:ctx.bedSearch??false});if(bed){if(bed.type!=='explore')BED_JOBS.add(bed);return bed;}}
  // Then the diamond pickaxe (set aside for DIAMOND_OFF_MS after a failed trip).
  return diamondPickJob(c,ctx);
 }
@@ -514,7 +539,7 @@ export function bedPrepJob(counts,ctx){
  const c=countFactory(counts);
  ctx=woodTotals(counts,{...ctx});
  if(ctx.bedNear||ctx.tod==null||ctx.tod<BED_PREP_FROM||ctx.tod>=SUNSET)return null; // the shelter starts at sunset
- return bedJob(c,ctx);
+ return bedJob(c,{...ctx,needPlanks:true});
 }
 export function plan(counts,ctx={}){
  const c=countFactory(counts);
@@ -827,7 +852,7 @@ export class Autopilot{
   }
   return best;
  }
- sheepNear(b,radius=32){
+ sheepNear(b,radius=WOOL_NEAR){
   let n=0;
   for(const e of Object.values(b.entities||{}))if(e&&e!==b.entity&&e.name==='sheep'&&e.position&&b.entity?.position&&e.position.distanceTo(b.entity.position)<=radius)n++;
   return n;
@@ -871,7 +896,7 @@ export class Autopilot{
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
-   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),diamondOff:Date.now()<(this.diamondOffUntil||0),
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
@@ -892,6 +917,12 @@ export class Autopilot{
    this.state='retry: '+step; // unblocked: the explore was the cooldown
    return;
   }
+  // Wool by day whatever the step (bug B): the wood kit's sword is enough for a sheep. A
+  // quick local job (a craft, an equip, a smelt, a meal) goes first: it takes seconds.
+  if(choice.step!=='wood'&&!QUICK_JOBS.has(choice.job?.type)){
+   const wool=woolJob(counts,{...ctx,tod:dayTicks(b)});
+   if(wool){this.submit('bed-rung',wool);return;}
+  }
   if(choice.step==='food'&&this.foodTrack(counts,choice.job))return; // set aside: next tick moves on
   if(choice.step==='food'&&choice.job?.type==='explore'&&this.lastSurfaceY==null&&this.foodAnchorY==null)this.foodAnchorY=standY;
   if(choice.step==='food'||choice.step==='bed')this.huntPhase=!this.huntPhase;
@@ -910,6 +941,13 @@ export class Autopilot{
   // The iron rung's bed jobs run under their own name: a sheep that runs off must not count
   // toward blocking the iron step (a failure sets the bed aside for BED_OFF_MS instead).
   if(choice.step==='iron'&&isBedJob(choice.job)){this.submit('bed-rung',choice.job);return;}
+  // The rung's only explore is the bed's sheep search: BED_SEARCH_LEGS of them, then the bed
+  // is set aside for BED_OFF_MS (and the legs start over after that).
+  if(choice.step==='iron'&&choice.job.type==='explore'){
+   const s=this.bedSearch||(this.bedSearch={legs:0});
+   if(++s.legs>=BED_SEARCH_LEGS){s.legs=0;this.bedOffUntil=Date.now()+BED_OFF_MS;this.log('Autopilot: no sheep after '+BED_SEARCH_LEGS+' search legs; bed set aside for '+BED_OFF_MS/60000+' min');}
+   this.submit('bed-rung',choice.job);return;
+  }
   if(choice.step==='iron'&&isDiamondJob(choice.job)){this.submit('diamond-rung',choice.job);return;}
   if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
