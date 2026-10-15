@@ -25,6 +25,7 @@ import {stonePlan,stoneBeside,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravit
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
+import {installToolWear,watchToolLoss} from './toolWear.js';
 import {darkNow,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
 import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
@@ -223,7 +224,7 @@ export class Worker extends EventEmitter {
   const bot=this.bot=mineflayer.createBot({...this.config.server,hideErrors:true});
   installMovementFix(bot);installWeatherFix(bot);this.trackMeals(bot);
   bot.loadPlugin(pathfinder);bot.loadPlugin(toolPackage.plugin);
-  bot.once('spawn',()=>{this.ready=true;const movement=this.movements=this.normalMovements(bot);bot.pathfinder.setMovements(movement);bot.pathfinder.searchRadius=128;// in blocks: bounds searches for unreachable goals; legit paths may still cost up to goal distance + 128
+  bot.once('spawn',()=>{this.ready=true;installToolWear(bot);if(!bot.inventory._lossWatch){bot.inventory._lossWatch=true;watchToolLoss(bot,m=>this.log(m));}const movement=this.movements=this.normalMovements(bot);bot.pathfinder.setMovements(movement);bot.pathfinder.searchRadius=128;// in blocks: bounds searches for unreachable goals; legit paths may still cost up to goal distance + 128
   if(!this.trackersTimer){ // tracker refresh + preemption resume + idle armour, port of the reflex cadence
    this.loopWatch.start();
    this.trackersTimer=setInterval(()=>this.loopWatch.timeTick('cadence',()=>{
