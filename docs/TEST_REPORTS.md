@@ -265,3 +265,38 @@ Cursor launched this soak and ended its turn before it finished, so Claude read 
 `4_creeper` (lane, bot 1499,-60,1518, creeper 1499,-60,1508, open lane confirmed): real engagement. `Combat: pillar-up 2 at 1499,-60,1518 (creeper at 7.1)`, then `pillar-hold`. No perch, no `arrow creeper`, no release. Summary: `shots=0 released=0 landed=0`, ttk 4.1 s, hits 0, `damage_taken=0`. The server confirmed the creeper was defeated and the glowstone under the spawn (z=1508) was intact. The next check, glowstone at the lane midpoint (1499, -61, 1513), timed out, so that cell was not glowstone. That is the suite failure.
 
 `4b_creeper_roofed`: `pillar-up 2 at 1496,-60,1497 (creeper at 7.8)`, perched 2 up, two arrows released at 3.01 b/t and both landed. `shots=2 released=2 landed=2`, ttk 5.2 s, `damage_taken=0`, end health 20, killed, no crater.
+
+## 2026-10-15 05:23–07:31 IST — dual soak (`22ae54f`, bot code `16f3609`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 7694 s. `SOAK DONE (clean)`, promoted to `data/soak-results.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [141, 131, 32], normal [310, 131, 30].
+
+| Run | Wood | Stone pick | Furnace | Ore | Ingots peak | Iron pick | Cooked | Eaten | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 90 | 271 | 301 | 30 | 6 | 752, gone at the end | 8 | 0 | 0 |
+| normal2a2 | 90 | 211 | 241 | 30 | 30 | 602 | 8 | 0 | 0 |
+| normal3a3 | 120 | 331 | 331 | 0 | 0 | — | 7 | 0 | 0 |
+| hard1a1 | 361 | 511 | never | 0 | 0 | — | 0 | 0 | 0 |
+| hard2a2 | 150 | 421 | 451 | 0 | 0 | — | 0 | 0 | 0 |
+| hard3a3 | 180 | 361 | 391 | 0 | 0 | — | 0 | 0 | 0 |
+
+`iron_runs` 2, `stone_runs` 4. Food points are 0 on every run. normal2 ended holding the iron pickaxe and 30 ingots. normal1's end inventory was 0 ingots, 30 raw iron, and no iron pickaxe. normal1 fails the stone predicate because the furnace was out of the inventory while smelting.
+
+### Night
+
+No `Could not seal` line and no night-pillar line. No `sunset - finishing the stone kit` line.
+
+- hard1, 01:07Z: `[bed-prep] hunt sheep`, then `[night] shelter` 20 s later. The shelter was cancelled at 01:18Z (`Current job cancelled`) with no `Shelter: sealed`. The run ended holding a stone pickaxe and 19 cobble, and no furnace.
+- hard2, 01:28Z: shelter, cancelled at 01:39Z, again with no sealed line. The furnace had already been crafted at 01:26Z and was still held at the bell.
+- hard3, 01:50Z: shelter, `Shelter: sealed at (142, 122, 50) (19 blocks placed)` three seconds later, completed at 02:00Z. From t=812 the samples sit on that cell at 20 hp with `queued: fight` for the rest of the night.
+
+The Mob Defense bursts at 01:47–01:49Z preempted fight and collect jobs, not a shelter. One flee line lists a crowd of endermen, creepers, skeletons and zombies. No `Pause trace: shelter -> Reflex: preempted by Mob Defense`.
+
+### Deaths and the counter
+
+Every run's `death_sources` is counter 0, window 0, log 0, and `death_log` is empty. The dashboard has no death line in this window. The three sources agree, and they agree with the dashboard.
+
+### Food, loops, connections
+
+Cooked food was held on the normal runs (8, 8, 7) and never eaten. The hard runs held none. No `LOOP_SLOW` and no `LOOP_STALL`. The only connection lines are the soak's own restart: `ECONNREFUSED 127.0.0.1:25569` at 23:53Z while the soak world was coming up, and `Server closed` at 02:01Z when the flat world was restored. No mid-run timeout of the bot connection. Two navigation failures did print: `No path to the goal!` at 01:05Z and `Navigation timed out` at (144, 124, 53) at 01:45Z, both while climbing out of a tunnel.
+
+No second soak.
