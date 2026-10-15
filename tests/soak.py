@@ -113,7 +113,17 @@ def edit_props(changes):
     PROPS.write_text(''.join(out),encoding='utf-8')
 def inventory_counts():
     state=api('state')
-    return state,{i['name']:i['count'] for i in state['inventory']}
+    return state,merge_inventory(state)
+def merge_inventory(state):
+    # Stacks are summed (a dict comprehension kept only the LAST stack of an item: 64+ cobble
+    # or two torch stacks read short). Round 8: worn armour and the off hand (state
+    # 'equipment') count as held, and each worn piece also as '_worn:<name>'.
+    inv={}
+    for i in state.get('inventory') or []:inv[i['name']]=inv.get(i['name'],0)+i['count']
+    for i in state.get('equipment') or []:
+        inv[i['name']]=inv.get(i['name'],0)+i.get('count',1)
+        inv['_worn:'+i['name']]=inv.get('_worn:'+i['name'],0)+i.get('count',1)
+    return inv
 def job_evidence(jobs):
     # Compact per-job trail: what was asked, how it ended, and the last word on it.
     out=[]
@@ -227,6 +237,23 @@ def iron_metrics(samples):
             'ingots_peak':max([s.get('ingots',0) for s in samples]+[0]),
             'iron_pick_at':first_sample_at(samples,'iron_pick'),
             'iron':any(s.get('iron_pick',0)>=1 for s in samples)}
+# Round 8 rung: armour (iron or better pieces held / worn), torches, a bed, diamonds and
+# the diamond pickaxe - sampled and summarised like the iron columns.
+KIT_KEYS=('armour','armour_worn','torches','bed','diamonds','diamond_pick')
+ARMOUR_PIECES=('helmet','chestplate','leggings','boots')
+ARMOUR_TIERS=('iron','diamond','netherite')
+def kit_sample(inv):
+    pieces=[t+'_'+p for p in ARMOUR_PIECES for t in ARMOUR_TIERS]
+    held=sum(1 for p in ARMOUR_PIECES if any(inv.get(t+'_'+p,0)>0 for t in ARMOUR_TIERS))
+    worn=sum(1 for p in ARMOUR_PIECES if any(inv.get('_worn:'+t+'_'+p,0)>0 for t in ARMOUR_TIERS))
+    return {'armour':held,'armour_worn':worn,'torches':inv.get('torch',0),
+            'bed':sum(v for k,v in inv.items() if k.endswith('_bed') and not k.startswith('_')),
+            'diamonds':inv.get('diamond',0),'diamond_pick':inv.get('diamond_pickaxe',0)}
+def kit_metrics(samples):
+    peak=lambda k:max([s.get(k,0) for s in samples]+[0])
+    return {'armour_peak':peak('armour'),'armour_worn_peak':peak('armour_worn'),'armour_worn_at':first_sample_at(samples,'armour_worn'),
+            'torch_peak':peak('torches'),'bed_at':first_sample_at(samples,'bed'),
+            'diamond_peak':peak('diamonds'),'diamond_pick_at':first_sample_at(samples,'diamond_pick')}
 def first_sample_at(samples,key,n=1):
     for s in samples:
         if s.get(key,0)>=n:return s['t']
@@ -370,7 +397,7 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
                     'wood_pick':inv.get('wooden_pickaxe',0),'table':inv.get('crafting_table',0),
                     'stone_pick':inv.get('stone_pickaxe',0),
                     'stone_sword':inv.get('stone_sword',0),'furnace':inv.get('furnace',0),
-                    **iron_sample(inv),
+                    **iron_sample(inv),**kit_sample(inv),
                     'food_items':o.get('edible',0),'eaten':meals_delta(state,run)['eaten'],'deaths':deaths}
             run['samples'].append(sample)
             # Operator role: a death pauses everything and needs an explicit resume before the
@@ -437,16 +464,19 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
             run['errors'].append('sample error: '+str(e))
     # Peaks: a late death empties the inventory, so milestones are judged by the best
     # counts seen in any sample, not the final one. 'at' keeps the first t of the maximum.
-    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS
+    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS+KIT_KEYS
     run['peaks']={k:{'max':0,'at':None} for k in peak_keys}
     for s in run['samples']:
         for k in peak_keys:
             if s.get(k,0)>run['peaks'][k]['max']:run['peaks'][k]={'max':s[k],'at':s['t']}
-    run['first']={k:first_sample_at(run['samples'],k) for k in ('wood_pick','table','cobble','stone_pick','furnace')+IRON_KEYS}
+    run['first']={k:first_sample_at(run['samples'],k) for k in ('wood_pick','table','cobble','stone_pick','furnace')+IRON_KEYS+KIT_KEYS}
     run.update(iron_metrics(run['samples']))
+    run.update(kit_metrics(run['samples']))
     try:
         state,inv=inventory_counts();o=api('observe')
-        run['achieved']={k:inv.get(k,0) for k in ('stick','crafting_table','wooden_pickaxe','wooden_axe','wooden_sword','wooden_shovel','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace','torch','raw_iron','iron_ingot','iron_pickaxe','iron_sword')}
+        run['achieved']={k:inv.get(k,0) for k in ('stick','crafting_table','wooden_pickaxe','wooden_axe','wooden_sword','wooden_shovel','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace','torch','raw_iron','iron_ingot','iron_pickaxe','iron_sword',
+            'iron_helmet','iron_chestplate','iron_leggings','iron_boots','diamond','diamond_pickaxe')}
+        run['achieved']['armour_worn']=kit_sample(inv)['armour_worn'];run['achieved']['bed']=kit_sample(inv)['bed']
         run['achieved']['logs_total']=sum(v for k,v in inv.items() if k.endswith('_log'))
         run['achieved']['planks_total']=sum(v for k,v in inv.items() if k.endswith('_planks'))
         # observe's `edible` (registry foods minus the never-eat list): the old
@@ -494,6 +524,7 @@ def run_one(index,spawn,seconds=NORMAL_SECONDS):
           f"food={'YES' if run.get('food') else 'no'} (peak {run.get('edible_peak',0)}, eaten {(run.get('meals') or {}).get('eaten',0)}, cooked {(run.get('meals') or {}).get('cooked',0)}, "
           f"bar {(run.get('food_level') or {}).get('food_min')}..{(run.get('food_level') or {}).get('food_max')}: {run.get('food_verdict')}) "
           f"iron={'YES' if run.get('iron') else 'no'} (ore {run.get('iron_ore_peak',0)}, ingots {run.get('ingots_peak',0)}, pick at {run.get('iron_pick_at')}) "
+          f"kit (armour {run.get('armour_peak',0)}/4, worn {run.get('armour_worn_peak',0)} at {run.get('armour_worn_at')}, torches {run.get('torch_peak',0)}, bed at {run.get('bed_at')}, diamonds {run.get('diamond_peak',0)}, diamond pick at {run.get('diamond_pick_at')}) "
           f"deaths={run['deaths']} resumes={run['resumes']} interventions={len(run['interventions'])} errors={len(run['errors'])}",flush=True)
     return run
 def _median(vals):
@@ -503,12 +534,17 @@ def _median(vals):
     return s[mid] if n%2 else (s[mid-1]+s[mid])/2
 def summarise(runs):
     keys=('logs_total','planks_total','stick','crafting_table','wooden_pickaxe','cobblestone','stone_pickaxe','stone_axe','stone_sword','stone_shovel','furnace')
-    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS
+    peak_keys=('logs','planks','sticks','cobble','wood_pick','table','stone_pick','stone_sword','furnace')+IRON_KEYS+KIT_KEYS
     return {'wood_runs':sum(1 for r in runs if r.get('wood')),'stone_runs':sum(1 for r in runs if r.get('stone')),
             'food_runs':sum(1 for r in runs if r.get('food')),
             'iron_runs':sum(1 for r in runs if r.get('iron')),
             'iron_ore_peak':[r.get('iron_ore_peak',0) for r in runs],'ingots_peak':[r.get('ingots_peak',0) for r in runs],
             'iron_pick_at':[r.get('iron_pick_at') for r in runs],
+            'armour_runs':sum(1 for r in runs if r.get('armour_worn_peak',0)>=2),
+            'armour_peak':[r.get('armour_peak',0) for r in runs],'armour_worn_peak':[r.get('armour_worn_peak',0) for r in runs],
+            'armour_worn_at':[r.get('armour_worn_at') for r in runs],'torch_peak':[r.get('torch_peak',0) for r in runs],
+            'bed_at':[r.get('bed_at') for r in runs],'diamond_peak':[r.get('diamond_peak',0) for r in runs],
+            'diamond_pick_at':[r.get('diamond_pick_at') for r in runs],
             'edible_peak':[r.get('edible_peak',0) for r in runs],'edible_end':[(r.get('achieved') or {}).get('edible_food',0) for r in runs],
             'eaten':[(r.get('meals') or {}).get('eaten',0) for r in runs],'food_points':[(r.get('meals') or {}).get('points',0) for r in runs],
             'cooked':[(r.get('meals') or {}).get('cooked',0) for r in runs],

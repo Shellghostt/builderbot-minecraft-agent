@@ -96,6 +96,10 @@ const canSeeTarget=(b,e)=>{
 // the pump runs a queued one before any other queued job (a reflex-paused day job resumed
 // at night sat ahead of the night shelter in the array and ran first - round 4).
 export const SURVIVAL_JOBS=new Set(['sleep','eat','shelter']);
+// Worn armour and the off hand (round 8: inventory.items() skips these slots, so the soak
+// could not see a worn chestplate).
+const EQUIP_SLOTS={5:'head',6:'chest',7:'legs',8:'feet',45:'off-hand'};
+export const equipment=b=>{const slots=b?.inventory?.slots||[];return Object.entries(EQUIP_SLOTS).filter(([i])=>slots[i]).map(([i,slot])=>({slot,name:slots[i].name,count:slots[i].count}));};
 // Distance to a creeper close enough to override a survival hold: within 6, or fusing within 10.
 export function creeperThreat(bot){
  const me=bot&&bot.entity&&bot.entity.position;if(!me)return null;
@@ -228,7 +232,7 @@ export class Worker extends EventEmitter {
   if(!replaced){try{fs.writeFileSync(this.file,JSON.stringify(this.jobs));replaced=true;}catch{}}
  }
  log(message){this.events.unshift({time:new Date().toISOString(),message});this.events=this.events.slice(0,100);this.emit('event',message);}
- state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null,meals:this.meals,deaths:this.deaths||0,deathLog:this.deathLog||[]};}
+ state(){const b=this.bot;return {connected:this.ready,connecting:!!b&&!this.ready,server:this.config.server,position:b?.entity?.position,health:b?.health,food:b?.food,inventory:b?.inventory?.items().map(i=>({name:i.name,count:i.count}))||[],equipment:equipment(b),jobs:this.jobs.slice(-100).reverse(),events:this.events,model:this.config.model,reflexes:this.reflexEnabled,busy:this.busy,reflexBusy:this.reflexBusy,autopilot:this.autopilot.status(),runner:this.taskRunner?this.taskRunner.status():null,meals:this.meals,deaths:this.deaths||0,deathLog:this.deathLog||[]};}
  setReflexes(enabled){this.reflexEnabled=!!enabled;this.log(enabled?'Reflexes enabled':'Reflexes disabled');}
  // Idle-time armour upkeep, kept from the retired reflex loop (COMBAT_SPEC 7f armour gates).
  autoArmour(){

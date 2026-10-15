@@ -128,3 +128,9 @@ test('the diamond descent enters the band at -54, ends at -58 and never goes bel
  assert.equal(descentTarget(s,-58),DIAMOND_Y);
  assert.ok(DIAMOND_Y>-60,'clear of the bedrock layers');
 });
+import {equipment} from '../src/worker.js';
+test('worker state equipment: worn armour and the off hand, which inventory.items() skips',()=>{
+ const slots=[];slots[5]={name:'iron_helmet',count:1};slots[6]={name:'iron_chestplate',count:1};slots[45]={name:'shield',count:1};slots[36]={name:'torch',count:16};
+ assert.deepEqual(equipment({inventory:{slots}}),[{slot:'head',name:'iron_helmet',count:1},{slot:'chest',name:'iron_chestplate',count:1},{slot:'off-hand',name:'shield',count:1}]);
+ assert.deepEqual(equipment(null),[]);
+});

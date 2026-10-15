@@ -64,6 +64,21 @@ assert m.iron_metrics([])=={'iron_ore_peak':0,'ingots_peak':0,'iron_pick_at':Non
 sm=m.summarise([{**im,'interventions':[]},{'interventions':[]}])
 assert sm['iron_runs']==1 and sm['iron_ore_peak']==[6,0] and sm['ingots_peak']==[6,0] and sm['iron_pick_at']==[990,None],sm
 assert sm['peak_median']['iron_pick']==0,sm['peak_median']
+# Round 8 rung columns: armour held/worn, torches, bed, diamonds, the diamond pickaxe.
+inv=m.merge_inventory({'inventory':[{'name':'cobblestone','count':64},{'name':'cobblestone','count':20},{'name':'torch','count':12},{'name':'iron_helmet','count':1},{'name':'red_bed','count':1}],
+                       'equipment':[{'slot':'chest','name':'iron_chestplate','count':1},{'slot':'feet','name':'leather_boots','count':1},{'slot':'off-hand','name':'shield','count':1}]})
+assert inv['cobblestone']==84,'every stack counts, not the last one'
+assert inv['iron_chestplate']==1 and inv['_worn:iron_chestplate']==1 and inv['shield']==1 and '_worn:iron_helmet' not in inv,inv
+assert m.merge_inventory({'inventory':[{'name':'stick','count':3}]})=={'stick':3},'no equipment key: older dashboards'
+ks=m.kit_sample(inv)
+assert ks=={'armour':2,'armour_worn':1,'torches':12,'bed':1,'diamonds':0,'diamond_pick':0},ks
+assert m.kit_sample({})=={'armour':0,'armour_worn':0,'torches':0,'bed':0,'diamonds':0,'diamond_pick':0}
+ksam=[{'t':30,**m.kit_sample({})},{'t':600,**ks},{'t':900,**m.kit_sample({**inv,'_worn:iron_helmet':1,'diamond':3})},{'t':960,**m.kit_sample({'diamond_pickaxe':1,'torch':5})}]
+km=m.kit_metrics(ksam)
+assert km=={'armour_peak':2,'armour_worn_peak':2,'armour_worn_at':600,'torch_peak':12,'bed_at':600,'diamond_peak':3,'diamond_pick_at':960},km
+sm=m.summarise([{**km,'interventions':[]},{'interventions':[]}])
+assert sm['armour_runs']==1 and sm['armour_worn_peak']==[2,0] and sm['torch_peak']==[12,0] and sm['bed_at']==[600,None] and sm['diamond_peak']==[3,0] and sm['diamond_pick_at']==[960,None],sm
+assert all(k in sm['peak_median'] for k in m.KIT_KEYS),sm['peak_median']
 print('soak food metric ok')
 print('soak iron metric ok')
 # Deaths (round 5): the server log, the bot counter and the event window; max of the three.
