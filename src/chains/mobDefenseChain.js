@@ -31,6 +31,9 @@ const fireTouching=bot=>{
  }
  return false;
 };
+// Seconds before a holding night pillar climbs again after `streak` failed climbs in a row
+// (0: knocked off a perch - straight back up).
+export const pillarBackoff=streak=>streak<=1?3:Math.min(60,3*2**(streak-1));
 export class MobDefenseChain extends SingleTaskChain{
  constructor({food=null,mlg=null}={}){
   super('Mob Defense');
@@ -199,8 +202,14 @@ export class MobDefenseChain extends SingleTaskChain{
    if(p.stopped)p=this._pillar=p.resumeCopy();
    return p;
   }
-  // A holding pillar knocked off re-climbs sooner: it is the whole night's refuge.
-  if(p&&p.failed)this._pillarRetryAt=this.now()+(p.hold?3:10);
+  // A holding pillar knocked off re-climbs sooner: it is the whole night's refuge. Round 9
+  // hard2: a climb that never got off the ground retried every few seconds for 9 minutes -
+  // climbs that fail in a row back off (PILLAR_BACKOFF: 3, 6, 12 ... 60 s); a perch resets.
+  if(p&&p.failed){
+   this._pillarStreak=p.phase==='climb'?(this._pillarStreak||0)+1:0;
+   this._pillarRetryAt=this.now()+(p.hold?pillarBackoff(this._pillarStreak):10);
+  }
+  if(p&&p.phase==='perch')this._pillarStreak=0;
   this._pillar=null;
   if(this.now()<(this._pillarRetryAt||0))return null;
   const e=bot.entity,w=ctx&&ctx.worker;

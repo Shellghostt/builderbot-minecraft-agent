@@ -33,15 +33,21 @@ const key=p=>p.x+','+p.y+','+p.z;
 // no line of sight (feet ring, head ring, the full roof, and the floor under the feet when it
 // is open). support: the ring under the feet ring, placed only to anchor the feet ring where
 // nothing else can (a pillar top, a ledge).
-export function shelterShell(origin){
+// pod (round 9, hard2 was `Short of shelter blocks: 10 held, 14 needed` and spent the night
+// failing a pillar): the 1x1 pod - the four feet faces, the full head ring, the roof cell
+// over the bot and one roof cell beside it (the roof's only face to place against). No mob
+// fits the feet diagonals under a solid head ring (a 2-high mob cannot stand there, a spider
+// is too wide), so they stay open: 14 cells instead of 25.
+export function shelterShell(origin,pod=false){
  const o={x:origin.x|0,y:origin.y|0,z:origin.z|0},required=[],support=[];
  for(let dy=0;dy<=2;dy++)for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
   if(!dx&&!dz&&dy<2)continue; // the bot's feet and head cells
+  if(pod&&((dy===0&&dx&&dz)||(dy===2&&(dz||dx<0))))continue; // feet diagonals, the outer roof but x+1
   required.push({x:o.x+dx,y:o.y+dy,z:o.z+dz});
  }
  required.unshift({x:o.x,y:o.y-1,z:o.z}); // floor first: a bot over a hole is not enclosed
- for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)if(dx||dz)support.push({x:o.x+dx,y:o.y-1,z:o.z+dz});
- return {origin:o,required,support};
+ for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)if((dx||dz)&&!(pod&&dx&&dz))support.push({x:o.x+dx,y:o.y-1,z:o.z+dz});
+ return {origin:o,required,support,pod:!!pod};
 }
 // Cells of `cells` that are not solid (a gap a mob can see or walk through). Unloaded cells
 // (null) count as gaps: the job can only vouch for what it sees.

@@ -643,9 +643,14 @@ export class NightPillarTask extends Task{
    if(top>=this.height&&e.position.y>=this.base.y+this.height-0.01){
     this.phase='perch';forget(bot,'jump');this._log(ctx,'Night: perched '+this.height+' up; holding until morning');return null;
    }
+   this.rise=Math.max(this.rise||0,e.position.y-this.base.y);
    if(off||now-this.t0>5){
     this.failed=true;forget(bot,'jump','forward','sprint');
-    this._log(ctx,'Night: pillar-up failed ('+(off?'left the column':'timed out')+' at '+top+'/'+this.height+')');
+    // Round 9 hard2: `timed out at 0/3` every few seconds for 9 minutes, with no clue why.
+    // Say what the climb saw: how high it got, clicks sent, the item in hand, the support.
+    const under=bot.blockAt&&bot.blockAt(new Vec3(this.base.x,this.base.y-1,this.base.z));
+    this._log(ctx,'Night: pillar-up failed ('+(off?'left the column':'timed out')+' at '+top+'/'+this.height+'; rose '+(this.rise||0).toFixed(2)
+     +', '+(this.clicks||0)+' clicks, holding '+(bot.heldItem&&bot.heldItem.name||'nothing')+', on '+(under&&under.name||'unloaded')+(e.onGround===false?', airborne':'')+')');
     return null;
    }
    forget(bot,'forward','back','left','right','sprint');setControl(bot,'jump',true);
@@ -660,7 +665,7 @@ export class NightPillarTask extends Task{
    if(e.position.y>=next+1.1&&(this.clickY!==next||now-this.clickAt>=0.5)){
     const ref=bot.blockAt&&bot.blockAt(new Vec3(this.base.x,next-1,this.base.z));
     if(ref&&ref.boundingBox==='block'){
-     this.clickAt=now;this.clickY=next;
+     this.clickAt=now;this.clickY=next;this.clicks=(this.clicks||0)+1;
      try{const p=bot.placeBlock(ref,new Vec3(0,1,0));p&&p.catch&&p.catch(()=>{});}catch{}
     }
    }

@@ -942,7 +942,13 @@ export class Worker extends EventEmitter {
   if(this.shelterStock()<this.shelterNeed(here()))await this.digShelterDirt(job,token,()=>this.shelterNeed(here()));
   const origin=here(),at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
   const need=this.shelterNeed(origin),held=this.shelterStock(true);
-  if(held<need)this.shelterFallback(job,'Short of shelter blocks: '+held+' held, '+need+' needed at '+origin);
+  // Round 9: short for the box, a 1x1 pod (shelterShell pod) before the night pillar.
+  job.pod=false;
+  if(held<need){
+   const pod=this.shelterNeed(origin,true);
+   if(held<pod){this.log('Shelter: a 1x1 pod would need '+pod+' here');this.shelterFallback(job,'Short of shelter blocks: '+held+' held, '+need+' needed at '+origin);}
+   job.pod=true;this.log('Shelter: '+held+' blocks held, '+need+' for the box; sealing a 1x1 pod ('+pod+') at '+origin);
+  }
   // A world-survival escape (water, fire) may resume the job somewhere else: the old box
   // stays where it stands and a new one goes up here.
   if(job.origin&&!origin.equals(pos(job.origin))){
@@ -950,7 +956,7 @@ export class Worker extends EventEmitter {
    job.abandoned=(job.abandoned||[]).concat(job.placed||[]);job.shell=null;job.placed=[];
   }
   job.origin={x:origin.x,y:origin.y,z:origin.z};
-  const {required,support}=shelterShell(origin);
+  const {required,support}=shelterShell(origin,job.pod);
   // The SHELL is recorded, not just this run's placements: a resumed run skips cells that
   // are already filled (by an interrupted earlier attempt), and the cleanup must dig those too.
   // Only cells that were open on the first attempt belong to it: a hillside's natural blocks
@@ -993,9 +999,9 @@ export class Worker extends EventEmitter {
  shelterStock(reserve=false){return SHELTER_ITEMS.reduce((a,n)=>a+this.count(n),0)-(reserve?0:Math.min(this.count('cobblestone'),this.cobbleReserve||0));}
  // Blocks the box needs where the bot stands: the open shell cells, plus a support cell under
  // each feet-ring cell nothing can anchor (a pillar top, a ledge).
- shelterNeed(origin){
+ shelterNeed(origin,pod=false){
   const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
-  const {required,support}=shelterShell(origin);
+  const {required,support}=shelterShell(origin,pod);
   const gaps=shellGaps(at,required),{stuck}=placementPlan(at,gaps);
   return gaps.length+support.filter(c=>stuck.some(g=>g.x===c.x&&g.z===c.z&&g.y===c.y+1)&&at(c.x,c.y,c.z)?.boundingBox!=='block').length;
  }
@@ -1046,7 +1052,7 @@ export class Worker extends EventEmitter {
  }
  async sealShelter(job,token,origin,deadline=Infinity){
   const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
-  const {required,support}=shelterShell(origin);
+  const {required,support}=shelterShell(origin,job.pod);
   for(let pass=0;pass<8&&Date.now()<deadline;pass++){
    this.check(token);
    const gaps=shellGaps(at,required);
@@ -1125,7 +1131,7 @@ export class Worker extends EventEmitter {
  }
  async guardShelter(job,token,origin){
   const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
-  const gaps=shellGaps(at,shelterShell(origin).required);
+  const gaps=shellGaps(at,shelterShell(origin,job.pod).required);
   const me=b.entity.position;
   const hostiles=Object.values(b.entities||{}).filter(e=>e&&e!==b.entity&&e.type==='hostile'&&e.position&&e.isValid!==false&&e.position.distanceTo(me)<=6);
   const target=shelterTarget(hostiles,origin,gaps);
@@ -1578,6 +1584,15 @@ export class Worker extends EventEmitter {
    const match=anyLog?Object.values(b.registry.blocksByName).filter(bl=>/_log$/.test(bl.name)).map(bl=>bl.id):deep!==undefined?[id,deep]:id;
    const isMatch=bl=>Array.isArray(match)?match.includes(bl.type):bl.type===match;
    const at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+   // One searchIfMissing leg (3 per job). belowFoots (soak ladder jobs): short search hops -
+   // a 48+ block wander is how the bot lost the clearing in the baseline soaks. A new area
+   // forgets the old one's refused columns and climbs.
+   const searchLeg=async()=>{
+    job.searches++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Searching further afield (${job.searches}/3)`);
+    const leg=s.belowFoots?24:Math.max(48,radius);
+    await this.exploreLeg(token,{direction:['east','north','west','south'][job.searches-1],distance:leg,seconds:90+leg*2});
+    job.anchor=b.entity.position.floored();job.badColumns=[];job.climbs=0;this.save();
+   };
    let lastScan=0,lastCount=null;
    while(count_()-job.startDrop<s.count){
     this.check(token);if(b.inventory.emptySlotCount()<2)throw Error('Inventory nearly full; deposit items first');
@@ -1645,14 +1660,7 @@ export class Worker extends EventEmitter {
      // An ore job that names its depth (the ladder's iron/coal/diamond jobs) goes down first:
      // three 48-block surface legs could never see ore that sits at y=32.
      const deepFirst=s.targetY!=null&&UNDERGROUND.test(s.block)&&b.entity.position.y>s.targetY&&job.descents<3;
-     if(s.searchIfMissing&&job.searches<3&&!deepFirst){
-      job.searches++;this.update(job,Math.max(0,this.count(job.dropName)-job.startDrop),`Searching further afield (${job.searches}/3)`);
-      // belowFoots (soak ladder jobs): short search hops - a 48+ block wander is how the
-      // bot lost the clearing and ended up lost at the world spawn in the baseline soaks.
-      const leg=s.belowFoots?24:Math.max(48,radius);
-      await this.exploreLeg(token,{direction:['east','north','west','south'][job.searches-1],distance:leg,seconds:90+leg*2});
-      job.anchor=b.entity.position.floored();this.save();continue;
-     }
+     if(s.searchIfMissing&&job.searches<3&&!deepFirst){await searchLeg();continue;}
      const targetY=s.targetY??(s.block.includes('diamond')?-58:48);
      if(UNDERGROUND.test(s.block)&&b.entity.position.y>targetY&&job.descents<3){
       const legY=s.targetY!=null?descentTarget(s,b.entity.position.y):targetY;
@@ -1707,6 +1715,13 @@ export class Worker extends EventEmitter {
        await this.staircase(job,token,legY);
        job.anchor=b.entity.position.floored();this.save();continue;
       }
+      // Round 9 hard2 (never a log in 20 min): the hard runs share one anchor, so run 2 starts
+      // among run 1's leftovers - trunk stubs and canopy logs it could not reach. They are
+      // "in range", so searchIfMissing never fired. Only refused columns left: search too.
+      if(s.searchIfMissing&&job.searches<3){
+       this.log('Gather: only refused '+(anyLog?'logs':s.block)+' within '+radius+' ('+job.badColumns.length+' columns); searching further afield');
+       await searchLeg();continue;
+      }
       throw Error('Cannot gather safely: nearby trunks could not be reached');
      }
      // belowFoots hides trunks above feet+3. After a drop into a ravine every log is
@@ -1721,6 +1736,7 @@ export class Worker extends EventEmitter {
       continue;
      }
      this.log('Gather: no diggable target left; bot at '+b.entity.position.floored()+' and remaining targets at '+JSON.stringify(targets.map(t=>t.position.floored())));
+     if(s.searchIfMissing&&job.searches<3&&(job.climbs||0)>=2){await searchLeg();continue;} // out of reach here: look elsewhere
      throw Error('Only the block under the bot is in reach; gathering would dig its own floor');
     }
     // Top-down within the trunk: the highest reachable log first, then descend.
@@ -1777,7 +1793,7 @@ export class Worker extends EventEmitter {
        if(nowUnder&&/_log$/.test(nowUnder.name)&&count_()-job.startDrop<s.count)await this.mineColumnUnder(token);
       }
       failures=0;
-     }catch(e){this.check(token);failures++;const where=target?target.name+' at '+target.position.floored():'an empty column';this.log('Gather: attempt '+failures+' on '+where+' failed: '+e.message);if(target)this.gatherFailed(job,target,e);}
+     }catch(e){this.check(token);failures++;const where=target?target.name+' at '+target.position.floored():'an empty column';this.log('Gather: attempt '+failures+' on '+where+' failed: '+e.message);if(target&&this.gatherFailed(job,target,e)==='search')await searchLeg();}
     this.update(job,Math.max(0,count_()-job.startDrop),`Collected ${Math.max(0,count_()-job.startDrop)}/${s.count} ${job.dropName}`);
    }
    await this.sweepDrops(token);
@@ -1870,7 +1886,11 @@ export class Worker extends EventEmitter {
   }
   if(c>=3&&!job.badColumns.includes(ck))job.badColumns.push(ck);
   this.save();
-  if(job.badColumns.length>=8||job.badBlocks.length>=24)throw Error('Cannot gather safely: '+msg);
+  if(job.badColumns.length>=8||job.badBlocks.length>=24){
+   // Round 9: a harvested grove (run 1's leftovers) is exhausted, not unsafe - look elsewhere.
+   if(job.spec&&job.spec.searchIfMissing&&(job.searches||0)<3){this.log('Gather: '+job.badColumns.length+' columns / '+job.badBlocks.length+' blocks refused here; searching further afield');job.badBlocks=[];job.colFails={};job.blockFails={};return 'search';}
+   throw Error('Cannot gather safely: '+msg);
+  }
  }
  gatherBlacklisted(job,p){
   if(job.badBlocks&&job.badBlocks.includes(p.x+','+p.y+','+p.z))return true;

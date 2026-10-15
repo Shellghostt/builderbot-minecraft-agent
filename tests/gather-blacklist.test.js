@@ -58,3 +58,34 @@ test('a missing tool fails the job at once instead of trying every block',async(
  await assert.rejects(Worker.prototype.gather.call(f.w,f.job(),0),/suitable harvesting tool/);
  assert.equal(f.tries.length,1);
 });
+// Round 9 hard2: never a log in 20 min. The hard runs share one anchor, so run 2 starts among
+// run 1's leftovers: canopy logs out of reach above and refused stubs. They are "in range",
+// so searchIfMissing never fired and the gather failed in place every time.
+test('leftover logs only out of reach: the gather searches further afield instead of failing',async()=>{
+ const f=canopyFake({logs:[[2,140,0],[3,141,1],[-2,139,2]],reachable:b=>b.position.x>=100});
+ const legs=[];
+ f.w.exploreLeg=async(token,o)=>{legs.push(o.direction);f.w.bot.entity.position=new Vec3(100.5,130,0.5);
+  const p=new Vec3(102,130,0);f.w.bot.blockAt=q=>Math.floor(q.x)===102&&Math.floor(q.y)===130&&Math.floor(q.z)===0&&!f.dug?{name:'oak_log',type:1,position:p,boundingBox:'block'}:null;
+  f.w.bot.findBlocks=()=>f.dug?[]:[p];};
+ f.w.bot.dig=async()=>{f.dug=true;f.n=(f.n||0)+1;};f.w.count=()=>f.n||0;
+ const job={spec:{type:'gather',block:'oak_log',count:1,radius:32,searchIfMissing:true,belowFoots:true}};
+ await Worker.prototype.gather.call(f.w,job,0);
+ assert.deepEqual(legs,['east']);assert.equal(f.n,1);
+});
+test('a grove with 8 refused columns is exhausted, not unsafe: searchIfMissing looks elsewhere',async()=>{
+ const logs=[];for(let i=0;i<9;i++)logs.push([i*2-8,130,3],[i*2-8,131,3]); // 2-log stubs: a column drops after 3 failures
+ // the 1 s rescan pause between attempts would take 70 s here: a clock that runs 2 s per read
+ const real=Date.now;let t=real();Date.now=()=>(t+=2000);
+ try{
+ const f=canopyFake({logs,reachable:()=>true});
+ let digs=0;f.w.bot.dig=async()=>{digs++;throw Error('Digging aborted');};
+ const legs=[];f.w.exploreLeg=async(token,o)=>{legs.push(o.direction);f.w.bot.findBlocks=()=>[];};
+ const job={spec:{type:'gather',block:'oak_log',count:2,radius:32,searchIfMissing:true}};
+ await assert.rejects(Worker.prototype.gather.call(f.w,job,0),/No matching blocks/);
+ assert.ok(legs.length>=1,'searched after the refusals');
+ assert.ok(f.logLines.some(l=>/refused here; searching further afield/.test(l)),f.logLines.join('|'));
+ // without searchIfMissing the old failure stands
+ const g=canopyFake({logs,reachable:()=>true});g.w.bot.dig=async()=>{throw Error('Digging aborted');};
+ await assert.rejects(Worker.prototype.gather.call(g.w,g.job(),0),/Cannot gather safely/);
+ }finally{Date.now=real;}
+});

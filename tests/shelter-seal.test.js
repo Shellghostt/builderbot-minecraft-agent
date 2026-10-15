@@ -285,3 +285,36 @@ test('round 7: a shelter resumed at dawn with its box up re-seals and holds inst
  await w.shelter(done,0);
  assert.deepEqual(removed,[2000],'resumed in a light morning: just take it down');
 });
+// ---- round 9: a pod before the pillar -----------------------------------------------------
+// hard2: `Short of shelter blocks: 10 held, 14 needed at (140, 128, 31); night pillar instead`,
+// then 9 minutes of `pillar-up failed (timed out at 0/3)` every few seconds.
+test('round 9: the 1x1 pod shell - four feet faces, the full head ring, the roof and its anchor',()=>{
+ const {required,support}=shelterShell({x:0,y:-60,z:0},true);
+ assert.equal(required.length,15,'floor + 4 + 8 + 2');
+ assert.ok(!required.some(c=>c.y===-60&&c.x&&c.z),'no feet diagonals');
+ assert.ok(required.some(c=>c.y===-59&&c.x===1&&c.z===1),'the head ring keeps its diagonals: no 2-high mob stands at a feet diagonal');
+ assert.deepEqual(required.filter(c=>c.y===-58),[{x:0,y:-58,z:0},{x:1,y:-58,z:0}],'the roof cell has no face to place against without the x+1 anchor');
+ assert.equal(support.length,4);
+ assert.equal(shelterShell({x:0,y:-60,z:0}).required.length,26,'the box is unchanged');
+});
+test('round 9: short for the box but not for a pod, the shelter seals the pod instead of the pillar',async()=>{
+ const world=flat();
+ const {w,logs,placed}=shelterWorker(world,{items:[{name:'cobblestone',count:14}]});
+ morningAfterGuard(w);
+ const job={spec:{type:'shelter'}};
+ await w.shelter(job,0);
+ assert.ok(logs.some(m=>/^Shelter: 14 blocks held, 25 for the box; sealing a 1x1 pod \(14\)/.test(m)),logs.join('\n'));
+ assert.ok(logs.some(m=>/^Shelter: sealed at .* \(14 blocks placed\)/.test(m)),logs.join('\n'));
+ assert.equal(shellGaps(world.blockAt,shelterShell({x:0,y:-60,z:0},true).required).length,0);
+ assert.equal(placed.length,14);assert.equal(w.nightPillarWanted(),false);
+});
+test('round 9: short even for the pod, it still falls back to the night pillar with the pod count logged',async()=>{
+ const world=flat();
+ const {w,logs}=shelterWorker(world,{items:[{name:'cobblestone',count:10}]});
+ await assert.rejects(w.shelter({spec:{type:'shelter'}},0),/Short of shelter blocks: 10 held, 25 needed .*; night pillar instead/);
+ assert.ok(logs.includes('Shelter: a 1x1 pod would need 14 here'),logs.join('\n'));
+});
+test('round 9: failed climbs back off 3, 6, 12 ... 60 s; a perch knocked off re-climbs in 3',async()=>{
+ const {pillarBackoff}=await import('../src/chains/mobDefenseChain.js');
+ assert.deepEqual([0,1,2,3,4,5,6,9].map(pillarBackoff),[3,3,6,12,24,48,60,60]);
+});
