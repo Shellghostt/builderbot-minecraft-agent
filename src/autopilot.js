@@ -11,6 +11,8 @@ import {EDIBLE_SKIP} from './observe.js';
 const BED=/(_bed)$/;
 const WOOLS=['white_wool','light_gray_wool','gray_wool','black_wool','brown_wool','red_wool','orange_wool','yellow_wool','lime_wool','green_wool','cyan_wool','light_blue_wool','blue_wool','purple_wool','magenta_wool','pink_wool'];
 const countFactory=count=>name=>count[name]||0;
+// Meals eaten this session: the consume-tracked count or the FoodChain's own (round 9).
+const mealsEaten=w=>{const m=w&&w.meals||{};return Math.max(m.eaten||0,m.ok||0);};
 // COMBAT_SPEC 7a gear: one sword and one axe per tier, a full armour set, bow and arrows.
 const GEAR=/^(diamond|iron|stone|golden|wooden)_(sword|axe|pickaxe|shovel|helmet|chestplate|leggings|boots)$/;
 const WORN_LIMIT=0.2; // craft the replacement while a fifth of the durability is left
@@ -260,6 +262,22 @@ function replacementJob(c,ctx){
  return null; // no materials for a spare: keep using the worn item
 }
 
+// Round 9: the food step must never hold the ladder. Round-8 normal1 cooked 3 porkchops, ate
+// them at a bar of 14 and then sat on [food] for 15 min (27 explore legs, `food failed 3 times`
+// x12) under an 8-edible rule its own meals kept breaking - no iron pickaxe in any run.
+// Done at FOOD_ENOUGH edible held, or that many held + eaten this run (`_eaten`), unless the
+// bot is hungry (bar <= FOOD_HUNGRY) with nothing to eat. A food step that keeps failing is
+// set aside (ctx.foodOff, FOOD_OFF_MS) and comes back only on that hunger (ctx.foodDeferred).
+export const FOOD_ENOUGH=4,FOOD_HUNGRY=14,FOOD_LEGS=6,FOOD_OFF_MS=8*60000;
+export function foodDone(c,ctx){
+ if(COOKABLE_MEAT.some(m=>c(m)>=1&&c('furnace')>=1))return false; // smelting it takes seconds
+ const edible=c('_edible');
+ if(edible>=FOOD_ENOUGH)return true;
+ const starving=edible<1&&Number.isFinite(ctx?.foodBar)&&ctx.foodBar<=FOOD_HUNGRY;
+ if(ctx?.foodOff)return true;
+ if(starving)return false;
+ return edible+c('_eaten')>=FOOD_ENOUGH||!!ctx?.foodDeferred;
+}
 // The progression ladder. Each entry: name, done(counts) and next(counts, ctx) producing the
 // next job spec (ctx: {slotsFull, animalsNearby, huntPhase, home, homeChest, chestSpot,
 // heldLog, logsTotal, planksTotal}). Any log species works for the wood step.
@@ -331,7 +349,7 @@ export const STEPS=[
   // leave the table standing through the kit; pick it up with the furnace (last stone craft)
   return {type:'craft',item:'furnace',count:1,keepTable:true,collectTable:true};
  }},
- {name:'food',done:c=>c('_edible')>=8&&!COOKABLE_MEAT.some(m=>c(m)>=1&&c('furnace')>=1),next(c,ctx){
+ {name:'food',done:foodDone,next(c,ctx){
   // COMBAT_SPEC 7a: keep cooked food - raw meat is smelted through the existing flow
   // whenever a furnace is available, even while enough raw food is already held.
   const meat=COOKABLE_MEAT.find(m=>c(m)>=1);
@@ -526,6 +544,7 @@ export class Autopilot{
    this.enabled=true;this.goal=goal||null;this.state='starting';this.current=null;this.currentStep=null;
    this.failures={};this.coolUntil=0;this.lastSurfaceY=null;this.foodAnchorY=null;this.huntPhase=false;
    this.lastNightKey=null;this.lastDuskKey=null;
+   this.food={mark:mealsEaten(this.worker),legs:0,best:0,offUntil:0,deferred:false};
    this.worker.userStopped=false;this.worker.deathResume=false;
    this.log('Autopilot started'+(this.goal?' (goal: '+this.goal+')':''));this.save();
   }
@@ -731,9 +750,12 @@ export class Autopilot{
    if(step==='dusk-cobble'&&this.duskCobble)this.duskCobble.off=true; // the dirt now
    if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
    if(step==='diamond-rung')this.diamondOffUntil=Date.now()+DIAMOND_OFF_MS;
+   // Round 9: a food step that failed 3 times is set aside, not blocked - the blocked
+   // state's explore-and-retry looped [food] for the rest of round-8 normal1.
+   if(step==='food'&&this.failures.food>=3){this.failures.food=0;this.deferFood('failed 3 times');}
    // Only ladder steps block (and explore to unblock): a night job that keeps failing must
    // never turn into an explore in the dark - nightKeyFree caps its retries instead.
-   if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
+   else if(this.failures[step]>=3&&STEPS.some(st=>st.name===step)){this.state='blocked: '+step+' (exploring elsewhere)';this.log('Autopilot: '+step+' failed '+this.failures[step]+' times; exploring before retry');}
    else this.state='retry: '+step+' ('+this.failures[step]+'/3)';
   }else{
    this.failures[this.currentStep]=0;
@@ -761,7 +783,23 @@ export class Autopilot{
   }
   map._edible=Object.keys(map).filter(n=>registry.foodsByName[n]&&!EDIBLE_SKIP.has(n)).reduce((a,n)=>a+map[n],0);
   map._wool_total=Object.keys(map).filter(n=>/_wool$/.test(n)).reduce((a,n)=>a+map[n],0);
+  map._eaten=Math.max(0,mealsEaten(this.worker)-(this.food?.mark||0)); // meals since start()
   return map;
+ }
+ // The food step's legs and its deferral (FOOD_LEGS, FOOD_OFF_MS). Progress is a new high of
+ // edible held + eaten this run; FOOD_LEGS food jobs without one set the step aside.
+ foodTrack(counts,job){
+  const f=this.food||(this.food={mark:mealsEaten(this.worker),legs:0,best:0,offUntil:0,deferred:false});
+  const got=(counts._edible||0)+(counts._eaten||0);
+  if(got>f.best){f.best=got;f.legs=0;}
+  if(job&&job.type==='explore'&&++f.legs>=FOOD_LEGS){this.deferFood(f.legs+' explore legs without food');return true;}
+  return false;
+ }
+ deferFood(why){
+  const f=this.food||(this.food={mark:mealsEaten(this.worker),legs:0,best:0,offUntil:0,deferred:false});
+  f.offUntil=Date.now()+FOOD_OFF_MS;f.deferred=true;f.legs=0;
+  this.state='food deferred: '+why;
+  this.log('Autopilot: food step set aside for '+FOOD_OFF_MS/60000+' min ('+why+'); moving on, back to food when hungry with none held');
  }
  rememberHome(b){
   const now=Date.now();
@@ -833,7 +871,8 @@ export class Autopilot{
   const standY=b.entity&&b.entity.position?Math.floor(b.entity.position.y):null;
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
-   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),diamondOff:Date.now()<(this.diamondOffUntil||0)};
+   coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,bedOff:Date.now()<(this.bedOffUntil||0),diamondOff:Date.now()<(this.diamondOffUntil||0),
+   foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
   // While ANY step is blocked the ladder must not run later steps' jobs on top of the gap
@@ -853,6 +892,7 @@ export class Autopilot{
    this.state='retry: '+step; // unblocked: the explore was the cooldown
    return;
   }
+  if(choice.step==='food'&&this.foodTrack(counts,choice.job))return; // set aside: next tick moves on
   if(choice.step==='food'&&choice.job?.type==='explore'&&this.lastSurfaceY==null&&this.foodAnchorY==null)this.foodAnchorY=standY;
   if(choice.step==='food'||choice.step==='bed')this.huntPhase=!this.huntPhase;
   this.currentStep=choice.step;
