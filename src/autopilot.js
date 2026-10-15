@@ -354,6 +354,29 @@ export function healFirst({job,health,food,edible,since=0,now=Date.now(),ate=fal
  if(food<18&&edible>0&&!ate)return {type:'eat'};
  return 'wait';
 }
+// Round 10, habit 11: food security beyond hunting. A small wheat patch beside home (when water
+// is in reach of it): seeds from grass, a wooden hoe, FARM_PLOTS tilled cells within 4 of the
+// water, planted, and harvested ripe (bread from 3 wheat is the food step's). Breeding: two of a
+// kind within 16 with 2 of their food held (BREED_EVERY_MS per kind). Hay bales (a village)
+// craft back into 9 wheat. ctx.farm: {nearHome, water, tillable, farmland, ripe, plots}.
+export const FARM_PLOTS=4,FARM_SEEDS=2,BREED_EVERY_MS=5*60000,FARM_OFF_MS=10*60000;
+const HOES=['wooden','stone','iron','golden','diamond','netherite'].map(t=>t+'_hoe');
+export function farmJob(counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ const f=ctx.farm;
+ if(!f||!f.nearHome||!f.water||ctx.farmOff)return null;
+ if(ctx.tod!=null&&ctx.tod>=SUNSET)return null;
+ if((ctx.hostileDistance??Infinity)<=16)return null;
+ if(f.ripe)return {type:'gather',block:'wheat',count:f.ripe,radius:12};
+ if(c('wheat_seeds')>=1&&f.farmland)return {type:'use',item:'wheat_seeds',position:f.farmland};
+ if((f.plots||0)>=FARM_PLOTS||!f.tillable)return null;
+ if(c('wheat_seeds')<FARM_SEEDS)return f.grass?{type:'gather',block:'short_grass',count:FARM_SEEDS-c('wheat_seeds'),radius:16}:null;
+ const hoe=HOES.find(h=>c(h)>=1);
+ if(hoe)return {type:'use',item:hoe,position:f.tillable};
+ if(c('stick')>=2&&ctx.planksTotal>=2+(c('crafting_table')>=1||ctx.worldTable?0:4))return {type:'craft',item:'wooden_hoe',count:1};
+ return null;
+}
 // Round 10, habit 7: torches as soon as coal and sticks exist (any step after the wood kit),
 // keeping one coal for the furnace, up to TORCHES; and TORCHES_HOME torches beside the home bed
 // (a lit base: monsters near a bed refuse the sleep), once per home.
@@ -507,6 +530,10 @@ export const STEPS=[
   const hunting=ctx.animalsNearby&&(ctx.animalsClose||0)>0&&c('_edible')<FOOD_BATCH;
   if(meat&&c('furnace')>=1&&!hunting)return {type:'smelt',item:meat,count:Math.min(48,c(meat))};
   if(c('wheat')>=3)return {type:'craft',item:'bread',count:1};
+  if(c('hay_block')>=1)return {type:'craft',item:'wheat',count:9}; // habit 11: a village's hay
+  // Habit 11: two of a kind and their food held - a pair bred keeps the herd before the hunt.
+  if(ctx.breedable&&c('_edible')>=1)return {type:'breed',entity:ctx.breedable}; // starving: hunt first
+  if(ctx.hayNear)return {type:'gather',block:'hay_block',count:Math.min(3,ctx.hayNear),radius:32};
   // COMBAT_SPEC 7a: replace a nearly-broken weapon before hunting.
   const fix=replacementJob(c,ctx);if(fix)return fix;
   if(ctx.animalsNearby)return ctx.huntPhase?{type:'collect',radius:16}:{type:'fight',entity:ctx.animalsNearby,maxSeconds:90};
@@ -923,6 +950,7 @@ export class Autopilot{
    if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
    if(step==='diamond-rung')this.diamondOffUntil=Date.now()+DIAMOND_OFF_MS;
    if(step==='inventory')this.invOffUntil=Date.now()+INV_OFF_MS; // a full chest, no spot: later
+   if(step==='farm')this.farmOffUntil=Date.now()+FARM_OFF_MS;
    // Habit 7: a coal dig that failed twice: charcoal from logs for COAL_OFF_MS instead.
    if(this.current.spec?.type==='gather'&&this.current.spec.block==='coal_ore'&&(this.coalFails=(this.coalFails||0)+1)>=2){this.coalFails=0;this.coalOffUntil=Date.now()+COAL_OFF_MS;this.log('Autopilot: no coal found twice; charcoal from logs for '+COAL_OFF_MS/60000+' min');}
    // Round 9: a food step that failed 3 times is set aside, not blocked - the blocked
@@ -1078,6 +1106,7 @@ export class Autopilot{
   const ctx={slotsFull:items/36,animalsNearby:animals?animals.type:null,animalsClose:animals?animals.close:0,huntPhase:this.huntPhase,homeChest:this.homeChest,home:this.home,chestSpot:this.home?this.chestSpotNear(b):null,hostileDistance:this.hostileDistance(b),worldTable,worldFurnace,grazeDirection:grazeDirection(b),standY,lastSurfaceY:this.lastSurfaceY??this.foodAnchorY,
    // Round 8 rung: coal in reach, the bed's wool, the last equip (no equip loops).
    coalNear:this.oreNear(b,['coal_ore','deepslate_coal_ore'],32),waterAt:this.waterSource(b),sheepNear:this.sheepNear(b),bedNear:this.bedNear(b),lastEquip:this.lastEquip||null,coalOff:Date.now()<(this.coalOffUntil||0),bedOff:Date.now()<(this.bedOffUntil||0),bedSearch:(this.bedSearch?.legs||0)<BED_SEARCH_LEGS,diamondOff:Date.now()<(this.diamondOffUntil||0),
+   breedable:this.breedable(b,counts),hayNear:this.hayNear(b),
    foodBar:typeof b.food==='number'?b.food:null,foodOff:Date.now()<(this.food?.offUntil||0),foodDeferred:!!this.food?.deferred};
   const choice=plan(counts,{...ctx,blocked:this.state.startsWith('blocked: ')?this.state.slice(9).split(' ')[0]:null});
   if(!choice.step){this.state='all steps satisfied';return;}
@@ -1111,6 +1140,11 @@ export class Autopilot{
    if(torch&&!(choice.job?.type==='craft'&&choice.job.item==='torch')){this.submit('light',torch);return;}
    const lamp=this.homeLightJob(b,counts);
    if(lamp){this.submit('light',lamp);return;}
+  }
+  // Habit 11: tend the wheat patch while at home.
+  if(choice.step!=='wood'&&!QUICK_JOBS.has(choice.job?.type)){
+   const farm=farmJob(counts,{...ctx,tod:dayTicks(b),farm:this.farmScan(b),farmOff:Date.now()<(this.farmOffUntil||0)});
+   if(farm){this.submit('farm',farm);return;}
   }
   // Wool by day whatever the step (bug B): the wood kit's sword is enough for a sheep. A
   // quick local job (a craft, an equip, a smelt, a meal) goes first: it takes seconds.
@@ -1152,6 +1186,7 @@ export class Autopilot{
   }else if(left&&left.distance<=5)this.tableTrips=null; // reached: the trips worked
   // The iron rung's bed jobs run under their own name: a sheep that runs off must not count
   // toward blocking the iron step (a failure sets the bed aside for BED_OFF_MS instead).
+  if(choice.job.type==='breed')(this.bredAt||(this.bredAt={}))[choice.job.entity]=Date.now();
   if(choice.step==='iron'&&isBedJob(choice.job)){this.submit('bed-rung',choice.job);return;}
   // The rung's only explore is the bed's sheep search: BED_SEARCH_LEGS of them, then the bed
   // is set aside for BED_OFF_MS (and the legs start over after that).
@@ -1209,6 +1244,43 @@ export class Autopilot{
    if(top&&top.boundingBox==='empty'&&!/water|lava/.test(top.name||'')&&ground?.boundingBox==='block')return {x:p.x,y:p.y,z:p.z};
   }
   return null;
+ }
+ // Habit 11: a kind with two animals within 16 and 2 of its breeding food held, not bred in
+ // the last BREED_EVERY_MS.
+ breedable(b,counts){
+  const me=b.entity&&b.entity.position;if(!me)return null;
+  const FOOD={cow:'wheat',sheep:'wheat',pig:'carrot',chicken:'wheat_seeds'};
+  const n={};
+  for(const e of Object.values(b.entities||{}))if(e&&e!==b.entity&&FOOD[e.name]&&e.position&&e.position.distanceTo(me)<=16)n[e.name]=(n[e.name]||0)+1;
+  for(const [kind,food] of Object.entries(FOOD))if((n[kind]||0)>=2&&(counts[food]||0)>=2&&Date.now()-((this.bredAt||{})[kind]||0)>=BREED_EVERY_MS)return kind;
+  return null;
+ }
+ hayNear(b){
+  try{const id=b.registry.blocksByName.hay_block?.id;return id!=null&&typeof b.findBlocks==='function'?b.findBlocks({matching:id,maxDistance:32,count:3}).length:0;}catch{return 0;}
+ }
+ // Habit 11: the wheat patch beside home - water within 8 of it, tillable ground (grass or dirt
+ // under air) within 4 of that water, empty farmland, ripe wheat, and grass for seeds.
+ farmScan(b){
+  const h=this.home,me=b.entity&&b.entity.position;
+  if(!h||!me||me.distanceTo(new Vec3(h.x+0.5,h.y,h.z+0.5))>16)return null;
+  try{
+   const reg=b.registry.blocksByName,at=p=>b.blockAt(p),centre=new Vec3(h.x,h.y,h.z);
+   const near=(name,r=8,n=32)=>reg[name]?.id==null||typeof b.findBlocks!=='function'?[]:b.findBlocks({matching:reg[name].id,point:centre,maxDistance:r,count:n});
+   const water=near('water').filter(p=>Math.abs(p.y-(h.y-1))<=1);
+   const out={nearHome:true,water:water.length>0,plots:0,ripe:0,farmland:null,tillable:null,grass:near('short_grass',16,1).length>0};
+   for(const p of near('wheat')){out.plots++;const bl=at(p);try{const a=(bl.getProperties?.()||bl.properties||{}).age;if(Number(a)>=7)out.ripe++;}catch{}}
+   for(const p of near('farmland')){if(at(p.offset(0,1,0))?.boundingBox==='empty'&&!near('wheat').some(w=>w.equals(p.offset(0,1,0)))){out.farmland=out.farmland||{x:p.x,y:p.y,z:p.z};out.plots++;}}
+   if(out.water&&!out.tillable){
+    for(const w of water){
+     for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[2,0],[-2,0],[0,2],[0,-2],[1,1],[-1,-1],[1,-1],[-1,1]]){
+      const p=w.offset(dx,0,dz),bl=at(p),up=at(p.offset(0,1,0));
+      if(bl&&/^(grass_block|dirt)$/.test(bl.name)&&up&&up.boundingBox==='empty'&&!/water/.test(up.name||'')){out.tillable={x:p.x,y:p.y,z:p.z};break;}
+     }
+     if(out.tillable)break;
+    }
+   }
+   return out;
+  }catch{return null;}
  }
  // Habit 9: a still water source within WATER_NEAR with open air above (a bucket fills from
  // the top), for the rung's bucket. Only looked for while an empty bucket is held.

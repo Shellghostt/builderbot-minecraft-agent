@@ -205,6 +205,12 @@ export async function wallPickups(w,job,token,feet,dir){
   }catch(e){w.check(token);}
  }
 }
+// Habit 11: what a crop or grass gather counts (minecraft-data lists only seeds for wheat and
+// nothing for grass), and the age a crop is ripe at.
+export const CROP_DROP={wheat:'wheat',carrots:'carrot',potatoes:'potato',beetroots:'beetroot',short_grass:'wheat_seeds',tall_grass:'wheat_seeds'};
+export const CROP_RIPE={wheat:7,carrots:7,potatoes:7,beetroots:3};
+export const PLANTS={wheat_seeds:'wheat',carrot:'carrots',potato:'potatoes',beetroot_seeds:'beetroots'};
+export const blockAge=bl=>{try{const p=(typeof bl.getProperties==='function'?bl.getProperties():null)||bl.properties||{};return Number(p.age??-1);}catch{return -1;}};
 // Habit 8: lava beside the cells the bot stands in (it can flow in when a dig freed it) is
 // plugged with a held block placed into the lava cell, against any solid neighbour of it.
 export const BRANCH_MAIN=24,BRANCH_LEN=6,BRANCH_EVERY=3;
@@ -1618,6 +1624,17 @@ export class Worker extends EventEmitter {
    if(this.count('water_bucket')>=beforeItem&&this.count('bucket')<1)throw Error('The bucket did not empty');
    return;
   }
+  // Habit 11: seeds (or a carrot/potato) on farmland plant the crop in the cell above; the
+  // farmland itself does not change.
+  if(PLANTS[s.item]&&before.name==='farmland'){
+   const above=target.offset(0,1,0);
+   if(b.blockAt(above)?.boundingBox!=='empty')throw Error('Something sits on the farmland at '+target);
+   await hold(s.item);
+   await b.activateBlock(before,new Vec3(0,1,0),new Vec3(.5,1,.5));
+   await this.flushTick();this.check(token);
+   for(let tries=0;tries<12;tries++){if(b.blockAt(above)?.name===PLANTS[s.item])return;await sleep(300);this.check(token);}
+   throw Error('Planting '+s.item+' at '+target+' grew nothing');
+  }
   const beforeName=before.name,beforeAge=before.properties?.age;
   await hold(s.item);
   const boneBefore=this.count(s.item);
@@ -1807,6 +1824,7 @@ export class Worker extends EventEmitter {
   if(!job.anchor)job.anchor=b.entity.position.floored();if(job.startCount===undefined)job.startCount=this.count(s.block);
   const logSum=()=>b.inventory.items().filter(i=>i.name.endsWith('_log')).reduce((a,i)=>a+i.count,0);
   if(anyLog)job.dropName='log';
+  else if(CROP_DROP[s.block])job.dropName=CROP_DROP[s.block]; // habit 11: crops and grass
   else{
    // Ore jobs are rejected unless the ore drops the named item; avoid false completion.
    const drops=b.registry.blocks[id]?.drops||[];
@@ -1874,6 +1892,8 @@ export class Worker extends EventEmitter {
     // Blocks that failed for good (this job, or a recent job: the ladder resubmits the same
     // gather) are skipped. hard1/hard2 sat for minutes re-trying the same canopy logs.
     targets=targets.filter(t=>!this.gatherBlacklisted(job,t.position));
+    // Habit 11: a crop is harvested only ripe (age 7; beetroots 3), never pulled green.
+    if(CROP_RIPE[s.block]!=null)targets=targets.filter(t=>blockAge(t)>=CROP_RIPE[s.block]);
     // openSky RANKS open trunks first but never empties the list: the dark-canopy hard
     // anchor has no open-sky trunks at all, and a filtered gather starved there (measured).
     if((anyLog||wantOpen) && job.skyKey!==job.anchor.x+','+job.anchor.z){
