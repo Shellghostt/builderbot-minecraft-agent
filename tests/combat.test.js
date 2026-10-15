@@ -1078,3 +1078,69 @@ test('bowAimSolution: a moving shooter compensates for the motion vanilla adds t
  const miss=arrowTrajectory(from,naive.yaw,naive.pitch,{inherit:u});
  assert.ok(minDistTo(miss,led)>0.6,'ignoring it would miss (the old solver)');
 });
+// ---- round 6, task 5: the lane creeper (2-high column under the lane roof) -------------------
+// Round 5: 'pillar-up 2', then pillar-hold until the blast - 2 up the base is inside the
+// 3-block fuse ring (flat 2.24), and the perch only held. shots=0, the midpoint cratered.
+function laneWorld(){
+ const blocks=flatWorld(9);
+ for(let x=-9;x<=9;x++)for(let z=-9;z<=9;z++)cell(blocks,x,-56,z,'dirt'); // the lane roof
+ return blocks;
+}
+function climb2(c,bot,blocks,clock){
+ for(let level=0;level<2;level++){
+  bot.entity.position.y=-60+level;clock.T+=0.05;c.tick();
+  bot.entity.position.y=-60+level+1.15;clock.T+=0.05;c.tick();
+  cell(blocks,0,-60+level,0,'cobblestone');
+ }
+ bot.entity.position.y=-58;clock.T+=0.05;c.tick();
+}
+test('controller: a 2-high perch knocks the creeper back before it reaches the fuse ring',()=>{
+ const clock={T:0};
+ const blocks=laneWorld();
+ const creeper=mob(640,'creeper',at(0.5,-60,7.6));
+ const logs=[];
+ const {bot,calls}=makeBot({inventory:['cobblestone','bow','arrow','stone_sword'],counts:{cobblestone:16,arrow:32},heldItem:'bow',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T,log:m=>logs.push(m)});
+ c.setTarget(creeper);c.tick();
+ assert.equal(c._pillar&&c._pillar.height,2,'the roof leaves room for 2');
+ climb2(c,bot,blocks,clock);
+ assert.equal(c._pillar.phase,'perch');
+ // Still well outside the ring: the bow.
+ creeper.position=at(0.5,-60,6.0);clock.T+=0.5;c.tick();clock.T+=0.05;c.tick();
+ assert.ok(['pillar-draw','pillar-equip-bow','pillar-perch'].includes(c.state),c.state);
+ assert.ok(!calls.some(x=>x[0]==='attack'));
+ // Closing on the ring (2.24 + 1.6): the sword, and a swing as soon as it is in reach.
+ creeper.position=at(0.5,-60,4.1);clock.T+=0.5;c.tick();
+ assert.ok(logs.some(l=>/perch 2 up is inside the fuse ring; knocking the creeper back/.test(l)));
+ assert.ok(calls.some(x=>x[0]==='equip'&&x[1]==='stone_sword'),'sword in hand');
+ bot.heldItem={name:'stone_sword'};
+ clock.T+=0.05;c.tick();
+ assert.ok(!calls.some(x=>x[0]==='attack'),'4.1 flat is out of reach');
+ creeper.position=at(0.5,-60,3.5);clock.T+=0.05;c.tick();
+ assert.ok(calls.some(x=>x[0]==='attack'&&x[1]===640),'struck at 3.0 flat, outside the 2.24 ring');
+ // Knocked back to 4.5: still within the hysteresis band, the sword stays in hand.
+ creeper.position=at(0.5,-60,5.0);clock.T+=0.1;c.tick();
+ assert.notEqual(c.state,'pillar-equip-bow');
+ // A fuse that started anyway: hold the shield, no swing.
+ creeper.position=at(0.5,-60,2.6);creeper.metadata=[,,,,,,,,,,,,,,,,1];
+ const swings=calls.filter(x=>x[0]==='attack').length;
+ clock.T+=1;c.tick();
+ assert.equal(c.state,'pillar-hold');
+ assert.equal(calls.filter(x=>x[0]==='attack').length,swings);
+});
+test('controller: a 3-high perch is outside the fuse ring and keeps the bow on a close creeper',()=>{
+ const clock={T:0};
+ const blocks=flatWorld();
+ const creeper=mob(641,'creeper',at(6.5,-60,0.5));
+ const logs=[];
+ const {bot,calls}=makeBot({inventory:['cobblestone','bow','arrow','stone_sword'],counts:{cobblestone:16,arrow:32},heldItem:'bow',
+  position:[0.5,-60,0.5],entities:[creeper],blocks});
+ const c=new CombatController(bot,makeMove(bot,null),{now:()=>clock.T,log:m=>logs.push(m)});
+ c.setTarget(creeper);c.tick();
+ climb(c,bot,calls,blocks,clock);
+ bot.heldItem={name:'bow'};
+ creeper.position=at(2.5,-60,0.5);clock.T+=0.5;c.tick();
+ assert.ok(!logs.some(l=>/fuse ring/.test(l)));
+ assert.ok(!calls.some(x=>x[0]==='equip'&&x[1]==='stone_sword'));
+});

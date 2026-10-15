@@ -451,7 +451,7 @@ export class CombatController{
    drawSeconds:FULL_DRAW_SECONDS,shotGap:0.3,bowMin:6,bowMax:24,
    healthDisengage:12,healthRetreat:8,recoverHealth:14,sprintFood:6,
    projectileMiss:1.6,projectileHorizon:3,creeperFuse:3.0,
-   groupReach:3.5,pillarTrigger:8,pillarStepTrigger:12,pillarStepGap:4.5,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,...opts};
+   groupReach:3.5,pillarTrigger:8,pillarStepTrigger:12,pillarStepGap:4.5,pillarHeight:3,pillarClear:0.1,pillarSeconds:4,pillarDescend:8,pillarDescendSeconds:1,perchReach:3.0,knockBand:1.6,knockReach:3.4,...opts};
   // Wall clock. 73186 released a bow at 0.27 s because bot.time.age/20 jumped
   // (Via/26.x tick skip). Tests inject opts.now; never read age for draw/cooldown.
   this.now=opts.now||(()=>Date.now()/1000);
@@ -926,6 +926,21 @@ export class CombatController{
     return true;
    }
    p.farSince=null;
+   // Round 5 lane (4_creeper): under the lane roof the column was 2 high, and 2 up the base
+   // is still inside the 3-block fuse ring (flat sqrt(9-h^2) = 2.24; the fuse starts at 3
+   // feet-to-feet). The creeper walked to the base and fused, this hold waited for the blast:
+   // shots=0, and the lane midpoint glowstone cratered. A short column fights the approach
+   // with knockback instead: the melee weapon is in hand once the creeper is within knockBand
+   // of the ring (hysteresis: back to the bow past ring+knockBand+1.5), and each swing it can
+   // reach pushes it back out before the fuse can start. knockReach 3.4 eye-to-box is inside
+   // the server's interaction check (3 + 3 buffer since 1.20.5). At 3 up the ring is 0.
+   const ring=Math.sqrt(Math.max(0,9-p.height*p.height));
+   if(ring>0&&gear.weaponName&&flat<=ring+o.knockBand+(p.knock?1.5:0)){
+    if(!p.knock)this.log('Combat: perch '+p.height+' up is inside the fuse ring; knocking the creeper back (at '+flat.toFixed(1)+')');
+    p.knock=true;this._cancelDraw();this._perchStrike(t,gear,now,o.knockReach);
+    return true;
+   }
+   p.knock=false;
    // It stays: attack from above (bow first - a sitting target under the column).
    if(gear.bow&&gear.arrows>0)this._perchShoot(t,now);
    else this._perchStrike(t,gear,now);
@@ -997,7 +1012,7 @@ export class CombatController{
    this._released(t);
   }
  }
- _perchStrike(t,gear,now){
+ _perchStrike(t,gear,now,maxReach=this.opts.perchReach){
   const bot=this.bot,e=bot.entity;
   if(!gear.weaponName){this._setState('pillar-perch');return;}
   if(!bot.heldItem||bot.heldItem.name!==gear.weaponName){
@@ -1011,7 +1026,7 @@ export class CombatController{
   const near={x:Math.max(tp.x-0.3,Math.min(eye.x,tp.x+0.3)),y:Math.max(tp.y,Math.min(eye.y,tp.y+(t.height||1.7))),z:Math.max(tp.z-0.3,Math.min(eye.z,tp.z+0.3))};
   const reach=dist(eye,near);
   const ready=now-this._lastStrike>=cooldownSeconds(gear.weaponName,bot.registry);
-  if(reach>this.opts.perchReach||!ready){this._setState('pillar-perch');return;}
+  if(reach>maxReach||!ready){this._setState('pillar-perch');return;}
   const dx=near.x-eye.x,dz=near.z-eye.z;
   this._look(yawToward(dx,dz),pitchToward(near.y-eye.y,Math.hypot(dx,dz)),true);
   try{const q=bot.attack(t);q&&q.catch&&q.catch(()=>{});}catch{}
