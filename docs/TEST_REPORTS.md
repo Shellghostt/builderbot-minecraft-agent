@@ -480,3 +480,45 @@ No second soak.
 `4_creeper` (lane): ttk 7.4 s, hits 5, `damage_taken=0`, end health 20, killed, no crater at the spawn, the midpoint, or the bot start.
 
 `4b_creeper_roofed`: ttk 5.2 s, hits 2, `damage_taken=0`, end health 20, killed, no crater. Both creepers stayed at 0 damage.
+
+## 2026-10-15 21:50 – 2026-10-16 00:58 IST — dual soak (`b25ab08`, bot code `649790b`)
+
+`AGENT_MODEL=off`, one soak, exit 0, 11287 s. `SOAK DONE (clean)`, promoted to `data/soak-results.json`. Flat world restored (`level-name=agent-test-world`, `server-ip=0.0.0.0`, peaceful). Model stayed off. Anchors: hard [143, 132, 31], normal [310, 131, 30]. No second soak.
+
+| Run | Wood | Stone pick | Furnace | Iron pick | Torches | Armour worn | Bed | Diamonds | Food | Deaths |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| normal1a1 | 90 | 181 | 271 | 451 | 19 | 4 at 632 | — | 0 | ate 4 | 0 |
+| normal2a2 | 90 | 150 | 241 | 361 | 16 | 2 at 602 | — | 0 | ate 1 | 1 |
+| normal3a3 | 90 | 211 | 301 | 512 | 16 | 2 at 782 | — | 0 | ate 2 | 0 |
+| hard1a1 | 543 | — | — | — | 0 | 0 | — | 0 | not hungry (bar 20) | 0 |
+| hard2a2 | 121 | 362 | 483 | — | 0 | 0 | — | 0 | not hungry (bar 20) | 0 |
+| hard3a3 | 241 | 301 | — | — | 0 | 0 | — | 0 | not hungry (bar 20) | 0 |
+
+Times are seconds from each run start. Diamond pick never. No bed on any run.
+
+### Food
+
+Meals are counted now. Verdicts are `ate 4`, `ate 1`, and `ate 2`, and `eaten` matches (4 / 1 / 2). The log form is `Food: ate cooked_mutton (bar A -> B)`.
+
+Four of the seven meals started at bar 14. Three started above 14:
+
+- normal1, 16:48Z: a `Health or food is low` pause, then `bar 17 -> 20` and, 13 s later, `bar 19 -> 20`. The second bite is a fill-up after the first meal.
+- normal3, 18:02Z and 18:04Z: `bar 16 -> 20` while the diamond staircase was dropping the bot (sampled hp 18.4, then 12.4, then 3.5). The operator returned it from y=20.
+
+The food step did not hold the ladder for a whole run. All three normal runs reached an iron pickaxe. It was set aside twice: normal2 at 17:08Z (`failed 3 times`) and normal3 at 17:50Z (`6 explore legs without food`). No `food failed 3 times; exploring before retry`.
+
+### Iron, armour, diamonds
+
+normal1 wore the full iron set (helmet, chestplate, leggings, boots) by 632 s and entered `diamond-rung` at 812 s. Diamonds stayed 0. normal2 and normal3 wore helmet and chestplate only (2). normal3 also entered `diamond-rung` (targetY -58) at about 993 s, then the operator pulled it back from y=20. No `Tunnel stopped: lava`.
+
+### Night
+
+No bed and no `[night] sleep`. No `sealing a 1x1 pod` and no night-pillar timeout loop.
+
+- hard1 got wood only at 543 s, after `searching further afield` (5 columns / 24 blocks, then only refused logs). Sealed at 18:34Z at (154, 136, 30), 22 blocks. Dawn hold at 18:44Z (tod 16); opened at 18:45Z (tod 1016, hostile 18.2 away).
+- hard2 got wood at 121 s. Sealed at 18:56Z at (186, 152, 54), 22 blocks. Dawn hold at 19:05Z (tod 12) was still up when the run ended. No morning opening line.
+- hard3 searched further afield, then sealed at 19:17Z at (83, 117, -98), 25 blocks, and stayed there. Dawn hold at 19:27Z (tod 12); opened at 19:27Z (tod 1012) as the bell ended the run.
+
+### Deaths
+
+One death. normal2, 17:24Z: `BuilderBot fell from a high place` at (444, 13, 10). The iron pickaxe left the inventory with 103 uses left, along with the wooden and stone tools and the iron sword. The soak counter is 1, and that is the only death line in the window. The bot respawned and the run ended still holding an iron pickaxe.
