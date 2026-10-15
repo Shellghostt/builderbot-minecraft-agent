@@ -87,7 +87,7 @@ export class MobDefenseChain extends SingleTaskChain{
   if(pillar){
    this._runAwayTask=null;this._doingFunkyStuff=true;
    this.root=pillar;
-   this._fleeLog(ctx,'pillar','Reflex: night crowd ('+hostiles.filter(e=>withinRange(e,bot,16)).length+' hostiles); pillaring up instead of fleeing');
+   this._fleeLog(ctx,'pillar',pillar.hold?'Reflex: no shelter tonight; night pillar until morning':'Reflex: night crowd ('+hostiles.filter(e=>withinRange(e,bot,16)).length+' hostiles); pillaring up instead of fleeing');
    return 72;
   }
   // Run away from the closest creeper (AltoClef: 50 + fuse*50; mineflayer does not expose
@@ -199,13 +199,14 @@ export class MobDefenseChain extends SingleTaskChain{
   if(p&&p.failed)this._pillarRetryAt=this.now()+10;
   this._pillar=null;
   if(this.now()<(this._pillarRetryAt||0))return null;
-  const e=bot.entity;
+  const e=bot.entity,w=ctx&&ctx.worker;
   const blocks=pillarBlocks(bot);
   const x=Math.floor(e.position.x),y=Math.floor(e.position.y),z=Math.floor(e.position.z);
   const plan=nightRefuge({tod:dayTicks(bot),me:e.position,hostiles,blocks:blocks?blocks.total:0,
-   room:blocks?pillarRoom(cellAt(bot),x,y,z,3):0,onGround:e.onGround!==false,inFluid:!!(e.isInWater||e.isInLava),fightAllowed:policy.allowed});
+   room:blocks?pillarRoom(cellAt(bot),x,y,z,3):0,onGround:e.onGround!==false,inFluid:!!(e.isInWater||e.isInLava),fightAllowed:policy.allowed,
+   forced:!!(w&&typeof w.nightPillarWanted==='function'&&w.nightPillarWanted(bot))});
   if(!plan)return null;
-  return this._pillar=new NightPillarTask(plan.height);
+  return this._pillar=new NightPillarTask(plan.height,{hold:plan.hold});
  }
  // The armed response as a FightTask (ActionTask subclass): the TaskRunner is the single
  // owner, the controller only ever sees the ownership-guarded move helper.

@@ -93,17 +93,19 @@ export function pillarRoom(blockAt,x,y,z,max=3){
 // the rest of the pack, into a lake, and under skeleton fire. The answer is a 3-block
 // pillar (zombies cannot reach, creepers cannot fuse from the base) when 3+ blocks are held
 // and the column fits; null leaves the ordinary ladder (fight / flee) in charge.
-export function nightRefuge({tod,me,hostiles,blocks=0,room=0,onGround=true,inFluid=false,fightAllowed=false}){
+// forced: tonight's shelter failed (worker.shelterFallback) - climb before any mob arrives
+// and hold the column until morning (hold), not just until the crowd thins out.
+export function nightRefuge({tod,me,hostiles,blocks=0,room=0,onGround=true,inFluid=false,fightAllowed=false,forced=false}){
  if(!darkNow(tod)||!me)return null;
  const near=(hostiles||[]).filter(h=>h&&h.position&&Math.hypot(h.position.x-me.x,h.position.y-me.y,h.position.z-me.z)<=16);
- if(!near.length)return null;
+ if(!near.length&&!forced)return null;
  const close=near.filter(h=>Math.hypot(h.position.x-me.x,h.position.z-me.z)<=8);
  const crowd=near.length>=3||(!fightAllowed&&close.length>0);
- if(!crowd)return null;
+ if(!crowd&&!forced)return null;
  if(inFluid||!onGround||blocks<3||room<3)return null;
  // A mob already touching the column climbs with us (spiders) or blocks the jump: fight/flee.
  if(near.some(h=>Math.hypot(h.position.x-me.x,h.position.z-me.z)<1.2))return null;
- return {action:'pillar',height:3,crowd:near.length};
+ return forced?{action:'pillar',height:3,crowd:near.length,hold:true}:{action:'pillar',height:3,crowd:near.length};
 }
 // Deep water: a water cell with water above or below it (no footing). The step cost bans
 // it after dark (cost 100 is the pathfinder's "cannot move"), and makes it expensive by day.

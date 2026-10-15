@@ -80,10 +80,13 @@ const canSeeTarget=(b,e)=>{
 // at night sat ahead of the night shelter in the array and ran first - round 4).
 export const SURVIVAL_JOBS=new Set(['sleep','eat','shelter']);
 const WORLD_CHAIN='Misc World Survival Chain';
-// Shelter materials (placement order when no kit cobble is reserved) and the stock the job
-// wants before it starts: 25 shell cells and the floor.
+// Shelter materials (placement order when no kit cobble is reserved). The job needs one per
+// open shell cell where it stands (26 on flat ground, a few in a stone tunnel), digs dirt for
+// at most SHELTER_DIG_MS when short and seals within SHELTER_SEAL_MS, else it fails with the
+// reason and the night pillar takes over (round 5 hard1/hard2: 11 min re-walking one
+// unreachable dirt block, cancelled by the soak bell, never sealed).
 const SHELTER_ITEMS=['cobblestone','dirt','cobbled_deepslate','netherrack'];
-const SHELTER_BLOCKS=26;
+export const SHELTER_DIG_MS=45000,SHELTER_SEAL_MS=30000,NIGHT_PILLAR_MS=13*60000;
 const reflexPaused=j=>j.status==='paused'&&/^(Preempted by|Reflex:)/.test(String(j.message));
 export class Worker extends EventEmitter {
  constructor(root,config){
@@ -887,24 +890,12 @@ export class Worker extends EventEmitter {
    return;
   }
   // Every shelter block counts (a mix of cobble and dirt is fine); cobble the autopilot's
-  // unfinished stone kit still needs (cobbleReserve) is left alone.
-  if(this.shelterStock()<SHELTER_BLOCKS){
-   // Short: dig the shelter material out of the ground before nightfall kills the bot.
-   this.update(job,0,'Digging dirt for the shelter');
-   while(this.shelterStock()<SHELTER_BLOCKS){
-    this.check(token);
-    const spot=b.findBlock({matching:[b.registry.blocksByName.dirt.id,b.registry.blocksByName.grass_block?.id].filter(x=>x!==undefined),maxDistance:24});
-    if(!spot)throw Error('Need 25 cobblestone or dirt in the inventory to build a shelter, and none is reachable to dig');
-    try{
-     await this.walk(spot.position,token,2,20);await b.tool.equipForBlock(spot);this.check(token);
-     if(!b.canDigBlock(spot))continue;
-     if(['lava','water'].includes(b.blockAt(spot.position.plus(new Vec3(0,1,0)))?.name))continue;
-     await b.dig(spot);await sleep(400);await this.sweepDrops(token);
-    }catch(e){this.check(token);}
-   }
-  }
-  const origin=b.entity.position.floored();
-  const at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  // unfinished stone kit still needs (cobbleReserve) is spent only as the last resort.
+  const here=()=>b.entity.position.floored();
+  if(this.shelterStock()<this.shelterNeed(here()))await this.digShelterDirt(job,token,()=>this.shelterNeed(here()));
+  const origin=here(),at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  const need=this.shelterNeed(origin),held=this.shelterStock(true);
+  if(held<need)this.shelterFallback(job,'Short of shelter blocks: '+held+' held, '+need+' needed at '+origin);
   // A world-survival escape (water, fire) may resume the job somewhere else: the old box
   // stays where it stands and a new one goes up here.
   if(job.origin&&!origin.equals(pos(job.origin))){
@@ -920,10 +911,11 @@ export class Worker extends EventEmitter {
   if(!job.shell)job.shell=required.concat(support).filter(c=>at(c.x,c.y,c.z)?.boundingBox!=='block');
   if(!job.placed)job.placed=[];
   this.update(job,0,'Sealing the shelter at '+origin);
-  await this.sealShelter(job,token,origin);
+  try{await this.sealShelter(job,token,origin,Date.now()+SHELTER_SEAL_MS);}
+  catch(e){this.check(token);this.shelterFallback(job,e.message);}
   this.save();this.update(job,required.length,'Waiting for morning (sealed)');
   this.log('Shelter: sealed at '+origin+' ('+job.placed.length+' blocks placed)');
-  this.shelterSealed=true;this.shelterSpot={x:origin.x,y:origin.y,z:origin.z};
+  this.shelterSealed=true;this.shelterSpot={x:origin.x,y:origin.y,z:origin.z};this.nightPillar=null;
   try{
    while(darkNow(dayTicks(b))){
     await sleep(250);this.check(token);
@@ -933,8 +925,46 @@ export class Worker extends EventEmitter {
   this.shelterSpot=null;
   await this.removeShelter(job,token);
  }
- // Shelter blocks held beyond the stone kit's cobble reserve.
- shelterStock(){return SHELTER_ITEMS.reduce((a,n)=>a+this.count(n),0)-Math.min(this.count('cobblestone'),this.cobbleReserve||0);}
+ // Shelter blocks held beyond the stone kit's cobble reserve (all of them with reserve=true).
+ shelterStock(reserve=false){return SHELTER_ITEMS.reduce((a,n)=>a+this.count(n),0)-(reserve?0:Math.min(this.count('cobblestone'),this.cobbleReserve||0));}
+ // Blocks the box needs where the bot stands: the open shell cells, plus a support cell under
+ // each feet-ring cell nothing can anchor (a pillar top, a ledge).
+ shelterNeed(origin){
+  const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
+  const {required,support}=shelterShell(origin);
+  const gaps=shellGaps(at,required),{stuck}=placementPlan(at,gaps);
+  return gaps.length+support.filter(c=>stuck.some(g=>g.x===c.x&&g.z===c.z&&g.y===c.y+1)&&at(c.x,c.y,c.z)?.boundingBox!=='block').length;
+ }
+ // Short of blocks: dig dirt/grass within 24 for at most SHELTER_DIG_MS. Every tried spot is
+ // spent (walk failed, undiggable, water above, or dug), so one unreachable block can no
+ // longer hold the job all night.
+ async digShelterDirt(job,token,need){
+  const b=this.bot,until=Date.now()+SHELTER_DIG_MS,tried=new Set();
+  const ids=[b.registry.blocksByName.dirt?.id,b.registry.blocksByName.grass_block?.id].filter(x=>x!==undefined);
+  this.update(job,0,'Digging dirt for the shelter');
+  while(this.shelterStock()<need()&&Date.now()<until){
+   this.check(token);
+   const spot=(b.findBlocks({matching:ids,maxDistance:24,count:64})||[]).map(p=>b.blockAt(p))
+    .find(bl=>bl&&!tried.has(bl.position.toString())&&!['lava','water'].includes(b.blockAt(bl.position.offset(0,1,0))?.name));
+   if(!spot)break;
+   tried.add(spot.position.toString());
+   try{
+    await this.walk(spot.position,token,2,Math.max(1,Math.min(15,(until-Date.now())/1000)));
+    await b.tool.equipForBlock(spot);this.check(token);
+    if(!b.canDigBlock(spot))continue;
+    await b.dig(spot);await sleep(400);await this.sweepDrops(token);
+   }catch(e){this.check(token);}
+  }
+ }
+ // The shelter cannot go up: fail with the reason and leave tonight to the night pillar
+ // (Mob Defense climbs 3 and holds until morning; nightPillarWanted).
+ shelterFallback(job,reason){
+  this.nightPillar={t:Date.now(),reason};
+  this.log('Shelter: '+reason+'; night pillar instead');
+  throw Error(reason+'; night pillar instead');
+ }
+ // Tonight's shelter failed (shelterFallback): Mob Defense pillars without waiting for a crowd.
+ nightPillarWanted(bot=this.bot){return !!this.nightPillar&&Date.now()-this.nightPillar.t<NIGHT_PILLAR_MS&&darkNow(dayTicks(bot));}
  // Dirt first while the kit still needs cobble; reserved cobble only as the last resort (a
  // sealed box outranks the furnace).
  shelterItem(){
@@ -950,10 +980,10 @@ export class Worker extends EventEmitter {
    &&Math.abs(e.position.x-(cell.x+0.5))<0.5+(e.width||0.6)/2&&Math.abs(e.position.z-(cell.z+0.5))<0.5+(e.width||0.6)/2
    &&e.position.y<cell.y+1&&e.position.y+(e.height||1.8)>cell.y)||null;
  }
- async sealShelter(job,token,origin){
+ async sealShelter(job,token,origin,deadline=Infinity){
   const b=this.bot,at=(x,y,z)=>b.blockAt(new Vec3(x,y,z));
   const {required,support}=shelterShell(origin);
-  for(let pass=0;pass<8;pass++){
+  for(let pass=0;pass<8&&Date.now()<deadline;pass++){
    this.check(token);
    const gaps=shellGaps(at,required);
    if(!gaps.length)return;
@@ -965,6 +995,7 @@ export class Worker extends EventEmitter {
    }
    for(const {cell} of plan){
     this.check(token);
+    if(Date.now()>=deadline)break;
     if(at(cell.x,cell.y,cell.z)?.boundingBox==='block')continue;
     const occupant=this.cellOccupant(cell);
     if(occupant){if(occupant.type==='hostile')await this.shelterStrike(occupant,token);continue;}
@@ -973,7 +1004,7 @@ export class Worker extends EventEmitter {
    if(pass)await sleep(250);
   }
   const left=shellGaps(at,required);
-  if(left.length)throw Error('Could not seal the shelter: '+left.length+' open cells, first at '+left[0].x+','+left[0].y+','+left[0].z);
+  if(left.length)throw Error('Could not seal the shelter'+(Date.now()>=deadline?' in '+Math.round(SHELTER_SEAL_MS/1000)+' s':'')+': '+left.length+' open cells, first at '+left[0].x+','+left[0].y+','+left[0].z);
  }
  async placeShelterBlock(job,cell,token){
   const b=this.bot,point=new Vec3(cell.x,cell.y,cell.z);

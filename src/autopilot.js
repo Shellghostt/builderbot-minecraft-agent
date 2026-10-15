@@ -494,6 +494,12 @@ export class Autopilot{
   const job=this.nightJob&&this.worker.jobs.find(j=>j.id===this.nightJob.id);
   if(!job||!['failed','cancelled'].includes(job.status)||!shelterDue(dayTicks(b)))return false;
   if(this.nightJob.day!==day){this.nightJob.day=day;this.nightJob.retries=0;}
+  // Short of blocks (worker.shelterFallback): a retry digs the same empty ground again and,
+  // queued, gates off the night pillar that took over. Hold for morning instead.
+  if(this.worker.nightPillarWanted?.(b)){
+   if(this.nightJob.retries<NIGHT_RETRIES)this.log('Autopilot: the night job '+job.status+' ('+String(job.message).slice(0,80)+'); night pillar until morning');
+   this.nightJob.retries=NIGHT_RETRIES;return false;
+  }
   if(this.nightJob.retries>=NIGHT_RETRIES)return false;
   this.nightJob.retries++;
   this.log('Autopilot: the night job '+job.status+' ('+String(job.message).slice(0,80)+'); sheltering again');

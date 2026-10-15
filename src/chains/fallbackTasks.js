@@ -600,19 +600,20 @@ export const pillarBlocks=bot=>{
  return null;
 };
 export class NightPillarTask extends Task{
- constructor(height=3){
-  super('NightPillarTask');this.height=height;this.phase='climb';this.base=null;this.t0=null;
+ // hold: the shelter fallback - stay perched until morning, however quiet it gets.
+ constructor(height=3,{hold=false}={}){
+  super('NightPillarTask');this.height=height;this.hold=hold;this.phase='climb';this.base=null;this.t0=null;
   this.clickAt=-1e9;this.clickY=null;this.failed=false;this.quietSince=null;this._shield=false;
   this._lastAttack=-1e9;this._equipAt=-1e9;this.now=()=>Date.now()/1000;
  }
  _log(ctx,m){const c=pickCtx(this,ctx),w=c&&c.worker;if(w&&w.log)try{w.log(m);}catch{}}
  // A runner teardown (a higher band took over for a moment) stops this instance for good:
  // the chain adopts a fresh one that keeps the column, the phase and the quiet clock.
- resumeCopy(){const q=new NightPillarTask(this.height);Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince});return q;}
+ resumeCopy(){const q=new NightPillarTask(this.height,{hold:this.hold});Object.assign(q,{base:this.base,phase:this.phase,t0:this.t0,quietSince:this.quietSince});return q;}
  isFinished(bot,ctx){
   if(this.failed)return true;
   if(!darkNow(dayTicks(bot)))return true; // morning: the undead burn
-  return this.phase==='perch'&&this.quietSince!=null&&this.now()-this.quietSince>=15;
+  return !this.hold&&this.phase==='perch'&&this.quietSince!=null&&this.now()-this.quietSince>=15;
  }
  _top(bot){
   let n=0;
