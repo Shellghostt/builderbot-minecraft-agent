@@ -464,3 +464,11 @@ No bed and no `[night] sleep`.
 - hard3, 15:16Z: sealed in 9 s at (134, 124, 31), 11 blocks. Dawn hold at 15:26Z (tod 2) was still up when the bell ended the run.
 
 No second soak.
+
+## 2026-10-15 21:26–21:44 IST — integration (`649790b`)
+
+`git pull --rebase` already at `649790b`. Unit tests: 438 passed, 0 failed (`--test-skip-pattern resources`, 40.9 s). The cloud note expected 429/429; nothing failed. Services restarted with `AGENT_MODEL=off`. Supervisor log: `model server disabled`.
+
+`python -u tests/integration.py`, model off. Exit 0, 1068 s. `All in-game integration tests passed`.
+
+`Reflex paused the gather: Reflex: preempted by Mob Defense`. `PASS: A4 escaped the lava trench (hp 19.8, at [1652, -59, 1650])`. Eat at health 9 raised food from 2 to 14. Sleep used the bed until morning.
