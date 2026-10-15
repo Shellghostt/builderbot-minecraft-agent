@@ -570,6 +570,8 @@ const woodTotals=(counts,ctx)=>{
 // ctx: {tod, bedNear, sheepNear, worldTable} plus the counts' wood totals. The bed is a 3x3
 // recipe: without a table held or standing near, the craft makes one first (4 more planks).
 export const BED_PREP_FROM=9000,BED_PREP_JOBS=5;
+// Habit 5: the home bed is walked back to for the night from this far (a sleep job's walk).
+export const HOME_BED_RANGE=64;
 // After a low-health stop the ladder waits (up to RECOVER_MS) for the health to come back
 // instead of submitting jobs the worker's check() refuses at once - three of those would
 // count as three failures and block the step. Natural regen needs a food bar of 18+.
@@ -682,7 +684,7 @@ export class Autopilot{
    if(night){
     this.lastNightKey=String(b.time?.day); // once per day even if the submit loses the race
     if(active.status==='running'){try{this.worker.cancel(active.id,'autopilot');}catch(e){this.state='cancel failed: '+e.message;return;}}
-    this.submit('night',night);
+    this.submit('night',this.nightSpec(b,night));
     return;
    }
    return;
@@ -736,7 +738,7 @@ export class Autopilot{
   const night=nightJob&&this.nightKeyFree(b)&&nightJob;
   if(night){
    this.lastNightKey=String(b.time.day);
-   this.submit('night',night);return;
+   this.submit('night',this.nightSpec(b,night));return;
   }
   // Every shelter tonight failed: no day work in the dark (gathers and explores walk into the
   // spawns); stand and let Mob Defense answer (pillar, fight, flee) until morning.
@@ -768,7 +770,23 @@ export class Autopilot{
  bedNear(b){return b.inventory.items().some(i=>BED.test(i.name))||!!b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});}
  // Tonight's night job: a bed held or standing near means sleep (round 8: preferred to the
  // shelter), unless a sleep already failed tonight - then the shelter (sleepFailedTonight).
- bedForNight(b){return this.bedNear(b)&&!this.sleepFailedTonight(b);}
+ bedForNight(b){return (this.bedNear(b)||!!this.homeBed(b))&&!this.sleepFailedTonight(b);}
+ // Habit 5: the home bed (the spawn point), standing within HOME_BED_RANGE and loaded.
+ homeBed(b){
+  const h=this.home,me=b&&b.entity&&b.entity.position;
+  if(!h||!me)return null;
+  const block=b.blockAt(new Vec3(h.x,h.y,h.z));
+  if(!block||!BED.test(block.name||''))return null;
+  const distance=me.distanceTo(new Vec3(h.x+0.5,h.y,h.z+0.5));
+  return distance<=HOME_BED_RANGE?{position:{x:h.x,y:h.y,z:h.z},distance}:null;
+ }
+ // The night's sleep goes to the home bed when it is beyond the sleep job's own 16-block scan
+ // and no other bed is near or held (that one would be closer to hand).
+ nightSpec(b,job){
+  if(!job||job.type!=='sleep'||job.position)return job;
+  const home=this.homeBed(b);
+  return home&&home.distance>12&&!this.bedNear(b)?{...job,position:home.position}:job;
+ }
  sleepFailedTonight(b){
   const n=this.nightJob;
   if(!n||n.day!==String(b.time?.day))return false;
@@ -888,7 +906,8 @@ export class Autopilot{
    if(bed){this.home={x:bed.position.x,y:bed.position.y,z:bed.position.z};this.save();this.log('Autopilot: home set to the bed at '+bed.position.floored());}
   }
   if(this.home&&!this.homeChest){
-   const chest=b.findBlock({matching:[b.registry.blocksByName.chest.id],maxDistance:16});
+   const id=b.registry.blocksByName.chest?.id;
+   const chest=id!=null&&b.findBlock({matching:[id],maxDistance:16});
    if(chest){this.homeChest=true;this.save();this.log('Autopilot: home chest found at '+chest.position.floored());}
   }
  }

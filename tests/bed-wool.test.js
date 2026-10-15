@@ -97,3 +97,48 @@ test('a log gather the bed asked for is a bed job (never charged to the iron ste
   assert.ok(t.ap.bedOffUntil>Date.now()+BED_OFF_MS-1000);
  }finally{t.done();}
 });
+// Round 10, habit 5: the bed is the base and the spawn point.
+import {Worker} from '../src/worker.js';
+import {HOME_BED_RANGE} from '../src/autopilot.js';
+function sleeper({home=null,placed=true}={}){
+ const logs=[],calls=[];
+ const bedAt=new Vec3(4,64,1);
+ const ap={home,save(){calls.push('save');}};
+ const bot={time:{timeOfDay:13000},isSleeping:false,entity:{position:new Vec3(0.5,64,0.5)},
+  registry:{blocksByName:{white_bed:{id:7,name:'white_bed'}}},inventory:{items:()=>placed?[{name:'white_bed',count:1}]:[]},
+  findBlock(){return placed?null:{name:'white_bed',position:bedAt};},blockAt(){return {name:'white_bed',position:bedAt};},
+  async sleep(){bot.isSleeping=true;setTimeout(()=>{bot.isSleeping=false;bot.time.timeOfDay=100;},5);}};
+ const w=Object.assign(Object.create(Worker.prototype),{bot,autopilot:ap,check(){},update(){},log(m){logs.push(m);},
+  async placeBlockNear(){calls.push('place');return bedAt;},async walk(){},async pickUp(p,name){calls.push('pickUp '+name+' '+p.x);}});
+ return {w,ap,logs,calls,bedAt};
+}
+test('the first bed the bot places and sleeps in becomes home (the spawn point)',async()=>{
+ const t=sleeper();
+ await t.w.sleep({spec:{type:'sleep'}},0);
+ assert.deepEqual(t.ap.home,{x:4,y:64,z:1});
+ assert.ok(t.calls.includes('save'));
+ assert.ok(t.logs.some(l=>/Home set to the bed at 4,64,1 \(spawn point\)/.test(l)));
+ assert.ok(!t.calls.some(c=>c.startsWith('pickUp')),'the home bed stays');
+});
+test('a bed placed away from home is picked up in the morning; a world bed is left alone',async()=>{
+ const t=sleeper({home:{x:90,y:64,z:90}});
+ await t.w.sleep({spec:{type:'sleep'}},0);
+ assert.deepEqual(t.calls.filter(c=>c.startsWith('pickUp')),['pickUp white_bed 4']);
+ const u=sleeper({home:{x:90,y:64,z:90},placed:false});
+ await u.w.sleep({spec:{type:'sleep'}},0);
+ assert.deepEqual(u.calls.filter(c=>c.startsWith('pickUp')),[],'not the bot\'s to take');
+ const v=sleeper({home:{x:4,y:64,z:1},placed:false});
+ await v.w.sleep({spec:{type:'sleep'}},0);
+ assert.ok(v.logs.some(l=>/Slept at home/.test(l)));
+});
+test('night: the home bed within range is walked back to, beyond it the shelter',()=>{
+ for(const [dist,expect] of [[40,{type:'sleep',position:{x:40,y:64,z:0}}],[HOME_BED_RANGE+10,{type:'shelter'}]]){
+  const t=autopilot({tod:13000,items:{wooden_pickaxe:1,cobblestone:30}});
+  try{
+   t.ap.home={x:dist,y:64,z:0};
+   t.worker.bot.blockAt=p=>p.x===dist&&p.y===64&&p.z===0?{name:'white_bed'}:null;
+   t.ap.tick();
+   assert.deepEqual(t.submitted.at(-1),expect,'home bed '+dist+' away');
+  }finally{t.done();}
+ }
+});

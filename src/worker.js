@@ -870,10 +870,11 @@ export class Worker extends EventEmitter {
   let bed=job.spec.position?b.blockAt(pos(job.spec.position)):null;
   if(bed&&!/_bed$/.test(bed.name))throw Error('No bed at that position');
   if(!bed)bed=b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>/_bed$/.test(bl.name)).map(bl=>bl.id),maxDistance:16});
+  let placedBed=null;
   if(!bed){
    const bedItem=b.inventory.items().find(i=>/_bed$/.test(i.name));
    if(!bedItem)throw Error('No bed nearby and none in the inventory');
-   bed=b.blockAt(await this.placeBlockNear(token,bedItem.name));
+   bed=b.blockAt(placedBed=await this.placeBlockNear(token,bedItem.name));
   }
   await this.walk(bed.position,token,2);
   try{await b.sleep(bed);}catch(e){
@@ -884,6 +885,21 @@ export class Worker extends EventEmitter {
   this.update(job,1,'Sleeping until morning');
   while(b.isSleeping){await sleep(1000);this.check(token);}
   if(isNight(b))throw Error('Woke up before morning');
+  await this.afterSleep(bed,placedBed,token);
+ }
+ // Habit 5 (round 10): the first bed the bot places becomes its home - the spawn point it just
+ // set by sleeping, and the base the ladder comes back to. A bed placed anywhere else is picked
+ // up again in the morning, so it travels with the bot for the next night.
+ async afterSleep(bed,placedBed,token){
+  const ap=this.autopilot,p=bed&&bed.position;
+  if(!p)return;
+  const home=ap&&ap.home,atHome=home&&home.x===p.x&&home.y===p.y&&home.z===p.z;
+  if(ap&&!home){ap.home={x:p.x,y:p.y,z:p.z};ap.save?.();this.log('Home set to the bed at '+p.x+','+p.y+','+p.z+' (spawn point)');return;}
+  if(atHome){this.log('Slept at home ('+p.x+','+p.y+','+p.z+'); spawn point there');return;}
+  if(placedBed){
+   try{await this.pickUp(new Vec3(placedBed.x,placedBed.y,placedBed.z),bed.name,token);this.log('Picked the bed back up at '+placedBed.x+','+placedBed.y+','+placedBed.z+' (home is elsewhere)');}
+   catch(e){this.check(token);this.log('Left the bed at '+placedBed.x+','+placedBed.y+','+placedBed.z+': '+e.message);}
+  }
  }
  // A meal is a food-bar rise within 5 s of a consume. Every eat path (eat job, reflex,
  // FoodChain, the fight's disengage-eat) goes through bot.consume; a respawn's full bar or
