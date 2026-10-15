@@ -24,12 +24,12 @@ import {createTrackers} from './trackers/index.js';
 import {createMoveApi,setDefaultMoveContext} from './tasks/movement/move.js';
 import {forceFieldTick} from './forcefield.js';
 import {avoidanceActive,pickOpenStand,stepCost,trackProgress,coverCell,SHOOTERS} from './move-safety.js';
-import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity,stepFooting,turnOrder,wallOre} from './digDown.js';
+import {stonePlan,stoneBeside,isExposed,STONE_DIG_DOWNS,STONE_DIG_MIN,NATURAL_DIG,isGravity,isFluid,stepFooting,turnOrder,wallOre} from './digDown.js';
 import {solidSupport,placementCells,softBreakCell,hitsBot,HARD_BREAK} from './place-support.js';
 import {createMoveTasks} from './tasks/movement/factories.js';
 import {createLoopWatch} from './loop-watch.js';
 import {installToolWear,watchToolLoss} from './toolWear.js';
-import {darkNow,stillNight,leaveRefuge,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading} from './night.js';
+import {darkNow,stillNight,leaveRefuge,shelterShell,shellGaps,placementPlan,shelterTarget,deepWaterCost,fleeHeading,nightMineWanted,tunnelBreach,SUNSET,NIGHT_MINE_MS,NIGHT_MINE_STOP,NIGHT_MINE_DEPTH,NIGHT_MINE_STRIP} from './night.js';
 import {bestWeapon,attackCooldown} from './chains/combatPolicy.js';
 const {pathfinder,Movements,goals}=pathfinderPackage;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -186,7 +186,7 @@ export async function wallPickups(w,job,token,feet,dir){
    await b.tool.equipForBlock(block);w.check(token);
    if(block.material==='incorrect_for_wooden_tool')block.material='mineable/pickaxe';
    await b.dig(block);await sleep(250);
-   job.wallPickups=(job.wallPickups||0)+1;
+   job.wallPickups=(job.wallPickups||0)+1;(job.mined||(job.mined=[])).push(p.x+','+p.y+','+p.z);
    w.log('Tunnel: mined '+p.name+' in the wall at '+p.x+','+p.y+','+p.z);
   }catch(e){w.check(token);}
  }
@@ -1101,12 +1101,80 @@ export class Worker extends EventEmitter {
     await sleep(250);this.check(token);
     await this.guardShelter(job,token,origin);
     const tod=dayTicks(b);
+    // Habit 4: use the night - a staircase mine under the box, back before dawn.
+    if(!job.nightMined&&nightMineWanted({tod,pod:job.pod,pickaxe:b.inventory.items().some(i=>/^(stone|iron|diamond|netherite)_pickaxe$/.test(i.name)),blocks:this.shelterStock(true),enabled:this.config?.nightMine!==false})){
+     job.nightMined=true;this.save();
+     try{await this.nightMine(job,token,origin);}catch(e){this.check(token);this.log('Night mine: '+e.message);}
+     finally{this.shelterSealed=true;}
+    }
     if(!darkNow(tod)&&!job.dawnLogged){job.dawnLogged=true;this.update(job,required.length,'Dawn: waiting for a safe morning (sealed)');this.log('Shelter: dawn (tod '+tod+'); staying sealed until the morning is light and clear');}
    }
   }finally{this.shelterSealed=false;}
   this.log('Shelter: morning (tod '+dayTicks(b)+', nearest hostile '+(Number.isFinite(this.nearestHostile())?this.nearestHostile().toFixed(1):'none')+'); opening up');
   this.shelterSpot=null;
   await this.removeShelter(job,token);
+ }
+ // Habit 4: a night mine from inside the sealed box. The box's interior is the bot's own 1x2
+ // column, so a staircase from the feet would cut its walls: the bot first sinks a 2-deep sump
+ // through the floor (each dig checked like a tunnel step: solid ground two below, no fluid
+ // beside it, natural or its own blocks only), then staircases from the sump's bottom (that
+ // first step cuts only the support row under the walls - the box stays sealed above), mines
+ // the walls on the way and a strip at the bottom, and turns back on the time budget, at
+ // NIGHT_MINE_STOP, under 14 health or when the tunnel opens onto a cave (tunnelBreach). Home
+ // is the tunnel, then the pathfinder's own 1x1 tower back into the shelter cell (it refills
+ // the floor). Mob Defense answers anything in the tunnel meanwhile (shelterSealed off).
+ async nightMine(job,token,origin){
+  const b=this.bot,at3=(x,y,z)=>b.blockAt(new Vec3(x,y,z)),k=p=>p.x+','+p.y+','+p.z;
+  const start=Date.now(),f1=origin.offset(0,-1,0),f2=origin.offset(0,-2,0);
+  const ours=new Set((job.placed||[]).map(k));
+  for(const cell of [f1,f2]){
+   const foot=stepFooting(at3,cell);
+   if(!foot.ok){this.log('Night mine: not from here ('+(foot.turn||'no floor under '+cell)+')');return false;}
+   for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]])if(isFluid(at3(cell.x+dx,cell.y,cell.z+dz))){this.log('Night mine: not from here (fluid beside '+cell+')');return false;}
+   const bl=at3(cell.x,cell.y,cell.z);
+   if(bl&&bl.boundingBox==='block'){
+    if(!naturalTerrain(bl)&&!ours.has(k(cell))){this.log('Night mine: not from here ('+bl.name+' under the shelter is not natural)');return false;}
+    if(bl.harvestTools&&!(bl.hardness<=HAND_CLEAR_HARDNESS)&&!Object.keys(bl.harvestTools).some(id=>b.inventory.items().some(i=>i.type===+id))){this.log('Night mine: no tool for '+bl.name);return false;}
+    if(cell===f1){this.shelterSealed=false;this.log('Night mine: down from the shelter at '+origin+' (tod '+dayTicks(b)+')');}
+    await b.tool.equipForBlock(bl);this.check(token);
+    if(bl.material==='incorrect_for_wooden_tool')bl.material='mineable/pickaxe';
+    await b.dig(bl);
+   }
+   const until=Date.now()+2000;
+   while(b.entity.position.floored().y>cell.y&&Date.now()<until){await sleep(100);this.check(token);}
+   if(b.entity.position.floored().y!==cell.y)throw Error('did not drop into '+cell);
+  }
+  this.shelterSealed=false;
+  const mine={id:job.id+':night',tunnel:[{x:f2.x,y:f2.y,z:f2.z}],mined:[]};
+  const known=()=>{
+   const set=new Set([origin,origin.offset(0,1,0),f1,f2].map(k));
+   for(const p of mine.tunnel)for(let dy=0;dy<=2;dy++)set.add(p.x+','+(p.y+dy)+','+p.z);
+   for(const m of mine.mined)set.add(m);
+   return set;
+  };
+  let why=null;
+  const stop=()=>{
+   if(Date.now()-start>=NIGHT_MINE_MS)return why='time budget';
+   const tod=dayTicks(b);if(tod!=null&&(tod>=NIGHT_MINE_STOP||tod<SUNSET))return why='dawn coming';
+   if(b.health<14)return why='health '+Math.round(b.health);
+   const breach=tunnelBreach(at3,b.entity.position.floored(),known());
+   if(breach)return why='opened onto a cave at '+k(breach);
+   return null;
+  };
+  const ores=()=>['coal','raw_iron','diamond','raw_copper','raw_gold'].reduce((a,n)=>a+this.count(n),0);
+  const before=ores();
+  try{
+   await this.staircase(mine,token,f2.y-NIGHT_MINE_DEPTH,{stopWhen:stop});
+   if(!why)await this.stripMine(mine,token,NIGHT_MINE_STRIP,{stopWhen:stop});
+  }catch(e){this.check(token);why=why||e.message;}
+  try{await this.climbTunnel(mine,token);if(this.strandedTunnel?.job===mine.id)this.strandedTunnel=null;}
+  catch(e){this.check(token);this.log('Night mine: climb back failed: '+e.message);}
+  const prev=b.pathfinder.movements;b.pathfinder.setMovements(this.exploreMovements());
+  try{await this.navigate(new goals.GoalBlock(origin.x,origin.y,origin.z),token,20);}
+  catch(e){this.check(token);this.log('Night mine: could not climb back into '+origin+': '+e.message);}
+  finally{if(token===this.epoch)b.pathfinder.setMovements(prev);}
+  this.log('Night mine: back in the shelter ('+(why||'done')+'; '+mine.tunnel.length+' steps, '+(ores()-before)+' ore items, '+(mine.wallPickups||0)+' wall digs)');
+  return true;
  }
  // The sealed box opens once the morning is light and clear (night.js leaveRefuge), or when
  // the job's own deadline is SHELTER_EXIT_MARGIN_MS away (a timed-out job leaves the box up).
@@ -2100,7 +2168,7 @@ export class Worker extends EventEmitter {
   try{while(Date.now()<deadline&&!at()){await sleep(80);this.check(token);}}finally{if(token===this.epoch)b.clearControlStates();}
  }
  // A 1x2 horizontal strip mine at the current level, used after descending for diamonds.
- async stripMine(job,token,length){
+ async stripMine(job,token,length,opts={}){
   const b=this.bot;
   if(!job.tunnel)job.tunnel=[];
   const start=b.entity.position.floored();
@@ -2116,6 +2184,7 @@ export class Worker extends EventEmitter {
    if(now.x===last.x&&now.z===last.z){if(++stalls>=2)throw Error('Strip mine stalled at '+now);}
    else{stalls=0;last=now;}
    this.save();
+   if(opts.stopWhen&&opts.stopWhen())break;
   }
  }
  // A canopy or ledge can leave the target in sight but out of reach. Dig straight down

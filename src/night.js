@@ -195,3 +195,24 @@ export function fleeHeading(blockAt,me,hostiles,{shelter=null,inWater=false}={})
  // blocked: even the best heading walks into a fluid - better to stand than to swim.
  return {x:best.x,z:best.z,cost:best.cost,blocked:best.hazard>=100};
 }
+// Round 10, habit 4 (use the night instead of idling): experienced players spend the first
+// nights in a staircase mine under their shelter. A sealed box (not a pod) with a stone or
+// better pickaxe and NIGHT_MINE_BLOCKS blocks held mines from NIGHT_MINE_FROM (the first
+// spawns are past) for at most NIGHT_MINE_MS, and is back in the box by NIGHT_MINE_STOP.
+export const NIGHT_MINE_FROM=SUNSET+600,NIGHT_MINE_STOP=21500,NIGHT_MINE_MS=4*60000,NIGHT_MINE_BLOCKS=4,NIGHT_MINE_DEPTH=6,NIGHT_MINE_STRIP=12;
+export function nightMineWanted({tod,pod=false,pickaxe=false,blocks=0,done=false,enabled=true}){
+ if(!enabled||done||pod||!pickaxe||blocks<NIGHT_MINE_BLOCKS)return false;
+ return tod!=null&&tod>=NIGHT_MINE_FROM&&tod<NIGHT_MINE_STOP;
+}
+// A tunnel cell the bot stands in that opens onto space it did not dig (a cave): mobs can walk
+// in, so the night mine turns back. `known` holds 'x,y,z' keys of the cells it dug itself.
+export function tunnelBreach(blockAt,feet,known){
+ const cells=[[0,0,1],[0,0,-1],[1,0,0],[-1,0,0],[0,1,1],[0,1,-1],[1,1,0],[-1,1,0],[0,2,0]];
+ for(const [dx,dy,dz] of cells){
+  const p={x:feet.x+dx,y:feet.y+dy,z:feet.z+dz};
+  if(known.has(key(p)))continue;
+  const bl=blockAt(p.x,p.y,p.z);
+  if(bl&&!solid(bl)&&!fluid(bl))return p;
+ }
+ return null;
+}
