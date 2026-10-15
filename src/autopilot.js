@@ -350,6 +350,46 @@ export function pickupJob(counts,ctx){
  if(ex.log&&ctx.logsTotal+ctx.planksTotal/4<2)return {...g('log',Math.min(2,ex.log)),belowFoots:true};
  return null;
 }
+// Round 10, habit 6: home base and inventory management. JUNK_KEEP: how many of an item the
+// bot keeps on it (shelter dirt, a stack of cobble, seeds for a wheat patch); the rest is
+// surplus. JUNK_DROP: items worth nothing to the ladder, dropped when the inventory is full far
+// from base. Over INV_FULL the surplus goes into the home chest (placed beside home, crafted
+// when needed) while home is within HOME_DEPOSIT_RANGE; passing within INV_PASS of the chest
+// deposits it too; full and far from home, pure junk is dropped.
+export const INV_FULL=0.75,INV_PASS=8,INV_PASS_MIN=16,HOME_DEPOSIT_RANGE=48,INV_OFF_MS=5*60000;
+const SAPLING=/_sapling$/,FLOWER=/^(dandelion|poppy|blue_orchid|allium|azure_bluet|.*_tulip|oxeye_daisy|cornflower|lily_of_the_valley|sunflower|lilac|rose_bush|peony|pink_petals|short_grass|tall_grass|fern|dead_bush)$/;
+export const JUNK_KEEP={dirt:32,cobblestone:64,cobbled_deepslate:32,netherrack:16,wheat_seeds:16,gravel:0,andesite:0,diorite:0,granite:0,tuff:0,calcite:0,rotten_flesh:0,sand:0,red_sand:0,pointed_dripstone:0,poisonous_potato:0,spider_eye:0};
+const JUNK_DROP=new Set(['gravel','andesite','diorite','granite','tuff','calcite','rotten_flesh','poisonous_potato','dirt','cobblestone','cobbled_deepslate','netherrack','wheat_seeds']);
+const keepOf=name=>JUNK_KEEP[name]??(SAPLING.test(name)?2:FLOWER.test(name)?0:null);
+// Surplus items, largest first: [{item, extra, keep}].
+export function surplus(counts){
+ const out=[];
+ for(const [name,n] of Object.entries(counts||{})){
+  if(name.startsWith('_'))continue;
+  const keep=keepOf(name);
+  if(keep==null||n<=keep)continue;
+  out.push({item:name,extra:n-keep,keep});
+ }
+ return out.sort((a,b)=>b.extra-a.extra);
+}
+const droppable=s=>JUNK_DROP.has(s.item)||SAPLING.test(s.item)||FLOWER.test(s.item);
+// ctx: {slotsFull, homeDistance, chestAt, chestDistance, chestSpot, worldTable, planksTotal}.
+export function inventoryJob(counts,ctx){
+ const c=countFactory(counts);
+ ctx=woodTotals(counts,{...ctx});
+ const extra=surplus(counts);
+ if(!extra.length)return null;
+ const full=(ctx.slotsFull||0)>INV_FULL;
+ const top=extra[0];
+ if(ctx.chestAt&&(ctx.chestDistance??Infinity)<=(full?HOME_DEPOSIT_RANGE:INV_PASS)&&(full||top.extra>=INV_PASS_MIN))return {type:'deposit',position:ctx.chestAt,item:top.item,keep:top.keep};
+ if(!full)return null;
+ if(!ctx.chestAt&&(ctx.homeDistance??Infinity)<=HOME_DEPOSIT_RANGE){
+  if(c('chest')>=1&&ctx.chestSpot)return {type:'place',block:'chest',position:ctx.chestSpot};
+  if(c('chest')<1&&ctx.planksTotal>=8+(c('crafting_table')>=1||ctx.worldTable?0:4))return {type:'craft',item:'chest',count:1};
+ }
+ const junk=extra.find(droppable);
+ return junk?{type:'drop',item:junk.item,count:junk.extra}:null;
+}
 // The progression ladder. Each entry: name, done(counts) and next(counts, ctx) producing the
 // next job spec (ctx: {slotsFull, animalsNearby, huntPhase, home, homeChest, chestSpot,
 // heldLog, logsTotal, planksTotal}). Any log species works for the wood step.
@@ -613,10 +653,10 @@ export class Autopilot{
   this.lastSurfaceY=null; // the stand-Y of the last surface gather (unblock-explore cap)
   this.foodAnchorY=null;  // the food-graze anchor when no surface gather set lastSurfaceY
   this.file=path.join(root,'data/autopilot.json');
-  this.home=null;this.homeChest=false;
-  try{const saved=JSON.parse(fs.readFileSync(this.file,'utf8'));if(saved&&saved.home){this.home=saved.home;this.homeChest=!!saved.homeChest;}}catch{}
+  this.home=null;this.homeChest=false;this.homeChestAt=null;
+  try{const saved=JSON.parse(fs.readFileSync(this.file,'utf8'));if(saved&&saved.home){this.home=saved.home;this.homeChest=!!saved.homeChest;this.homeChestAt=saved.homeChestAt||null;}}catch{}
  }
- save(){try{fs.writeFileSync(this.file,JSON.stringify({home:this.home,homeChest:this.homeChest},null,2));}catch{}
+ save(){try{fs.writeFileSync(this.file,JSON.stringify({home:this.home,homeChest:this.homeChest,homeChestAt:this.homeChestAt},null,2));}catch{}
  }
   start(goal){
    this.enabled=true;this.goal=goal||null;this.state='starting';this.current=null;this.currentStep=null;
@@ -844,6 +884,7 @@ export class Autopilot{
    if(step==='dusk-cobble'&&this.duskCobble)this.duskCobble.off=true; // the dirt now
    if(step==='bed-rung')this.bedOffUntil=Date.now()+BED_OFF_MS; // the ladder moves on
    if(step==='diamond-rung')this.diamondOffUntil=Date.now()+DIAMOND_OFF_MS;
+   if(step==='inventory')this.invOffUntil=Date.now()+INV_OFF_MS; // a full chest, no spot: later
    // Round 9: a food step that failed 3 times is set aside, not blocked - the blocked
    // state's explore-and-retry looped [food] for the rest of round-8 normal1.
    if(step==='food'&&this.failures.food>=3){this.failures.food=0;this.deferFood('failed 3 times');}
@@ -899,16 +940,20 @@ export class Autopilot{
   const now=Date.now();
   if(now-this.lastHomeScan<15000)return;
   this.lastHomeScan=now;
-  if(this.home&&this.homeChest)return;
+  if(this.home&&this.homeChest&&this.homeChestAt)return;
   const registry=b.registry;
   if(!this.home){
    const bed=b.findBlock({matching:Object.values(b.registry.blocksByName).filter(bl=>BED.test(bl.name)).map(bl=>bl.id),maxDistance:16});
    if(bed){this.home={x:bed.position.x,y:bed.position.y,z:bed.position.z};this.save();this.log('Autopilot: home set to the bed at '+bed.position.floored());}
+   // Habit 6: no bed yet - the first table the bot left standing is the base (a bed found
+   // later does not move it; the first bed slept in sets home only when none is set).
+   else{const t=this.worker.leftTable;if(t){this.home={x:t.x,y:t.y,z:t.z};this.save();this.log('Autopilot: home set to the table at '+t.x+','+t.y+','+t.z);}}
   }
   if(this.home&&!this.homeChest){
    const id=b.registry.blocksByName.chest?.id;
-   const chest=id!=null&&b.findBlock({matching:[id],maxDistance:16});
-   if(chest){this.homeChest=true;this.save();this.log('Autopilot: home chest found at '+chest.position.floored());}
+   const h=this.home,near=b.entity?.position&&b.entity.position.distanceTo(new Vec3(h.x,h.y,h.z))<=16;
+   const chest=near&&id!=null&&b.findBlock({matching:[id],maxDistance:16});
+   if(chest){this.homeChest=true;this.homeChestAt={x:chest.position.x,y:chest.position.y,z:chest.position.z};this.save();this.log('Autopilot: home chest found at '+chest.position.floored());}
   }
  }
  hostileDistance(b){
@@ -1014,6 +1059,11 @@ export class Autopilot{
    this.state='retry: '+step; // unblocked: the explore was the cooldown
    return;
   }
+  // Habit 6: surplus into the home chest (or junk dropped far from home) before more gathering.
+  if(Date.now()>=(this.invOffUntil||0)){
+   const inv=inventoryJob(counts,{...ctx,slotsFull:this.worker.slotsFull?this.worker.slotsFull():ctx.slotsFull,...this.homeCtx(b)});
+   if(inv&&!(inv.type==='craft'&&choice.job?.type==='craft')){this.submit('inventory',inv);return;}
+  }
   // Wool by day whatever the step (bug B): the wood kit's sword is enough for a sheep. A
   // quick local job (a craft, an equip, a smelt, a meal) goes first: it takes seconds.
   if(choice.step!=='wood'&&!QUICK_JOBS.has(choice.job?.type)){
@@ -1054,6 +1104,30 @@ export class Autopilot{
   if(choice.step==='iron'&&isDiamondJob(choice.job)){this.submit('diamond-rung',choice.job);return;}
   if(choice.job.type==='equip')this.lastEquip=armourToWear(counts);
   this.submit(choice.step,choice.job);
+ }
+ // Home distances and the chest's spot for inventoryJob. A remembered chest that is gone
+ // (broken, or the soak reset the world) is forgotten when its cell is loaded and not a chest.
+ homeCtx(b){
+  const me=b.entity&&b.entity.position,h=this.home;
+  if(!me||!h)return {};
+  const out={homeDistance:me.distanceTo(new Vec3(h.x+0.5,h.y,h.z+0.5))};
+  const at=this.homeChestAt;
+  if(at){
+   const block=b.blockAt(new Vec3(at.x,at.y,at.z));
+   if(block&&!/chest|barrel/.test(block.name||'')){this.homeChestAt=null;this.homeChest=false;this.save();}
+   else{out.chestAt=at;out.chestDistance=me.distanceTo(new Vec3(at.x+0.5,at.y,at.z+0.5));}
+  }
+  if(!this.homeChestAt)out.chestSpot=this.chestSpotNearHome(b);
+  return out;
+ }
+ // An empty cell with solid ground beside the home block (a chest goes next to the bed/table).
+ chestSpotNearHome(b){
+  const h=this.home;if(!h)return null;
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1],[2,0],[-2,0],[0,2],[0,-2]]){
+   const p=new Vec3(h.x+dx,h.y,h.z+dz),top=b.blockAt(p),ground=b.blockAt(p.offset(0,-1,0));
+   if(top&&top.boundingBox==='empty'&&!/water|lava/.test(top.name||'')&&ground?.boundingBox==='block')return {x:p.x,y:p.y,z:p.z};
+  }
+  return null;
  }
  // Exposed ore and logs within PICKUP_RADIUS (pickupJob), skipping blocks a gather refused.
  exposedNear(b){

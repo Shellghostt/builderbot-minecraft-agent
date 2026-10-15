@@ -87,6 +87,8 @@ export const TUNNEL_SETTLE_ROUNDS=12;export const TUNNEL_FALL_MS=450;
 export const HAND_CLEAR_HARDNESS=0.5;
 // The smelt job takes its output every this many items.
 export const SMELT_TAKE=8;
+// Habit 6: junk the bot dropped is left lying for this long (no sweep walks back to it).
+export const JUNK_IGNORE_MS=10*60000;
 // A take job waits at most this long past the batch's ready time (a slow or cold furnace).
 export const SMELT_TAKE_GRACE=15000;
 // Jobs that climb out of a stranded tunnel before they start (surface work).
@@ -693,7 +695,7 @@ export class Worker extends EventEmitter {
  async collect(job,token){
   const b=this.bot,radius=job.spec.radius??16;
   const before=b.inventory.items().reduce((a,i)=>a+i.count,0);
-  const targets=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=radius);
+  const targets=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=radius&&!this.isDroppedJunk?.(e));
   this.update(job,0,`Collecting ${targets.length} drops`);
   for(const drop of targets){
    for(let tries=0;tries<3&&Object.values(b.entities).includes(drop);tries++){
@@ -711,7 +713,7 @@ export class Worker extends EventEmitter {
   const b=this.bot,deadline=Date.now()+10000;
   while(Date.now()<deadline){
    this.check(token);
-   const drop=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=radius).sort((a,c)=>a.position.distanceTo(b.entity.position)-c.position.distanceTo(b.entity.position))[0];
+   const drop=Object.values(b.entities).filter(e=>e.name==='item'&&e.position&&e.position.distanceTo(b.entity.position)<=radius&&!this.isDroppedJunk?.(e)).sort((a,c)=>a.position.distanceTo(b.entity.position)-c.position.distanceTo(b.entity.position))[0];
    if(!drop)return;
    try{await this.navigate(new goals.GoalNear(drop.position.x,drop.position.y,drop.position.z,0),token,8);}catch(e){this.check(token);}
    await sleep(400);
@@ -1744,6 +1746,7 @@ export class Worker extends EventEmitter {
   if(spec.type==='shear')return this.shear(job,token);
   if(spec.type==='breed')return this.breed(job,token);
   if(spec.type==='hunt')return this.hunt(job,token);
+  if(spec.type==='drop')return this.drop(job,token);
  }
  blockDrop(name){
   const b=this.bot,id=b.registry.blocksByName[name]?.id;
@@ -2620,9 +2623,36 @@ export class Worker extends EventEmitter {
   const b=this.bot,p=pos(job.spec.position);await this.walk(p,token,2);const block=b.blockAt(p);
   if(!block||!['chest','trapped_chest','barrel'].includes(block.name))throw Error('No chest or barrel at that position');
   const chest=await b.openContainer(block);
-  try{for(const item of b.inventory.items()){this.check(token);if(job.spec.item&&item.name!==job.spec.item)continue;if(!job.spec.item&&/(_pickaxe|_axe|_shovel|_sword|_helmet|_chestplate|_leggings|_boots)$/.test(item.name))continue;await chest.deposit(item.type,item.metadata,item.count);}await sleep(150);await b._syncWindow(chest);await sleep(150);}finally{await chest.close();}
+  // keep: deposit all but that many of the named item (the stacks are walked in order).
+  let toGo=job.spec.item&&job.spec.keep!=null?Math.max(0,this.count(job.spec.item)-job.spec.keep):Infinity;
+  try{for(const item of b.inventory.items()){this.check(token);if(job.spec.item&&item.name!==job.spec.item)continue;if(!job.spec.item&&/(_pickaxe|_axe|_shovel|_sword|_helmet|_chestplate|_leggings|_boots)$/.test(item.name))continue;const n=Math.min(item.count,toGo);if(n<=0)break;await chest.deposit(item.type,item.metadata,n);toGo-=n;}await sleep(150);await b._syncWindow(chest);await sleep(150);}finally{await chest.close();}
   await sleep(150);await b._syncWindow(b.inventory);this.check(token);
-  if(job.spec.item&&this.count(job.spec.item)>0)throw Error('Some items were not deposited');
+  if(job.spec.item&&this.count(job.spec.item)>(job.spec.keep??0))throw Error('Some items were not deposited');
+ }
+ // Habit 6: toss junk. Tossed items are remembered for JUNK_IGNORE_MS so the drop sweeps and
+ // the collect job do not walk back and pick them up again.
+ async drop(job,token){
+  const b=this.bot,s=job.spec,have=this.count(s.item);
+  if(!have)throw Error('No '+s.item+' to drop');
+  const n=Math.min(have,s.count??have);
+  let left=n;
+  for(const it of b.inventory.items().filter(i=>i.name===s.item)){
+   if(left<=0)break;
+   const k=Math.min(left,it.count);
+   this.check(token);await b.toss(it.type,null,k);left-=k;
+  }
+  (this.droppedJunk||(this.droppedJunk=new Map())).set(s.item,Date.now());
+  await sleep(300);
+  if(this.count(s.item)>have-n)throw Error('Dropping '+s.item+' did not lower the count');
+  this.log('Dropped '+n+' '+s.item);
+ }
+ // A dropped item entity the bot tossed as junk a moment ago (drop job): not worth a walk.
+ isDroppedJunk(e){
+  try{
+   if(!this.droppedJunk||!this.droppedJunk.size)return false;
+   const it=typeof e.getDroppedItem==='function'?e.getDroppedItem():null,t=it&&this.droppedJunk.get(it.name);
+   return !!t&&Date.now()-t<JUNK_IGNORE_MS;
+  }catch{return false;}
  }
  async build(job,token){
   const b=this.bot,s=job.spec,blueprint=validateBlueprint(JSON.parse(fs.readFileSync(path.join(this.root,'blueprints',s.blueprint+'.json'),'utf8')));

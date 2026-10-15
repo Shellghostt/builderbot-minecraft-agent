@@ -7,7 +7,10 @@ export const jobSchema=z.discriminatedUnion('type',[
  // keepTable: leave a placed table standing for the next craft (wood-step ladder);
  // collectTable: pick the used table back up at the end of a step even when only reused.
  z.object({type:z.literal('craft'),item,count:z.number().int().min(1).max(128),keepTable:z.boolean().optional(),collectTable:z.boolean().optional()}).strict(),
- z.object({type:z.literal('deposit'),position,item:item.optional()}).strict(),
+ // keep (round 10, habit 6): with item, deposit all but this many.
+ z.object({type:z.literal('deposit'),position,item:item.optional(),keep:z.number().int().min(0).max(2304).optional()}).strict(),
+ // drop (round 10, habit 6): toss count (default all) of item - the autopilot drops only junk.
+ z.object({type:z.literal('drop'),item,count:z.number().int().min(1).max(2304).optional()}).strict(),
  z.object({type:z.literal('build'),blueprint:z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),origin:position}).strict(),
  // surface/surfaceY: the ladder's unblock explore after a surface gather stays on the stand
  // (worker.explore honours them; they were rejected by this schema until 2026-10-14, so the
